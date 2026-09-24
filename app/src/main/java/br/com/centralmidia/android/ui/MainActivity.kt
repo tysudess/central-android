@@ -10,13 +10,18 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.TextView
 import br.com.centralmidia.android.R
 import br.com.centralmidia.android.core.CatalogRepository
 import br.com.centralmidia.android.core.CentralDb
+import br.com.centralmidia.android.core.ResultStore
 import br.com.centralmidia.android.core.dp
 import kotlin.math.max
 
 class MainActivity : BaseActivity() {
+    private lateinit var db: CentralDb
+    private lateinit var resultStore: ResultStore
+    private lateinit var latestContainer: LinearLayout
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -39,27 +44,25 @@ class MainActivity : BaseActivity() {
             showAutomation = true,
         )
 
-        val db = CentralDb(this)
-        val prefs =
-            getSharedPreferences(
-                "dashboard_stats",
-                MODE_PRIVATE,
-            )
+        db = CentralDb(this)
+        resultStore = ResultStore(this)
 
-        val newsCount =
-            prefs.getInt(
-                "last_news_count",
-                0,
-            )
-        val videoCount =
-            prefs.getInt(
-                "last_video_count",
-                0,
-            )
-        val demandsCount =
-            db.demands().size
-        val sourcesCount =
-            CatalogRepository.news(this).size
+        val now = System.currentTimeMillis()
+        val todayStart = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val newsItems = resultStore.loadNews()
+        val videoItems = resultStore.loadVideos()
+        val newsCount = newsItems.count {
+            it.publishedAt >= now - 24L * 60L * 60L * 1000L
+        }
+        val videoCount = videoItems.size
+        val videoTodayCount = videoItems.count { it.publishedAt >= todayStart }
+        val demandsCount = db.demands().size
+        val sourcesCount = CatalogRepository.news(this).size
 
         val stats = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -95,7 +98,7 @@ class MainActivity : BaseActivity() {
                 statCard(
                     R.drawable.ic_video,
                     "Vídeos hoje",
-                    videoCount.toString(),
+                    videoTodayCount.toString(),
                     "capturados hoje",
                     Color.rgb(
                         224,
@@ -148,6 +151,10 @@ class MainActivity : BaseActivity() {
             summaryCard(db),
             MobileUi.match(dp(12)),
         )
+        root.addView(
+            latestResultsCard(),
+            MobileUi.match(dp(12)),
+        )
 
         root.addView(
             MobileUi.text(
@@ -160,6 +167,122 @@ class MainActivity : BaseActivity() {
             ),
             MobileUi.match(dp(14)),
         )
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::resultStore.isInitialized) {
+            refreshDashboard()
+        }
+    }
+
+    private fun refreshDashboard() {
+        val now = System.currentTimeMillis()
+        val todayStart = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val news = resultStore.loadNews()
+        val videos = resultStore.loadVideos()
+        val demands = db.demands()
+
+        window.decorView.findViewWithTag<TextView>("dashboard:Notícias 24h")?.text =
+            news.count { it.publishedAt >= now - 24L * 60L * 60L * 1000L }.toString()
+        window.decorView.findViewWithTag<TextView>("dashboard:Vídeos armazenados")?.text =
+            videos.size.toString()
+        window.decorView.findViewWithTag<TextView>("dashboard:Vídeos hoje")?.text =
+            videos.count { it.publishedAt >= todayStart }.toString()
+        window.decorView.findViewWithTag<TextView>("dashboard:Demandas")?.text =
+            demands.size.toString()
+        window.decorView.findViewWithTag<TextView>("dashboard:Fontes")?.text =
+            CatalogRepository.news(this).size.toString()
+
+        if (::latestContainer.isInitialized) {
+            renderLatestResults(news, videos, demands.size)
+        }
+    }
+
+    private fun latestResultsCard(): View {
+        val card = MobileUi.card(this)
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        box.addView(
+            MobileUi.text(
+                this,
+                "Últimos resultados sincronizados",
+                18f,
+                MobileUi.NAVY,
+                true,
+            ),
+        )
+        box.addView(
+            MobileUi.text(
+                this,
+                "Os mesmos resultados mantidos nas abas Notícias, Vídeos e Demandas.",
+                10.5f,
+                MobileUi.MUTED,
+            ),
+            MobileUi.match(dp(4)),
+        )
+        latestContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        box.addView(latestContainer, MobileUi.match(dp(8)))
+        card.addView(box)
+        renderLatestResults(
+            resultStore.loadNews(),
+            resultStore.loadVideos(),
+            db.demands().size,
+        )
+        return card
+    }
+
+    private fun renderLatestResults(
+        news: List<br.com.centralmidia.android.core.NewsItem>,
+        videos: List<br.com.centralmidia.android.core.VideoSearchClient.VideoItem>,
+        demandCount: Int,
+    ) {
+        if (!::latestContainer.isInitialized) return
+        latestContainer.removeAllViews()
+
+        val rows = mutableListOf<Pair<String, String>>()
+        news.maxByOrNull { it.publishedAt }?.let {
+            rows += "Notícia" to it.title
+        }
+        videos.maxByOrNull { it.publishedAt }?.let {
+            rows += "Vídeo" to it.title
+        }
+        rows += "Demandas" to "$demandCount demanda(s) ativa(s)"
+
+        rows.forEachIndexed { index, row ->
+            latestContainer.addView(
+                MobileUi.text(
+                    this,
+                    "${row.first}  •  ${row.second}",
+                    11f,
+                    if (index == 2) MobileUi.ORANGE else MobileUi.NAVY,
+                    true,
+                ).apply {
+                    setPadding(dp(10), dp(9), dp(10), dp(9))
+                    background = MobileUi.rounded(
+                        Color.rgb(249, 252, 255),
+                        dp(9).toFloat(),
+                        MobileUi.BORDER,
+                        dp(1),
+                    )
+                },
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ).apply {
+                    bottomMargin = dp(6)
+                },
+            )
+        }
     }
 
     private fun statRow(
@@ -253,7 +376,9 @@ class MainActivity : BaseActivity() {
                 24f,
                 MobileUi.NAVY,
                 true,
-            ),
+            ).apply {
+                tag = "dashboard:$title"
+            },
         )
         copy.addView(
             MobileUi.text(

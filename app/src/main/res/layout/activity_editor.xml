@@ -43,7 +43,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="SEQUENCE STUDIO  //  v1.9.10"
+                    android:text="CENTRAL DE INTELIGÊNCIA DE MÍDIA"
                     android:textColor="@color/accent"
                     android:textSize="10sp"
                     android:textStyle="bold"
@@ -54,7 +54,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="3dp"
                     android:text="Editor de timeline"
-                    android:textColor="@color/white"
+                    android:textColor="@color/text_primary"
                     android:textSize="22sp"
                     android:textStyle="bold" />
             </LinearLayout>
@@ -209,7 +209,7 @@
                     android:layout_width="72dp"
                     android:layout_height="wrap_content"
                     android:gravity="center"
-                    android:text="ZOOM 3/6"
+                    android:text="ZOOM 3/7"
                     android:textColor="@color/accent"
                     android:textSize="10sp"
                     android:textStyle="bold" />

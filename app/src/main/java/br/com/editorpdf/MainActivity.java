@@ -1,5 +1,8 @@
 package br.com.editorpdf;
 
+import br.com.centralmidia.android.ui.MobileScaffold;
+import br.com.centralmidia.android.ui.PdfEditorActivity;
+
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.ContentResolver;
@@ -78,19 +81,12 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().setStatusBarColor(Color.rgb(16, 19, 26));
-        getWindow().setNavigationBarColor(Color.rgb(16, 19, 26));
+        getWindow().setStatusBarColor(Color.rgb(246, 249, 253));
+        getWindow().setNavigationBarColor(Color.WHITE);
         registerLaunchers();
         loadCoverPreference();
         buildUi();
-        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
-        View systemRoot = findViewById(android.R.id.content);
-        ViewCompat.setOnApplyWindowInsetsListener(systemRoot, (v, insets) -> {
-            androidx.core.graphics.Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
-            return insets;
-        });
-        ViewCompat.requestApplyInsets(systemRoot);
+        MobileScaffold.attachModule(this, PdfEditorActivity.class);
     }
 
     private void registerLaunchers() {
@@ -128,12 +124,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void buildUi() {
-        final int BG = 0xFF0B1220;
-        final int PANEL = 0xFF111D2C;
-        final int CARD = 0xFF152235;
-        final int BORDER = 0xFF2A4058;
-        final int MUTED = 0xFF95A8BF;
-        final int PRIMARY = 0xFF1769D2;
+        final int BG = 0xFFF6F9FD;
+        final int PANEL = 0xFFFFFFFF;
+        final int CARD = 0xFFFAFCFF;
+        final int BORDER = 0xFFD8E4F3;
+        final int MUTED = 0xFF5B749E;
+        final int PRIMARY = 0xFF147EF6;
 
         // A tela passa a ser rolavel para a pre-visualizacao poder ocupar uma area
         // realmente grande, sem espremer Páginas e Configuracoes no mesmo viewport.
@@ -169,7 +165,7 @@ public class MainActivity extends AppCompatActivity {
 
         LinearLayout titleBox = new LinearLayout(this);
         titleBox.setOrientation(LinearLayout.VERTICAL);
-        TextView title = text("Editor de PDF", 22, Color.WHITE);
+        TextView title = text("Editor de PDF", 22, 0xFF0A2B63);
         title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
         TextView sub = text("Edite, organize e gere PDFs", 12, MUTED);
         titleBox.addView(title);
@@ -199,7 +195,7 @@ public class MainActivity extends AppCompatActivity {
         LinearLayout previewHeader = new LinearLayout(this);
         previewHeader.setOrientation(LinearLayout.HORIZONTAL);
         previewHeader.setGravity(Gravity.CENTER_VERTICAL);
-        TextView previewTitle = text("PRÉ-VISUALIZAÇÃO", 12, 0xFFC7D3E3);
+        TextView previewTitle = text("PRÉ-VISUALIZAÇÃO", 12, 0xFF0A2B63);
         previewTitle.setTypeface(previewTitle.getTypeface(), android.graphics.Typeface.BOLD);
         previewHeader.addView(previewTitle, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         status = text("Pronto", 11, MUTED);
@@ -216,7 +212,7 @@ public class MainActivity extends AppCompatActivity {
 
         preview = new CropImageView(this);
         preview.setAdjustViewBounds(false);
-        preview.setBackground(rounded(0xFF0B1420, 0xFF263A51, 10));
+        preview.setBackground(rounded(0xFFF8FBFF, 0xFFD8E4F3, 10));
         preview.setPadding(dp(6), dp(6), dp(6), dp(6));
         preview.setOnCropSelectedListener(crop -> {
             setStatus("Modo de corte ativo");
@@ -249,7 +245,7 @@ public class MainActivity extends AppCompatActivity {
         addModernButton(tools, "Remover recorte", CARD, v -> clearCrop());
         addModernButton(tools, "↑", CARD, v -> moveSelected(-1));
         addModernButton(tools, "↓", CARD, v -> moveSelected(1));
-        addModernButton(tools, "Excluir", 0xFF38202A, v -> deleteSelected());
+        addModernButton(tools, "Excluir", 0xFFFFF4F8, v -> deleteSelected());
 
         // Faixa de páginas.
         LinearLayout pagesCard = new LinearLayout(this);
@@ -281,7 +277,7 @@ public class MainActivity extends AppCompatActivity {
         coverRow.setGravity(Gravity.CENTER_VERTICAL);
         includeCover = new CheckBox(this);
         includeCover.setText("Incluir capa padrão");
-        includeCover.setTextColor(Color.WHITE);
+        includeCover.setTextColor(0xFF0A2B63);
         includeCover.setChecked(true);
         coverRow.addView(includeCover, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         Button restore = modernButton("Restaurar", CARD);
@@ -740,12 +736,12 @@ public class MainActivity extends AppCompatActivity {
         Button b = new Button(this);
         b.setText(label);
         b.setTextSize(12);
-        b.setTextColor(Color.WHITE);
+        b.setTextColor(fillColor == 0xFF147EF6 ? Color.WHITE : 0xFF0A2B63);
         b.setAllCaps(false);
         b.setMinHeight(0);
         b.setMinimumHeight(0);
         b.setPadding(dp(14), 0, dp(14), 0);
-        b.setBackground(rounded(fillColor, fillColor == 0xFF1769D2 ? 0xFF2C82EA : 0xFF314861, 9));
+        b.setBackground(rounded(fillColor, fillColor == 0xFF147EF6 ? 0xFF0F66CB : 0xFFD8E4F3, 9));
         return b;
     }
 
@@ -758,11 +754,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private Button button(String label) {
-        return modernButton(label, 0xFF152235);
+        return modernButton(label, 0xFFFFFFFF);
     }
 
     private void addButton(LinearLayout parent, String label, View.OnClickListener listener) {
-        addModernButton(parent, label, 0xFF152235, listener);
+        addModernButton(parent, label, 0xFFFFFFFF, listener);
     }
 
     private int dp(int value) {
@@ -797,7 +793,7 @@ public class MainActivity extends AppCompatActivity {
             android.widget.ImageView img = new android.widget.ImageView(MainActivity.this);
             img.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
             box.addView(img, new LinearLayout.LayoutParams(dp(72), dp(72)));
-            TextView label = text("", 10, Color.WHITE);
+            TextView label = text("", 10, 0xFF0A2B63);
             label.setGravity(Gravity.CENTER);
             box.addView(label, new LinearLayout.LayoutParams(dp(92), dp(28)));
             return new PageHolder(box, img, label);
@@ -807,7 +803,7 @@ public class MainActivity extends AppCompatActivity {
         public void onBindViewHolder(@NonNull PageHolder holder, int position) {
             PageItem item = pages.get(position);
             holder.label.setText((position + 1) + (item.pdf ? " • PDF" : " • IMG"));
-            holder.itemView.setBackground(rounded(position == selectedIndex ? 0xFF163E70 : 0xFF152235, position == selectedIndex ? 0xFF2F8CFF : 0xFF2A4058, 9));
+            holder.itemView.setBackground(rounded(position == selectedIndex ? 0xFFE5F1FF : 0xFFFFFFFF, position == selectedIndex ? 0xFF147EF6 : 0xFFD8E4F3, 9));
             if (item.thumbnail == null || item.thumbnail.isRecycled()) {
                 try {
                     item.thumbnail = renderPage(item, 260, true);

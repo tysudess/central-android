@@ -1,5 +1,6 @@
 package br.com.centralmidia.android.ui
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
@@ -15,6 +16,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -22,14 +24,13 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import br.com.centralmidia.android.R
 import br.com.centralmidia.android.automation.MonitoringScheduler
+import br.com.centralmidia.android.core.AuthManager
 import br.com.centralmidia.android.core.dp
 import br.com.centralmidia.android.recording.ScreenRecordService
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 
 object MobileScaffold {
-    // MORE foi mantido somente para compatibilidade com as Activities existentes.
-    // Ele não aparece mais na navegação inferior.
     enum class Tab { HOME, NEWS, VIDEOS, MORE }
 
     fun page(
@@ -67,16 +68,22 @@ object MobileScaffold {
             orientation = LinearLayout.VERTICAL
             setPadding(
                 activity.dp(16),
-                activity.dp(8),
+                activity.dp(if (selected == Tab.HOME) 8 else 4),
                 activity.dp(16),
-                activity.dp(22),
+                activity.dp(18),
             )
         }
 
         content.addView(header(activity), MobileUi.match())
         content.addView(
-            titleBlock(activity, title, subtitle, showAutomation),
-            MobileUi.match(activity.dp(8)),
+            titleBlock(
+                activity = activity,
+                title = title,
+                subtitle = subtitle,
+                showHomeDetails = selected == Tab.HOME,
+                showAutomation = showAutomation,
+            ),
+            MobileUi.match(activity.dp(if (selected == Tab.HOME) 8 else 2)),
         )
 
         scroll.addView(
@@ -96,7 +103,10 @@ object MobileScaffold {
             ),
         )
 
-        val bottom = bottomNav(activity)
+        val bottom = bottomNav(
+            activity,
+            activity::class.java,
+        )
         shell.addView(bottom, MobileUi.match())
 
         ViewCompat.setOnApplyWindowInsetsListener(shell) { _, insets ->
@@ -116,41 +126,182 @@ object MobileScaffold {
         return content
     }
 
-    private fun header(activity: BaseActivity): View {
-        val session = activity.auth.session
-
-        val row = LinearLayout(activity).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, activity.dp(2), 0, activity.dp(8))
-        }
-
-        val logo = LinearLayout(activity).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.BOTTOM
-
-            val heights = listOf(16, 24, 32)
-            heights.forEachIndexed { index, height ->
-                addView(
-                    View(activity).apply {
-                        background = MobileUi.rounded(
-                            when (index) {
-                                0 -> Color.rgb(83, 164, 255)
-                                1 -> Color.rgb(48, 139, 246)
-                                else -> Color.rgb(25, 113, 230)
-                            },
-                            activity.dp(5).toFloat(),
-                        )
-                    },
-                    LinearLayout.LayoutParams(
-                        activity.dp(6),
-                        activity.dp(height),
-                    ).apply {
-                        marginEnd = activity.dp(3)
-                    },
-                )
+    /**
+     * Integra módulos importados (Capas/PDF/Extrator/Editor) ao mesmo shell
+     * visual da Central, preservando a barra de abas inferior.
+     */
+    @JvmStatic
+    fun attachModule(
+        activity: Activity,
+        currentCentralClass: Class<*>,
+    ) {
+        activity.window.statusBarColor = Color.TRANSPARENT
+        activity.window.navigationBarColor = Color.TRANSPARENT
+        WindowCompat.setDecorFitsSystemWindows(
+            activity.window,
+            false,
+        )
+        WindowCompat.getInsetsController(
+            activity.window,
+            activity.window.decorView,
+        ).apply {
+            isAppearanceLightStatusBars = true
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                isAppearanceLightNavigationBars = true
             }
         }
+
+        val frame =
+            activity.findViewById<ViewGroup>(
+                android.R.id.content,
+            )
+                ?: return
+
+        if (
+            frame.childCount == 1 &&
+            frame.getChildAt(0)
+                .tag == MODULE_SHELL_TAG
+        ) {
+            return
+        }
+
+        val existing =
+            frame.getChildAt(0)
+                ?: return
+
+        frame.removeView(existing)
+
+        val shell = LinearLayout(activity).apply {
+            tag = MODULE_SHELL_TAG
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(MobileUi.BG)
+        }
+
+        shell.addView(
+            existing,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                1f,
+            ),
+        )
+
+        val bottom =
+            bottomNav(
+                activity,
+                currentCentralClass,
+            )
+
+        shell.addView(
+            bottom,
+            MobileUi.match(),
+        )
+
+        ViewCompat.setOnApplyWindowInsetsListener(shell) { _, insets ->
+            val bars =
+                insets.getInsets(
+                    WindowInsetsCompat.Type.systemBars(),
+                )
+            shell.setPadding(
+                0,
+                bars.top,
+                0,
+                0,
+            )
+            bottom.setPadding(
+                activity.dp(8),
+                activity.dp(5),
+                activity.dp(8),
+                activity.dp(6) + bars.bottom,
+            )
+            insets
+        }
+
+        frame.addView(
+            shell,
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        ViewCompat.requestApplyInsets(shell)
+    }
+
+    private fun header(
+        activity: BaseActivity,
+    ): View {
+        val session =
+            activity.auth.session
+
+        val row =
+            LinearLayout(activity).apply {
+                orientation =
+                    LinearLayout.HORIZONTAL
+                gravity =
+                    Gravity.CENTER_VERTICAL
+                setPadding(
+                    0,
+                    activity.dp(2),
+                    0,
+                    activity.dp(5),
+                )
+            }
+
+        val logo =
+            LinearLayout(activity).apply {
+                orientation =
+                    LinearLayout.HORIZONTAL
+                gravity =
+                    Gravity.BOTTOM
+
+                listOf(
+                    16,
+                    24,
+                    32,
+                ).forEachIndexed {
+                        index,
+                        height,
+                    ->
+                    addView(
+                        View(activity).apply {
+                            background =
+                                MobileUi.rounded(
+                                    when (index) {
+                                        0 ->
+                                            Color.rgb(
+                                                83,
+                                                164,
+                                                255,
+                                            )
+
+                                        1 ->
+                                            Color.rgb(
+                                                48,
+                                                139,
+                                                246,
+                                            )
+
+                                        else ->
+                                            Color.rgb(
+                                                25,
+                                                113,
+                                                230,
+                                            )
+                                    },
+                                    activity.dp(5)
+                                        .toFloat(),
+                                )
+                        },
+                        LinearLayout.LayoutParams(
+                            activity.dp(6),
+                            activity.dp(height),
+                        ).apply {
+                            marginEnd =
+                                activity.dp(3)
+                        },
+                    )
+                }
+            }
 
         row.addView(
             logo,
@@ -173,49 +324,53 @@ object MobileScaffold {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 1f,
             ).apply {
-                marginStart = activity.dp(8)
+                marginStart =
+                    activity.dp(8)
             },
         )
 
-        val account = LinearLayout(activity).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            isClickable = true
-            isFocusable = true
-            setPadding(
-                activity.dp(6),
-                activity.dp(4),
-                activity.dp(4),
-                activity.dp(4),
-            )
-            setOnClickListener {
-                open(
-                    activity = activity,
-                    cls = AccountActivity::class.java,
-                    forward = true,
-                )
-            }
-        }
-
         val initial =
-            session?.user?.name?.trim()?.firstOrNull()?.uppercaseChar()?.toString()
-                ?: session?.user?.username?.trim()?.firstOrNull()?.uppercaseChar()?.toString()
+            session?.user?.name
+                ?.trim()
+                ?.firstOrNull()
+                ?.uppercaseChar()
+                ?.toString()
+                ?: session?.user?.username
+                    ?.trim()
+                    ?.firstOrNull()
+                    ?.uppercaseChar()
+                    ?.toString()
                 ?: "U"
 
-        val avatar = MobileUi.text(
-            activity,
-            initial,
-            16f,
-            Color.WHITE,
-            true,
-        ).apply {
-            gravity = Gravity.CENTER
-            background = MobileUi.oval(
-                Color.rgb(86, 157, 245),
-            )
-        }
+        val avatar =
+            MobileUi.text(
+                activity,
+                initial,
+                16f,
+                Color.WHITE,
+                true,
+            ).apply {
+                gravity = Gravity.CENTER
+                background =
+                    MobileUi.oval(
+                        Color.rgb(
+                            86,
+                            157,
+                            245,
+                        ),
+                    )
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    open(
+                        activity,
+                        AccountActivity::class.java,
+                        true,
+                    )
+                }
+            }
 
-        account.addView(
+        row.addView(
             avatar,
             LinearLayout.LayoutParams(
                 activity.dp(42),
@@ -223,7 +378,6 @@ object MobileScaffold {
             ),
         )
 
-        row.addView(account)
         return row
     }
 
@@ -231,11 +385,14 @@ object MobileScaffold {
         activity: BaseActivity,
         title: String,
         subtitle: String,
+        showHomeDetails: Boolean,
         showAutomation: Boolean,
     ): View {
-        val outer = LinearLayout(activity).apply {
-            orientation = LinearLayout.VERTICAL
-        }
+        val outer =
+            LinearLayout(activity).apply {
+                orientation =
+                    LinearLayout.VERTICAL
+            }
 
         outer.addView(
             MobileUi.text(
@@ -247,41 +404,48 @@ object MobileScaffold {
             ),
         )
 
-        val titleRow = LinearLayout(activity).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.TOP
-        }
+        val row =
+            LinearLayout(activity).apply {
+                orientation =
+                    LinearLayout.HORIZONTAL
+                gravity =
+                    Gravity.CENTER_VERTICAL
+            }
 
-        val copy = LinearLayout(activity).apply {
-            orientation = LinearLayout.VERTICAL
-        }
+        val copy =
+            LinearLayout(activity).apply {
+                orientation =
+                    LinearLayout.VERTICAL
+            }
+
         copy.addView(
             MobileUi.text(
                 activity,
                 title,
-                28f,
+                if (showHomeDetails) 28f else 23f,
                 MobileUi.NAVY,
                 true,
             ),
         )
-        copy.addView(
-            MobileUi.text(
-                activity,
-                subtitle,
-                13.5f,
-                MobileUi.MUTED,
-                false,
-            ).apply {
-                setPadding(
-                    0,
-                    activity.dp(2),
-                    activity.dp(8),
-                    0,
-                )
-            },
-        )
 
-        titleRow.addView(
+        if (
+            showHomeDetails &&
+            subtitle.isNotBlank()
+        ) {
+            copy.addView(
+                MobileUi.text(
+                    activity,
+                    subtitle,
+                    13f,
+                    MobileUi.MUTED,
+                ),
+                MobileUi.match(
+                    activity.dp(2),
+                ),
+            )
+        }
+
+        row.addView(
             copy,
             LinearLayout.LayoutParams(
                 0,
@@ -290,52 +454,72 @@ object MobileScaffold {
             ),
         )
 
-        val chips = LinearLayout(activity).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.END
-        }
-
-        chips.addView(
-            MobileUi.statusChip(
-                activity,
-                "●  Conexão direta",
-                MobileUi.GREEN,
-            ),
-            MobileUi.wrap(),
-        )
-
-        if (showAutomation) {
-            val automation = MobileUi.statusChip(
-                activity,
-                "●  Automação pronta",
-                MobileUi.GREEN,
-            )
-            chips.addView(
-                automation,
-                MobileUi.wrap(activity.dp(6)),
-            )
-
-            WorkManager.getInstance(activity)
-                .getWorkInfosByTagLiveData("central-monitoring")
-                .observe(activity) { infos ->
-                    val active = infos.any {
-                        it.state == WorkInfo.State.ENQUEUED ||
-                            it.state == WorkInfo.State.RUNNING
-                    }
-                    automation.text =
-                        if (active) "●  Automação ativa" else "●  Automação pronta"
+        if (showHomeDetails) {
+            val chips =
+                LinearLayout(activity).apply {
+                    orientation =
+                        LinearLayout.VERTICAL
+                    gravity = Gravity.END
                 }
+
+            chips.addView(
+                MobileUi.statusChip(
+                    activity,
+                    "●  Conexão direta",
+                    MobileUi.GREEN,
+                ),
+            )
+
+            if (showAutomation) {
+                val automation =
+                    MobileUi.statusChip(
+                        activity,
+                        "●  Automação pronta",
+                        MobileUi.GREEN,
+                    )
+
+                chips.addView(
+                    automation,
+                    MobileUi.wrap(
+                        activity.dp(6),
+                    ),
+                )
+
+                WorkManager
+                    .getInstance(activity)
+                    .getWorkInfosByTagLiveData(
+                        "central-monitoring",
+                    )
+                    .observe(activity) {
+                            infos,
+                        ->
+                        val active =
+                            infos.any {
+                                it.state ==
+                                    WorkInfo.State.ENQUEUED ||
+                                    it.state ==
+                                    WorkInfo.State.RUNNING
+                            }
+
+                        automation.text =
+                            if (active) {
+                                "●  Automação ativa"
+                            } else {
+                                "●  Automação pronta"
+                            }
+                    }
+            }
+
+            row.addView(chips)
         }
 
-        titleRow.addView(
-            chips,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
+        outer.addView(
+            row,
+            MobileUi.match(
+                activity.dp(2),
             ),
         )
 
-        outer.addView(titleRow, MobileUi.match(activity.dp(3)))
         return outer
     }
 
@@ -349,154 +533,331 @@ object MobileScaffold {
     )
 
     private fun bottomNav(
-        activity: BaseActivity,
+        activity: Activity,
+        currentCentralClass: Class<*>,
     ): LinearLayout {
-        val session = activity.auth.session
-        val allAccess =
-            session?.user?.profile.equals("ADMIN", true) ||
-                session?.user?.profile.equals("OPERADOR", true)
+        val session =
+            AuthManager
+                .get(activity)
+                .session
 
-        fun allowed(permission: String?): Boolean =
+        val allAccess =
+            session?.user?.profile
+                .equals(
+                    "ADMIN",
+                    true,
+                ) ||
+                session?.user?.profile
+                    .equals(
+                        "OPERADOR",
+                        true,
+                    )
+
+        fun allowed(
+            permission: String?,
+        ): Boolean =
             permission == null ||
                 allAccess ||
-                permission in session?.user?.permissions.orEmpty()
+                permission in
+                session?.user
+                    ?.permissions
+                    .orEmpty()
 
-        val allItems = listOf(
-            NavItem("Início", R.drawable.ic_home, cls = MainActivity::class.java),
-            NavItem("Notícias", R.drawable.ic_news, cls = NewsActivity::class.java),
-            NavItem("Vídeos", R.drawable.ic_video, cls = VideosActivity::class.java),
-            NavItem("Demandas", R.drawable.ic_demands, "demands", DemandsActivity::class.java, MobileUi.ORANGE),
-            NavItem("Fontes", R.drawable.ic_sources, "sources", SourcesActivity::class.java, MobileUi.GREEN),
-            NavItem("Histórico", R.drawable.ic_history, "history", HistoryActivity::class.java),
-            NavItem("Termos", R.drawable.ic_terms, "terms", TermsActivity::class.java, MobileUi.PURPLE),
-            NavItem("Extrator\nNotícias", R.drawable.ic_news, "news_extractor", NewsExtractorActivity::class.java),
-            NavItem("Capas", R.drawable.ic_news, "covers", CoversActivity::class.java),
-            NavItem("Editor\nPDF", R.drawable.ic_terms, "pdf_editor", PdfEditorActivity::class.java, MobileUi.PURPLE),
-            NavItem("Extrator\nVídeos", R.drawable.ic_video, "extractor", VideoExtractorActivity::class.java, MobileUi.PURPLE),
-            NavItem("Editor\nVídeo", R.drawable.ic_video, "video_editor", VideoEditorActivity::class.java),
-            NavItem("Gravador", R.drawable.ic_video, "video_editor", ScreenRecorderActivity::class.java, MobileUi.PINK),
-            NavItem("Config.", R.drawable.ic_more, "settings", SettingsActivity::class.java),
-            NavItem("Minha\nConta", R.drawable.ic_home, cls = AccountActivity::class.java, accent = MobileUi.GREEN),
-            NavItem(
-                label = "Parar",
-                icon = R.drawable.ic_delete,
-                accent = MobileUi.PINK,
-                action = {
-                    MonitoringScheduler.cancel(activity)
-                    WorkManager.getInstance(activity)
-                        .cancelAllWorkByTag("central-monitoring")
-                    activity.stopService(
-                        Intent(
+        val allItems =
+            listOf(
+                NavItem(
+                    "Início",
+                    R.drawable.ic_home,
+                    cls =
+                        MainActivity::class.java,
+                ),
+                NavItem(
+                    "Notícias",
+                    R.drawable.ic_news,
+                    cls =
+                        NewsActivity::class.java,
+                ),
+                NavItem(
+                    "Vídeos",
+                    R.drawable.ic_video,
+                    cls =
+                        VideosActivity::class.java,
+                ),
+                NavItem(
+                    "Demandas",
+                    R.drawable.ic_demands,
+                    "demands",
+                    DemandsActivity::class.java,
+                    MobileUi.ORANGE,
+                ),
+                NavItem(
+                    "Fontes",
+                    R.drawable.ic_sources,
+                    "sources",
+                    SourcesActivity::class.java,
+                    MobileUi.GREEN,
+                ),
+                NavItem(
+                    "Histórico",
+                    R.drawable.ic_history,
+                    "history",
+                    HistoryActivity::class.java,
+                ),
+                NavItem(
+                    "Termos",
+                    R.drawable.ic_terms,
+                    "terms",
+                    TermsActivity::class.java,
+                    MobileUi.PURPLE,
+                ),
+                NavItem(
+                    "Extrator\nNotícias",
+                    R.drawable.ic_news,
+                    "news_extractor",
+                    NewsExtractorActivity::class.java,
+                ),
+                NavItem(
+                    "Capas",
+                    R.drawable.ic_news,
+                    "covers",
+                    CoversActivity::class.java,
+                ),
+                NavItem(
+                    "Editor\nPDF",
+                    R.drawable.ic_terms,
+                    "pdf_editor",
+                    PdfEditorActivity::class.java,
+                    MobileUi.PURPLE,
+                ),
+                NavItem(
+                    "Extrator\nVídeos",
+                    R.drawable.ic_video,
+                    "extractor",
+                    VideoExtractorActivity::class.java,
+                    MobileUi.PURPLE,
+                ),
+                NavItem(
+                    "Editor\nVídeo",
+                    R.drawable.ic_video,
+                    "video_editor",
+                    VideoEditorActivity::class.java,
+                ),
+                NavItem(
+                    "Gravador",
+                    R.drawable.ic_video,
+                    "video_editor",
+                    ScreenRecorderActivity::class.java,
+                    MobileUi.PINK,
+                ),
+                NavItem(
+                    "Config.",
+                    R.drawable.ic_more,
+                    "settings",
+                    SettingsActivity::class.java,
+                ),
+                NavItem(
+                    "Minha\nConta",
+                    R.drawable.ic_home,
+                    cls =
+                        AccountActivity::class.java,
+                    accent =
+                        MobileUi.GREEN,
+                ),
+                NavItem(
+                    "Parar",
+                    R.drawable.ic_delete,
+                    accent =
+                        MobileUi.PINK,
+                    action = {
+                        MonitoringScheduler
+                            .cancel(activity)
+
+                        WorkManager
+                            .getInstance(activity)
+                            .cancelAllWorkByTag(
+                                "central-monitoring",
+                            )
+
+                        activity.stopService(
+                            Intent(
+                                activity,
+                                ScreenRecordService::class.java,
+                            ),
+                        )
+
+                        Toast.makeText(
                             activity,
-                            ScreenRecordService::class.java,
-                        ),
-                    )
-                    activity.toast(
-                        "Buscas, automações e gravações solicitadas para parar.",
-                    )
-                },
-            ),
-        )
+                            "Buscas, automações e gravações solicitadas para parar.",
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    },
+                ),
+            )
 
-        val items = allItems.filter { allowed(it.permission) }
-        val currentClass = activity::class.java
-        val currentIndex = items.indexOfFirst { it.cls == currentClass }
+        val items =
+            allItems.filter {
+                allowed(
+                    it.permission,
+                )
+            }
 
-        val wrapper = LinearLayout(activity).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.WHITE)
-            elevation = activity.dp(14).toFloat()
-        }
+        val currentIndex =
+            items.indexOfFirst {
+                it.cls ==
+                    currentCentralClass
+            }
 
-        val divider = View(activity).apply {
-            setBackgroundColor(Color.rgb(229, 236, 246))
-        }
+        val wrapper =
+            LinearLayout(activity).apply {
+                orientation =
+                    LinearLayout.VERTICAL
+                setBackgroundColor(
+                    Color.WHITE,
+                )
+                elevation =
+                    activity.dp(14)
+                        .toFloat()
+            }
+
         wrapper.addView(
-            divider,
+            View(activity).apply {
+                setBackgroundColor(
+                    Color.rgb(
+                        229,
+                        236,
+                        246,
+                    ),
+                )
+            },
             LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 activity.dp(1),
             ),
         )
 
-        val scroll = HorizontalScrollView(activity).apply {
-            isHorizontalScrollBarEnabled = false
-            isFillViewport = false
-            overScrollMode = View.OVER_SCROLL_NEVER
-            isSmoothScrollingEnabled = true
-        }
-
-        val row = LinearLayout(activity).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(
-                activity.dp(2),
-                activity.dp(4),
-                activity.dp(2),
-                activity.dp(4),
-            )
-        }
-
-        var selectedView: View? = null
-
-        items.forEachIndexed { index, item ->
-            val selectedItem = item.cls == currentClass
-
-            val itemView = LinearLayout(activity).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-                isClickable = true
-                isFocusable = true
-                contentDescription = item.label.replace("\n", " ")
-
-                setPadding(
-                    activity.dp(7),
-                    activity.dp(6),
-                    activity.dp(7),
-                    activity.dp(5),
-                )
-
-                background =
-                    if (selectedItem) {
-                        MobileUi.rounded(
-                            when (item.accent) {
-                                MobileUi.GREEN -> MobileUi.GREEN_TINT
-                                MobileUi.PURPLE -> MobileUi.PURPLE_TINT
-                                MobileUi.ORANGE -> MobileUi.ORANGE_TINT
-                                MobileUi.PINK -> MobileUi.PINK_TINT
-                                else -> MobileUi.BLUE_TINT
-                            },
-                            activity.dp(22).toFloat(),
-                        )
-                    } else {
-                        MobileUi.rounded(
-                            Color.TRANSPARENT,
-                            activity.dp(22).toFloat(),
-                        )
-                    }
-
-                setOnClickListener {
-                    item.action?.invoke()
-                        ?: item.cls?.let { cls ->
-                            if (cls != currentClass) {
-                                val forward =
-                                    currentIndex < 0 ||
-                                        index >= currentIndex
-                                open(
-                                    activity = activity,
-                                    cls = cls,
-                                    forward = forward,
-                                )
-                            }
-                        }
-                }
+        val scroll =
+            HorizontalScrollView(
+                activity,
+            ).apply {
+                isHorizontalScrollBarEnabled =
+                    false
+                isFillViewport = false
+                overScrollMode =
+                    View.OVER_SCROLL_NEVER
+                isSmoothScrollingEnabled =
+                    true
             }
+
+        val row =
+            LinearLayout(activity).apply {
+                orientation =
+                    LinearLayout.HORIZONTAL
+                gravity =
+                    Gravity.CENTER_VERTICAL
+                setPadding(
+                    activity.dp(2),
+                    activity.dp(4),
+                    activity.dp(2),
+                    activity.dp(4),
+                )
+            }
+
+        var selectedView: View? =
+            null
+
+        items.forEachIndexed {
+                index,
+                item,
+            ->
+            val selected =
+                item.cls ==
+                    currentCentralClass
+
+            val itemView =
+                LinearLayout(activity).apply {
+                    orientation =
+                        LinearLayout.VERTICAL
+                    gravity = Gravity.CENTER
+                    isClickable = true
+                    isFocusable = true
+                    contentDescription =
+                        item.label.replace(
+                            "\n",
+                            " ",
+                        )
+
+                    setPadding(
+                        activity.dp(7),
+                        activity.dp(6),
+                        activity.dp(7),
+                        activity.dp(5),
+                    )
+
+                    background =
+                        if (selected) {
+                            MobileUi.rounded(
+                                when (
+                                    item.accent
+                                ) {
+                                    MobileUi.GREEN ->
+                                        MobileUi.GREEN_TINT
+
+                                    MobileUi.PURPLE ->
+                                        MobileUi.PURPLE_TINT
+
+                                    MobileUi.ORANGE ->
+                                        MobileUi.ORANGE_TINT
+
+                                    MobileUi.PINK ->
+                                        MobileUi.PINK_TINT
+
+                                    else ->
+                                        MobileUi.BLUE_TINT
+                                },
+                                activity.dp(22)
+                                    .toFloat(),
+                            )
+                        } else {
+                            MobileUi.rounded(
+                                Color.TRANSPARENT,
+                                activity.dp(22)
+                                    .toFloat(),
+                            )
+                        }
+
+                    setOnClickListener {
+                        item.action
+                            ?.invoke()
+                            ?: item.cls
+                                ?.let {
+                                        cls,
+                                    ->
+                                    if (
+                                        cls !=
+                                        currentCentralClass
+                                    ) {
+                                        open(
+                                            activity,
+                                            cls,
+                                            currentIndex <
+                                                0 ||
+                                                index >=
+                                                currentIndex,
+                                        )
+                                    }
+                                }
+                    }
+                }
 
             itemView.addView(
                 MobileUi.icon(
                     activity,
                     item.icon,
-                    if (selectedItem) item.accent else MobileUi.NAVY,
+                    if (selected) {
+                        item.accent
+                    } else {
+                        MobileUi.NAVY
+                    },
                     22,
                 ),
             )
@@ -506,14 +867,22 @@ object MobileScaffold {
                     activity,
                     item.label,
                     10.5f,
-                    if (selectedItem) item.accent else MobileUi.MUTED,
-                    selectedItem,
+                    if (selected) {
+                        item.accent
+                    } else {
+                        MobileUi.MUTED
+                    },
+                    selected,
                 ).apply {
-                    gravity = Gravity.CENTER
+                    gravity =
+                        Gravity.CENTER
                     maxLines = 2
-                    textAlignment = View.TEXT_ALIGNMENT_CENTER
+                    textAlignment =
+                        View.TEXT_ALIGNMENT_CENTER
                 },
-                MobileUi.match(activity.dp(3)),
+                MobileUi.match(
+                    activity.dp(3),
+                ),
             )
 
             row.addView(
@@ -522,13 +891,16 @@ object MobileScaffold {
                     activity.dp(82),
                     activity.dp(62),
                 ).apply {
-                    marginStart = activity.dp(2)
-                    marginEnd = activity.dp(2)
+                    marginStart =
+                        activity.dp(2)
+                    marginEnd =
+                        activity.dp(2)
                 },
             )
 
-            if (selectedItem) {
-                selectedView = itemView
+            if (selected) {
+                selectedView =
+                    itemView
             }
         }
 
@@ -539,6 +911,7 @@ object MobileScaffold {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
             ),
         )
+
         wrapper.addView(
             scroll,
             LinearLayout.LayoutParams(
@@ -547,15 +920,23 @@ object MobileScaffold {
             ),
         )
 
-        selectedView?.let { active ->
+        selectedView?.let {
+                active,
+            ->
             scroll.post {
                 val desired =
                     (
                         active.left -
-                            activity.resources.displayMetrics.widthPixels / 2 +
-                            active.width / 2
+                            activity.resources
+                                .displayMetrics
+                                .widthPixels /
+                            2 +
+                            active.width /
+                            2
                         )
-                        .coerceAtLeast(0)
+                        .coerceAtLeast(
+                            0,
+                        )
 
                 scroll.smoothScrollTo(
                     desired,
@@ -568,11 +949,16 @@ object MobileScaffold {
     }
 
     private fun open(
-        activity: BaseActivity,
+        activity: Activity,
         cls: Class<*>,
         forward: Boolean,
     ) {
-        if (activity::class.java == cls) return
+        if (
+            activity::class.java ==
+            cls
+        ) {
+            return
+        }
 
         activity.startActivity(
             Intent(
@@ -594,7 +980,14 @@ object MobileScaffold {
                 R.anim.central_slide_out_right,
             )
         }
+
+        if (activity !is BaseActivity) {
+            activity.finish()
+        }
     }
+
+    private const val MODULE_SHELL_TAG =
+        "central-module-shell"
 }
 
 object MobileUi {

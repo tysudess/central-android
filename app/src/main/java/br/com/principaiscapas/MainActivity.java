@@ -76,13 +76,10 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         getWindow().setStatusBarColor(0xFF061321);
         getWindow().setNavigationBarColor(0xFF061321);
-        // v0.7.5.9: o Android 15/16 usa edge-to-edge. Mantemos isso explícito
-        // e aplicamos os insets do sistema na própria interface para que a barra
-        // inferior nunca fique atrás dos botões/gestos de navegação do aparelho.
-        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        // A Central controla os insets no shell integrado para que a barra
+        // inferior fique sempre acima da navegação do aparelho.
         View content = buildUi();
         setContentView(content);
-        ViewCompat.requestApplyInsets(content);
         loadSources();
     }
 
@@ -94,20 +91,6 @@ public class MainActivity extends Activity {
         final int rootPadBottom = dp(6);
         root.setPadding(rootPadH, rootPadTop, rootPadH, rootPadBottom);
         root.setBackgroundColor(0xFF071625);
-
-        // Área segura do Android: status bar em cima e navigation/gesture bar embaixo.
-        // Isso corrige aparelhos com 3 botões, navegação por gestos e diferentes
-        // alturas de barras do sistema sem usar valores fixos por modelo.
-        ViewCompat.setOnApplyWindowInsetsListener(root, (v, windowInsets) -> {
-            Insets bars = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(
-                    rootPadH + bars.left,
-                    rootPadTop + bars.top,
-                    rootPadH + bars.right,
-                    rootPadBottom + bars.bottom
-            );
-            return windowInsets;
-        });
 
         // v0.7.5.8: topo extremamente compacto para liberar o máximo de área
         // vertical possível para os jornais. As ações principais foram movidas

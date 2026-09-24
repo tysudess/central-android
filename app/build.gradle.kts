@@ -11,8 +11,8 @@ android {
         applicationId = "br.com.centralmidia.android"
         minSdk = 24
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.0.5"
+        versionCode = 6
+        versionName = "1.0.6"
 
         ndk {
             abiFilters += listOf("arm64-v8a")

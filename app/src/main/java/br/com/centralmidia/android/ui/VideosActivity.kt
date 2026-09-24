@@ -21,6 +21,7 @@ import br.com.centralmidia.android.R
 import br.com.centralmidia.android.core.CatalogRepository
 import br.com.centralmidia.android.core.CentralDb
 import br.com.centralmidia.android.core.SourcePreferences
+import br.com.centralmidia.android.core.ResultStore
 import br.com.centralmidia.android.core.VideoSearchClient
 import br.com.centralmidia.android.core.dp
 import com.google.android.material.button.MaterialButton
@@ -33,6 +34,7 @@ class VideosActivity : BaseActivity() {
     private lateinit var db: CentralDb
     private lateinit var sourcePrefs: SourcePreferences
     private val searchClient = VideoSearchClient()
+    private lateinit var resultStore: ResultStore
 
     private lateinit var queryInput: android.widget.EditText
     private lateinit var resultContainer: LinearLayout
@@ -62,6 +64,7 @@ class VideosActivity : BaseActivity() {
         super.onCreate(savedInstanceState)
         db = CentralDb(this)
         sourcePrefs = SourcePreferences(this)
+        resultStore = ResultStore(this)
 
         val root = MobileScaffold.page(
             this,
@@ -160,7 +163,13 @@ class VideosActivity : BaseActivity() {
 
         resultContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(resultContainer, MobileUi.match(dp(8)))
-        renderEmpty()
+        items = resultStore.loadVideos()
+        if (items.isEmpty()) {
+            renderEmpty()
+        } else {
+            restoreSavedMetrics()
+            renderResults()
+        }
 
         if (intent.getBooleanExtra("autoSearch", false)) {
             root.post { performSearch() }
@@ -169,7 +178,33 @@ class VideosActivity : BaseActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (::resultContainer.isInitialized && items.isNotEmpty()) renderResults()
+        if (::resultContainer.isInitialized) {
+            val saved = resultStore.loadVideos()
+            if (saved.isNotEmpty()) {
+                items = saved
+                restoreSavedMetrics()
+            }
+            if (items.isNotEmpty()) renderResults()
+        }
+    }
+
+    private fun restoreSavedMetrics() {
+        if (!::foundValue.isInitialized) return
+        val (fromMs, toMs) = selectedRange()
+        val visible = items.filter { it.publishedAt in fromMs..toMs }
+        progress.isIndeterminate = false
+        progress.progress = 100
+        pctValue.text = "100%"
+        foundValue.text = "${visible.size}\nEncontrados"
+        newValue.text = "${visible.count { it.isNew }}\nNovos"
+        failureValue.text = "0\nFalhas"
+        statusTitle.text = "Vídeos • últimos resultados salvos"
+        statusDescription.text =
+            if (visible.isEmpty()) {
+                "Nenhum vídeo salvo para o período selecionado."
+            } else {
+                "${visible.size} vídeo(s) restaurado(s) da última busca."
+            }
     }
 
     private fun searchConfigurationSummary(): View {
@@ -317,6 +352,7 @@ class VideosActivity : BaseActivity() {
                 val seenPrefs = getSharedPreferences("video_seen_links", MODE_PRIVATE)
                 val oldSeen = seenPrefs.getStringSet("links", emptySet())?.toSet().orEmpty()
                 items = outcome.items.map { item -> item.copy(isNew = item.link !in oldSeen) }
+                resultStore.saveVideos(items)
                 val newCount = items.count { it.isNew }
                 seenPrefs.edit()
                     .putStringSet(
@@ -373,10 +409,14 @@ class VideosActivity : BaseActivity() {
     private fun renderResults() {
         if (!::resultContainer.isInitialized) return
         val q = queryInput.text?.toString().orEmpty().trim().lowercase(Locale.getDefault())
+        val (fromMs, toMs) = selectedRange()
         val visible = items.filter { item ->
-            q.isBlank() || q in (
+            val periodOk = item.publishedAt in fromMs..toMs
+            periodOk && (
+                q.isBlank() || q in (
                 "${item.title} ${item.sourceName} ${item.matchedTerm} ${item.matchedDemand}"
             ).lowercase(Locale.getDefault())
+            )
         }
 
         shownLabel.text = "${visible.size} exibido(s)"

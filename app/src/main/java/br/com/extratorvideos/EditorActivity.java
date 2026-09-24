@@ -1,6 +1,8 @@
 package br.com.extratorvideos;
 
 import br.com.centralmidia.android.R;
+import br.com.centralmidia.android.ui.MobileScaffold;
+import br.com.centralmidia.android.ui.VideoEditorActivity;
 
 import android.content.Intent;
 import android.graphics.SurfaceTexture;
@@ -130,7 +132,7 @@ public class EditorActivity extends AppCompatActivity {
     private long globalPlayheadMs = 0L;
     private long previewClipEndSourceMs = 0L;
 
-    private final float[] zoomLevels = new float[]{1.8f, 2.8f, 4.8f, 8f, 13f, 20f};
+    private final float[] zoomLevels = new float[]{0.45f, 0.65f, 0.9f, 1.2f, 1.8f, 2.8f, 4.8f};
     private int zoomIndex = 2;
 
     private static final int AUDIO_BITRATE_BPS = 128_000;
@@ -196,14 +198,6 @@ public class EditorActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_editor);
-        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
-        View systemRoot = findViewById(android.R.id.content);
-        ViewCompat.setOnApplyWindowInsetsListener(systemRoot, (v, insets) -> {
-            androidx.core.graphics.Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
-            return insets;
-        });
-        ViewCompat.requestApplyInsets(systemRoot);
 
         bindViews();
         bindActions();
@@ -214,6 +208,7 @@ public class EditorActivity extends AppCompatActivity {
 
         clearSelectionUi();
         refreshTimeline(false);
+        MobileScaffold.attachModule(this, VideoEditorActivity.class);
     }
 
     private void bindViews() {

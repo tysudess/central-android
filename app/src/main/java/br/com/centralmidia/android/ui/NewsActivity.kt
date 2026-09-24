@@ -20,6 +20,7 @@ import br.com.centralmidia.android.core.GoogleNewsClient
 import br.com.centralmidia.android.core.Matching
 import br.com.centralmidia.android.core.NewsItem
 import br.com.centralmidia.android.core.NewsSource
+import br.com.centralmidia.android.core.ResultStore
 import br.com.centralmidia.android.core.SourcePreferences
 import br.com.centralmidia.android.core.dp
 import com.google.android.material.button.MaterialButton
@@ -32,6 +33,7 @@ class NewsActivity : BaseActivity() {
     private val client = GoogleNewsClient()
     private lateinit var db: CentralDb
     private lateinit var sourcePrefs: SourcePreferences
+    private lateinit var resultStore: ResultStore
 
     private var items = listOf<NewsItem>()
     private lateinit var queryInput: android.widget.EditText
@@ -84,6 +86,7 @@ class NewsActivity : BaseActivity() {
 
         db = CentralDb(this)
         sourcePrefs = SourcePreferences(this)
+        resultStore = ResultStore(this)
 
         val root = MobileScaffold.page(
             this,
@@ -360,7 +363,13 @@ class NewsActivity : BaseActivity() {
             resultContainer,
             MobileUi.match(dp(8)),
         )
-        renderEmpty()
+        items = resultStore.loadNews()
+        if (items.isEmpty()) {
+            renderEmpty()
+        } else {
+            restoreSavedMetrics()
+            renderFilteredResults()
+        }
 
         if (
             intent.getBooleanExtra(
@@ -375,8 +384,32 @@ class NewsActivity : BaseActivity() {
     override fun onResume() {
         super.onResume()
         if (::queryInput.isInitialized) {
+            val saved = resultStore.loadNews()
+            if (saved.isNotEmpty()) {
+                items = saved
+                restoreSavedMetrics()
+            }
             renderFilteredResults()
         }
+    }
+
+    private fun restoreSavedMetrics() {
+        if (!::foundValue.isInitialized) return
+        val (fromMs, toMs) = selectedRange()
+        val visible = items.filter { it.publishedAt in fromMs..toMs }
+        foundValue.text = "${visible.size}\nEncontradas"
+        newValue.text = "${visible.count { it.isNew }}\nNovas"
+        failureValue.text = "0\nFalhas"
+        pctValue.text = "100%"
+        progress.isIndeterminate = false
+        progress.progress = 100
+        statusTitle.text = "Últimos resultados salvos"
+        statusDescription.text =
+            if (visible.isEmpty()) {
+                "Nenhum resultado salvo para o período selecionado."
+            } else {
+                "${visible.size} notícia(s) restaurada(s) da última busca."
+            }
     }
 
     private fun sourceSummaryText(): String {
@@ -883,6 +916,7 @@ class NewsActivity : BaseActivity() {
                     .apply()
 
                 items = decorated
+                resultStore.saveNews(items)
 
                 pctValue.text =
                     if (outcome.cancelled) {
@@ -1188,8 +1222,13 @@ class NewsActivity : BaseActivity() {
                     Locale.getDefault(),
                 )
 
+        val (rangeFrom, rangeTo) = selectedRange()
+
         val visible =
             items.filter { item ->
+                val matchesPeriod =
+                    item.publishedAt in rangeFrom..rangeTo
+
                 val matchesText =
                     query.isBlank() ||
                         query in
@@ -1207,7 +1246,8 @@ class NewsActivity : BaseActivity() {
                     !onlyDemands.isChecked ||
                         item.matchedDemand.isNotBlank()
 
-                matchesText &&
+                matchesPeriod &&
+                    matchesText &&
                     matchesDemand
             }
 

@@ -1,6 +1,8 @@
 package br.com.extratorvideos;
 
 import br.com.centralmidia.android.R;
+import br.com.centralmidia.android.ui.MobileScaffold;
+import br.com.centralmidia.android.ui.VideoExtractorActivity;
 
 import android.Manifest;
 import android.content.Intent;
@@ -163,14 +165,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
-        View systemRoot = findViewById(android.R.id.content);
-        ViewCompat.setOnApplyWindowInsetsListener(systemRoot, (v, insets) -> {
-            androidx.core.graphics.Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
-            return insets;
-        });
-        ViewCompat.requestApplyInsets(systemRoot);
 
         editUrl = findViewById(R.id.editUrl);
         String incomingCentralUrl = getIntent().getStringExtra("url");
@@ -324,6 +318,7 @@ public class MainActivity extends AppCompatActivity {
 
         pedirPermissaoAndroid10SeNecessario();
         inicializarMotores();
+        MobileScaffold.attachModule(this, VideoExtractorActivity.class);
     }
 
     private void rolarParaSecao(View section) {

@@ -27,7 +27,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="VIDEO LAB  //  SMART MEDIA"
+                android:text="CENTRAL DE INTELIGÊNCIA DE MÍDIA"
                 android:textColor="@color/accent"
                 android:textSize="11sp"
                 android:textStyle="bold"
@@ -38,7 +38,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="9dp"
                 android:text="Extrator de Vídeos"
-                android:textColor="@color/white"
+                android:textColor="@color/text_primary"
                 android:textSize="30sp"
                 android:textStyle="bold"
                 android:letterSpacing="0.01" />
@@ -62,7 +62,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:background="@drawable/bg_badge"
-                    android:text="ANDROID • v1.9.10 COMPRESSÃO INTELIGENTE"
+                    android:text="ANDROID • CENTRAL DE MÍDIA"
                     android:textColor="@color/accent"
                     android:textSize="11sp"
                     android:textStyle="bold" />

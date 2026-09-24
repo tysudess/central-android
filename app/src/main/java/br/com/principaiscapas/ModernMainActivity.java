@@ -1,5 +1,8 @@
 package br.com.principaiscapas;
 
+import br.com.centralmidia.android.ui.MobileScaffold;
+import br.com.centralmidia.android.ui.CoversActivity;
+
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -26,23 +29,24 @@ import android.widget.TextView;
  */
 public class ModernMainActivity extends MainActivity {
 
-    private static final int BG = 0xFF090E17;
-    private static final int SURFACE = 0xFF111827;
-    private static final int SURFACE_2 = 0xFF161E2A;
-    private static final int BORDER = 0xFF263244;
-    private static final int PURPLE = 0xFF8B5CF6;
-    private static final int PURPLE_DARK = 0xFF6D4AE6;
-    private static final int PURPLE_SOFT = 0xFF241B45;
-    private static final int TEXT = 0xFFF8FAFC;
-    private static final int MUTED = 0xFF9CA3AF;
-    private static final int GREEN = 0xFF34D399;
-    private static final int RED = 0xFFF87171;
+    private static final int BG = 0xFFF6F9FD;
+    private static final int SURFACE = 0xFFFFFFFF;
+    private static final int SURFACE_2 = 0xFFFAFCFF;
+    private static final int BORDER = 0xFFD8E4F3;
+    private static final int PURPLE = 0xFF147EF6;
+    private static final int PURPLE_DARK = 0xFF0F66CB;
+    private static final int PURPLE_SOFT = 0xFFE5F1FF;
+    private static final int TEXT = 0xFF0A2B63;
+    private static final int MUTED = 0xFF5B749E;
+    private static final int GREEN = 0xFF00975F;
+    private static final int RED = 0xFFE21065;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         applySystemChrome();
         restyleWholeScreen();
+        MobileScaffold.attachModule(this, CoversActivity.class);
     }
 
     @Override
@@ -59,12 +63,12 @@ public class ModernMainActivity extends MainActivity {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             int flags = window.getDecorView().getSystemUiVisibility();
-            flags &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
             window.getDecorView().setSystemUiVisibility(flags);
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             int flags = window.getDecorView().getSystemUiVisibility();
-            flags &= ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
             window.getDecorView().setSystemUiVisibility(flags);
         }
     }
@@ -121,10 +125,10 @@ public class ModernMainActivity extends MainActivity {
     private void styleGroup(ViewGroup group) {
         if (isHero(group)) {
             group.setBackground(gradientCard(
-                    new int[]{0xFF181429, 0xFF111827},
+                    new int[]{0xFFFFFFFF, 0xFFF8FBFF},
                     22,
                     1,
-                    0xFF3D2C66
+                    0xFFD8E4F3
             ));
             group.setElevation(dp(4));
             return;
@@ -190,7 +194,7 @@ public class ModernMainActivity extends MainActivity {
 
         View parent = (View) textView.getParent();
         if (parent instanceof ViewGroup && isHero((ViewGroup) parent)) {
-            textView.setTextColor(text.matches(".*\\d{2}.*") ? 0xFFC4B5FD : MUTED);
+            textView.setTextColor(text.matches(".*\\d{2}.*") ? 0xFF147EF6 : MUTED);
             return;
         }
 
@@ -222,7 +226,7 @@ public class ModernMainActivity extends MainActivity {
                     new int[]{android.R.attr.state_checked},
                     new int[]{-android.R.attr.state_checked}
             };
-            int[] colors = new int[]{PURPLE, 0xFF64748B};
+            int[] colors = new int[]{PURPLE, 0xFFAAB7C8};
             checkBox.setButtonTintList(new ColorStateList(states, colors));
         }
     }
@@ -245,14 +249,14 @@ public class ModernMainActivity extends MainActivity {
         }
 
         if (text.contains("REVISAR CAPA")) {
-            button.setTextColor(0xFFD8CCFF);
-            button.setBackground(rounded(PURPLE_SOFT, 12, 1, 0xFF5B4B92));
+            button.setTextColor(0xFF147EF6);
+            button.setBackground(rounded(PURPLE_SOFT, 12, 1, 0xFF8FBEF6));
             return;
         }
 
         if (text.contains("INSERIR CAPA MANUALMENTE") || text.contains("TROCAR CAPA MANUAL")) {
-            button.setTextColor(0xFFFFE8A3);
-            button.setBackground(rounded(0xFF2A2319, 12, 1, 0xFF6B5420));
+            button.setTextColor(0xFF9A6500);
+            button.setBackground(rounded(0xFFFFF4D5, 12, 1, 0xFFF2C568));
             return;
         }
 
@@ -263,8 +267,8 @@ public class ModernMainActivity extends MainActivity {
         }
 
         if (text.contains("ABRIR PDF GERADO")) {
-            button.setTextColor(0xFFD8CCFF);
-            button.setBackground(rounded(SURFACE_2, 12, 1, 0xFF5B4B92));
+            button.setTextColor(0xFF147EF6);
+            button.setBackground(rounded(SURFACE_2, 12, 1, 0xFF8FBEF6));
             return;
         }
 
@@ -292,7 +296,7 @@ public class ModernMainActivity extends MainActivity {
     private void styleImage(ImageView imageView) {
         View parent = (View) imageView.getParent();
         if (parent instanceof ViewGroup && isCoverCard((ViewGroup) parent)) {
-            imageView.setBackground(rounded(0xFF0D1420, 12, 1, BORDER));
+            imageView.setBackground(rounded(0xFFF8FBFF, 12, 1, BORDER));
             imageView.setPadding(dp(6), dp(6), dp(6), dp(6));
         }
     }
