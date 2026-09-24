@@ -486,7 +486,7 @@ class SourcesActivity : BaseActivity() {
                 true,
                 MobileUi.BLUE,
             ) {
-                setVisible(true)
+                setVisibleSelection(true)
             },
             actionLp(),
         )
@@ -495,7 +495,7 @@ class SourcesActivity : BaseActivity() {
                 this,
                 "Limpar visíveis",
             ) {
-                setVisible(false)
+                setVisibleSelection(false)
             },
             actionLp(),
         )
@@ -1075,7 +1075,7 @@ class SourcesActivity : BaseActivity() {
         refresh()
     }
 
-    private fun setVisible(
+    private fun setVisibleSelection(
         checked: Boolean,
     ) {
         val visibleIds =
