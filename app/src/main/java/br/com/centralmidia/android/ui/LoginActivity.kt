@@ -120,9 +120,13 @@ class LoginActivity : BaseActivity() {
                         statusCard("Sessão expirada. Faça login novamente.", true)
                     }
                 },
-                {
+                { error ->
                     setBusy(false)
-                    statusCard("Faça login novamente.", true)
+                    statusCard(
+                        error.message
+                            ?: "Não foi possível validar a sessão agora. Tente novamente.",
+                        true,
+                    )
                 },
             )
         }
@@ -281,7 +285,7 @@ class LoginActivity : BaseActivity() {
                     { session ->
                         setBusy(false)
                         if (session.user.mustChangePassword) {
-                            PasswordDialogs.show(this@LoginActivity, true, p) { openMain() }
+                            PasswordDialogs.show(this, true, p) { openMain() }
                         } else {
                             openMain()
                         }
