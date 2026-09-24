@@ -7,11 +7,10 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
-import android.view.GestureDetector
 import android.view.Gravity
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -22,11 +21,15 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import br.com.centralmidia.android.R
+import br.com.centralmidia.android.automation.MonitoringScheduler
 import br.com.centralmidia.android.core.dp
+import br.com.centralmidia.android.recording.ScreenRecordService
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 
 object MobileScaffold {
+    // MORE foi mantido somente para compatibilidade com as Activities existentes.
+    // Ele não aparece mais na navegação inferior.
     enum class Tab { HOME, NEWS, VIDEOS, MORE }
 
     fun page(
@@ -93,7 +96,7 @@ object MobileScaffold {
             ),
         )
 
-        val bottom = bottomNav(activity, selected)
+        val bottom = bottomNav(activity)
         shell.addView(bottom, MobileUi.match())
 
         ViewCompat.setOnApplyWindowInsetsListener(shell) { _, insets ->
@@ -101,14 +104,13 @@ object MobileScaffold {
             shell.setPadding(0, bars.top, 0, 0)
             bottom.setPadding(
                 activity.dp(8),
-                activity.dp(6),
+                activity.dp(5),
                 activity.dp(8),
-                activity.dp(8) + bars.bottom,
+                activity.dp(6) + bars.bottom,
             )
             insets
         }
 
-        installEdgeSwipe(activity, shell, selected)
         activity.setContentView(shell)
         ViewCompat.requestApplyInsets(shell)
         return content
@@ -187,7 +189,11 @@ object MobileScaffold {
                 activity.dp(4),
             )
             setOnClickListener {
-                open(activity, AccountActivity::class.java, true)
+                open(
+                    activity = activity,
+                    cls = AccountActivity::class.java,
+                    forward = true,
+                )
             }
         }
 
@@ -333,63 +339,156 @@ object MobileScaffold {
         return outer
     }
 
+    private data class NavItem(
+        val label: String,
+        val icon: Int,
+        val permission: String? = null,
+        val cls: Class<*>? = null,
+        val accent: Int = MobileUi.BLUE,
+        val action: (() -> Unit)? = null,
+    )
+
     private fun bottomNav(
         activity: BaseActivity,
-        selected: Tab,
     ): LinearLayout {
-        val bar = LinearLayout(activity).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            setPadding(
-                activity.dp(8),
-                activity.dp(6),
-                activity.dp(8),
-                activity.dp(8),
-            )
-            background = MobileUi.rounded(Color.WHITE, 0f)
+        val session = activity.auth.session
+        val allAccess =
+            session?.user?.profile.equals("ADMIN", true) ||
+                session?.user?.profile.equals("OPERADOR", true)
+
+        fun allowed(permission: String?): Boolean =
+            permission == null ||
+                allAccess ||
+                permission in session?.user?.permissions.orEmpty()
+
+        val allItems = listOf(
+            NavItem("Início", R.drawable.ic_home, cls = MainActivity::class.java),
+            NavItem("Notícias", R.drawable.ic_news, cls = NewsActivity::class.java),
+            NavItem("Vídeos", R.drawable.ic_video, cls = VideosActivity::class.java),
+            NavItem("Demandas", R.drawable.ic_demands, "demands", DemandsActivity::class.java, MobileUi.ORANGE),
+            NavItem("Fontes", R.drawable.ic_sources, "sources", SourcesActivity::class.java, MobileUi.GREEN),
+            NavItem("Histórico", R.drawable.ic_history, "history", HistoryActivity::class.java),
+            NavItem("Termos", R.drawable.ic_terms, "terms", TermsActivity::class.java, MobileUi.PURPLE),
+            NavItem("Extrator\nNotícias", R.drawable.ic_news, "news_extractor", NewsExtractorActivity::class.java),
+            NavItem("Capas", R.drawable.ic_news, "covers", CoversActivity::class.java),
+            NavItem("Editor\nPDF", R.drawable.ic_terms, "pdf_editor", PdfEditorActivity::class.java, MobileUi.PURPLE),
+            NavItem("Extrator\nVídeos", R.drawable.ic_video, "extractor", VideoExtractorActivity::class.java, MobileUi.PURPLE),
+            NavItem("Editor\nVídeo", R.drawable.ic_video, "video_editor", VideoEditorActivity::class.java),
+            NavItem("Gravador", R.drawable.ic_video, "video_editor", ScreenRecorderActivity::class.java, MobileUi.PINK),
+            NavItem("Config.", R.drawable.ic_more, "settings", SettingsActivity::class.java),
+            NavItem("Minha\nConta", R.drawable.ic_home, cls = AccountActivity::class.java, accent = MobileUi.GREEN),
+            NavItem(
+                label = "Parar",
+                icon = R.drawable.ic_delete,
+                accent = MobileUi.PINK,
+                action = {
+                    MonitoringScheduler.cancel(activity)
+                    WorkManager.getInstance(activity)
+                        .cancelAllWorkByTag("central-monitoring")
+                    activity.stopService(
+                        Intent(
+                            activity,
+                            ScreenRecordService::class.java,
+                        ),
+                    )
+                    activity.toast(
+                        "Buscas, automações e gravações solicitadas para parar.",
+                    )
+                },
+            ),
+        )
+
+        val items = allItems.filter { allowed(it.permission) }
+        val currentClass = activity::class.java
+        val currentIndex = items.indexOfFirst { it.cls == currentClass }
+
+        val wrapper = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.WHITE)
             elevation = activity.dp(14).toFloat()
         }
 
-        data class Nav(
-            val tab: Tab,
-            val icon: Int,
-            val label: String,
-            val cls: Class<*>,
+        val divider = View(activity).apply {
+            setBackgroundColor(Color.rgb(229, 236, 246))
+        }
+        wrapper.addView(
+            divider,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                activity.dp(1),
+            ),
         )
 
-        val items = listOf(
-            Nav(Tab.HOME, R.drawable.ic_home, "Início", MainActivity::class.java),
-            Nav(Tab.NEWS, R.drawable.ic_news, "Notícias", NewsActivity::class.java),
-            Nav(Tab.VIDEOS, R.drawable.ic_video, "Vídeos", VideosActivity::class.java),
-            Nav(Tab.MORE, R.drawable.ic_more, "Mais", MoreHubActivity::class.java),
-        )
+        val scroll = HorizontalScrollView(activity).apply {
+            isHorizontalScrollBarEnabled = false
+            isFillViewport = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            isSmoothScrollingEnabled = true
+        }
 
-        val selectedIndex = items.indexOfFirst { it.tab == selected }.coerceAtLeast(0)
+        val row = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(
+                activity.dp(2),
+                activity.dp(4),
+                activity.dp(2),
+                activity.dp(4),
+            )
+        }
+
+        var selectedView: View? = null
 
         items.forEachIndexed { index, item ->
-            val selectedItem = item.tab == selected
+            val selectedItem = item.cls == currentClass
 
             val itemView = LinearLayout(activity).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                setPadding(
-                    activity.dp(8),
-                    activity.dp(7),
-                    activity.dp(8),
-                    activity.dp(6),
-                )
-                if (selectedItem) {
-                    background = MobileUi.rounded(
-                        MobileUi.BLUE_TINT,
-                        activity.dp(28).toFloat(),
-                    )
-                }
                 isClickable = true
                 isFocusable = true
-                setOnClickListener {
-                    if (!selectedItem) {
-                        open(activity, item.cls, index >= selectedIndex)
+                contentDescription = item.label.replace("\n", " ")
+
+                setPadding(
+                    activity.dp(7),
+                    activity.dp(6),
+                    activity.dp(7),
+                    activity.dp(5),
+                )
+
+                background =
+                    if (selectedItem) {
+                        MobileUi.rounded(
+                            when (item.accent) {
+                                MobileUi.GREEN -> MobileUi.GREEN_TINT
+                                MobileUi.PURPLE -> MobileUi.PURPLE_TINT
+                                MobileUi.ORANGE -> MobileUi.ORANGE_TINT
+                                MobileUi.PINK -> MobileUi.PINK_TINT
+                                else -> MobileUi.BLUE_TINT
+                            },
+                            activity.dp(22).toFloat(),
+                        )
+                    } else {
+                        MobileUi.rounded(
+                            Color.TRANSPARENT,
+                            activity.dp(22).toFloat(),
+                        )
                     }
+
+                setOnClickListener {
+                    item.action?.invoke()
+                        ?: item.cls?.let { cls ->
+                            if (cls != currentClass) {
+                                val forward =
+                                    currentIndex < 0 ||
+                                        index >= currentIndex
+                                open(
+                                    activity = activity,
+                                    cls = cls,
+                                    forward = forward,
+                                )
+                            }
+                        }
                 }
             }
 
@@ -397,8 +496,8 @@ object MobileScaffold {
                 MobileUi.icon(
                     activity,
                     item.icon,
-                    if (selectedItem) MobileUi.BLUE else MobileUi.NAVY,
-                    24,
+                    if (selectedItem) item.accent else MobileUi.NAVY,
+                    22,
                 ),
             )
 
@@ -406,88 +505,66 @@ object MobileScaffold {
                 MobileUi.text(
                     activity,
                     item.label,
-                    11.5f,
-                    if (selectedItem) MobileUi.BLUE else MobileUi.MUTED,
+                    10.5f,
+                    if (selectedItem) item.accent else MobileUi.MUTED,
                     selectedItem,
                 ).apply {
                     gravity = Gravity.CENTER
+                    maxLines = 2
+                    textAlignment = View.TEXT_ALIGNMENT_CENTER
                 },
                 MobileUi.match(activity.dp(3)),
             )
 
-            bar.addView(
+            row.addView(
                 itemView,
                 LinearLayout.LayoutParams(
-                    0,
-                    activity.dp(64),
-                    1f,
+                    activity.dp(82),
+                    activity.dp(62),
                 ).apply {
                     marginStart = activity.dp(2)
                     marginEnd = activity.dp(2)
                 },
             )
+
+            if (selectedItem) {
+                selectedView = itemView
+            }
         }
 
-        return bar
-    }
-
-    private fun installEdgeSwipe(
-        activity: BaseActivity,
-        shell: View,
-        selected: Tab,
-    ) {
-        val order = listOf(
-            Tab.HOME to MainActivity::class.java,
-            Tab.NEWS to NewsActivity::class.java,
-            Tab.VIDEOS to VideosActivity::class.java,
-            Tab.MORE to MoreHubActivity::class.java,
+        scroll.addView(
+            row,
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ),
         )
-        val current = order.indexOfFirst { it.first == selected }
-        if (current < 0) return
-
-        val edge = activity.dp(34).toFloat()
-        val minimum = activity.dp(90).toFloat()
-        var width = 0
-
-        val detector = GestureDetector(
-            activity,
-            object : GestureDetector.SimpleOnGestureListener() {
-                override fun onDown(e: MotionEvent): Boolean = true
-
-                override fun onFling(
-                    e1: MotionEvent?,
-                    e2: MotionEvent,
-                    velocityX: Float,
-                    velocityY: Float,
-                ): Boolean {
-                    val start = e1 ?: return false
-                    if (width <= 0) width = shell.width
-                    val dx = e2.x - start.x
-                    if (kotlin.math.abs(dx) < minimum || kotlin.math.abs(velocityX) < 550f) {
-                        return false
-                    }
-                    if (kotlin.math.abs(dx) < kotlin.math.abs(e2.y - start.y) * 1.35f) {
-                        return false
-                    }
-
-                    if (dx < 0 && start.x >= width - edge && current < order.lastIndex) {
-                        open(activity, order[current + 1].second, true)
-                        return true
-                    }
-                    if (dx > 0 && start.x <= edge && current > 0) {
-                        open(activity, order[current - 1].second, false)
-                        return true
-                    }
-                    return false
-                }
-            },
+        wrapper.addView(
+            scroll,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                activity.dp(70),
+            ),
         )
 
-        shell.setOnTouchListener { _, event ->
-            width = shell.width
-            detector.onTouchEvent(event)
-            false
+        selectedView?.let { active ->
+            scroll.post {
+                val desired =
+                    (
+                        active.left -
+                            activity.resources.displayMetrics.widthPixels / 2 +
+                            active.width / 2
+                        )
+                        .coerceAtLeast(0)
+
+                scroll.smoothScrollTo(
+                    desired,
+                    0,
+                )
+            }
         }
+
+        return wrapper
     }
 
     private fun open(
@@ -496,9 +573,16 @@ object MobileScaffold {
         forward: Boolean,
     ) {
         if (activity::class.java == cls) return
+
         activity.startActivity(
-            Intent(activity, cls).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
+            Intent(
+                activity,
+                cls,
+            ).addFlags(
+                Intent.FLAG_ACTIVITY_REORDER_TO_FRONT,
+            ),
         )
+
         if (forward) {
             activity.overridePendingTransition(
                 R.anim.central_slide_in_right,
@@ -667,7 +751,9 @@ object MobileUi {
                 iconGravity = MaterialButton.ICON_GRAVITY_TEXT_START
             }
 
-            setOnClickListener { onClick() }
+            setOnClickListener {
+                onClick()
+            }
         }
 
     fun statusChip(
@@ -691,12 +777,18 @@ object MobileUi {
             background = rounded(
                 if (accent == GREEN) GREEN_TINT else BLUE_TINT,
                 context.dp(14).toFloat(),
-                if (accent == GREEN) Color.rgb(182, 232, 207) else Color.rgb(190, 218, 249),
+                if (accent == GREEN) {
+                    Color.rgb(182, 232, 207)
+                } else {
+                    Color.rgb(190, 218, 249)
+                },
                 context.dp(1),
             )
         }
 
-    fun match(top: Int = 0): LinearLayout.LayoutParams =
+    fun match(
+        top: Int = 0,
+    ): LinearLayout.LayoutParams =
         LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -704,7 +796,9 @@ object MobileUi {
             topMargin = top
         }
 
-    fun wrap(top: Int = 0): LinearLayout.LayoutParams =
+    fun wrap(
+        top: Int = 0,
+    ): LinearLayout.LayoutParams =
         LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
