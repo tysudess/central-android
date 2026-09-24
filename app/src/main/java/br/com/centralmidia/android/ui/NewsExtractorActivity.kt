@@ -481,7 +481,7 @@ class NewsExtractorActivity : BaseActivity() {
         output.setText(text)
 
         val words = text
-            .split(Regex("\s+"))
+            .split(Regex("\\s+"))
             .count { it.isNotBlank() }
 
         counter.text =
