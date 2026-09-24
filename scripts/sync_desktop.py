@@ -36,7 +36,7 @@ def load(name: str, path: Path):
     return mod
 
 
-# Carrega somente os módulos de catálogo puros, sem importar a UI desktop/PySide6.
+# Carrega somente módulos de catálogo/dados puros, sem importar a UI PySide6.
 package("monitor_noticias", SRC / "monitor_noticias")
 models_pkg = package("monitor_noticias.models", SRC / "monitor_noticias" / "models")
 source_mod = load(
@@ -47,22 +47,39 @@ models_pkg.MediaSource = source_mod.MediaSource
 models_pkg.VideoSource = source_mod.VideoSource
 
 package("monitor_noticias.collectors", SRC / "monitor_noticias" / "collectors")
-video_pkg = package(
+package(
     "monitor_noticias.collectors.video",
     SRC / "monitor_noticias" / "collectors" / "video",
 )
 video_dir = SRC / "monitor_noticias" / "collectors" / "video"
-sources_mod = load("monitor_noticias.collectors.video.sources", video_dir / "sources.py")
-helpers_mod = load("monitor_noticias.collectors.video.catalog_helpers", video_dir / "catalog_helpers.py")
-regions_a = load("monitor_noticias.collectors.video.catalog_regions_a", video_dir / "catalog_regions_a.py")
-regions_b = load("monitor_noticias.collectors.video.catalog_regions_b", video_dir / "catalog_regions_b.py")
-video_catalog = load("monitor_noticias.collectors.video.catalog", video_dir / "catalog.py")
+load("monitor_noticias.collectors.video.sources", video_dir / "sources.py")
+load("monitor_noticias.collectors.video.catalog_helpers", video_dir / "catalog_helpers.py")
+load("monitor_noticias.collectors.video.catalog_regions_a", video_dir / "catalog_regions_a.py")
+load("monitor_noticias.collectors.video.catalog_regions_b", video_dir / "catalog_regions_b.py")
+video_catalog = load(
+    "monitor_noticias.collectors.video.catalog",
+    video_dir / "catalog.py",
+)
 
 package("monitor_noticias.ui", SRC / "monitor_noticias" / "ui")
 ui_catalog = load(
     "monitor_noticias.ui.catalog",
     SRC / "monitor_noticias" / "ui" / "catalog.py",
 )
+
+package("monitor_noticias.database", SRC / "monitor_noticias" / "database")
+default_terms_mod = load(
+    "monitor_noticias.database.default_terms",
+    SRC / "monitor_noticias" / "database" / "default_terms.py",
+)
+
+
+def clean_aliases(values):
+    return [
+        str(value).strip()
+        for value in (values or ())
+        if str(value).strip()
+    ]
 
 
 def news_row(s):
@@ -72,6 +89,7 @@ def news_row(s):
         "region": s.region,
         "state": s.state,
         "group": s.group,
+        "aliases": clean_aliases(getattr(s, "aliases", ())),
     }
 
 
@@ -85,28 +103,45 @@ def video_row(s):
         "landingUrl": s.landingUrl,
         "searchUrlTemplate": s.searchUrlTemplate,
         "searchPrefix": s.searchPrefix,
+        "aliases": clean_aliases(getattr(s, "aliases", ())),
+        "linkHints": clean_aliases(getattr(s, "linkHints", ())),
+        "youtubeHandle": str(getattr(s, "youtubeHandle", "") or ""),
     }
 
 
 news = [news_row(s) for s in ui_catalog.NEWS_SOURCES]
 videos = [video_row(s) for s in video_catalog.VIDEO_SOURCES]
+default_terms = list(default_terms_mod.DEFAULT_MONITOR_TERMS)
 
 (ASSETS / "news_sources.json").write_text(
-    json.dumps(news, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    json.dumps(news, ensure_ascii=False, indent=2) + "\n",
+    encoding="utf-8",
 )
 (ASSETS / "video_sources.json").write_text(
-    json.dumps(videos, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    json.dumps(videos, ensure_ascii=False, indent=2) + "\n",
+    encoding="utf-8",
+)
+(ASSETS / "default_terms.json").write_text(
+    json.dumps(default_terms, ensure_ascii=False, indent=2) + "\n",
+    encoding="utf-8",
 )
 
 # Capas: lista de jornais e configuração oficial já usada pelo desktop.
-covers_assets = SRC / "monitor_noticias" / "capas_tool" / "assets" / "newspapers.json"
+covers_assets = (
+    SRC
+    / "monitor_noticias"
+    / "capas_tool"
+    / "assets"
+    / "newspapers.json"
+)
 (ASSETS / "newspapers.json").write_bytes(covers_assets.read_bytes())
 
 
 def constant(path: Path, name: str) -> str:
     text = path.read_text(encoding="utf-8")
     match = re.search(
-        rf"(?ms)^\s*{re.escape(name)}\s*=\s*\(\s*['\"]([^'\"]+)['\"]\s*\)|^\s*{re.escape(name)}\s*=\s*['\"]([^'\"]+)['\"]",
+        rf"(?ms)^\s*{re.escape(name)}\s*=\s*\(\s*['\"]([^'\"]+)['\"]\s*\)|"
+        rf"^\s*{re.escape(name)}\s*=\s*['\"]([^'\"]+)['\"]",
         text,
     )
     if not match:
@@ -119,7 +154,8 @@ covers_config = SRC / "monitor_noticias" / "capas_tool" / "app" / "config.py"
 
 try:
     sha = subprocess.check_output(
-        ["git", "-C", str(DESKTOP), "rev-parse", "HEAD"], text=True
+        ["git", "-C", str(DESKTOP), "rev-parse", "HEAD"],
+        text=True,
     ).strip()
 except Exception:
     sha = "unknown"
@@ -131,10 +167,12 @@ config = {
     "desktop_head_sha": sha,
 }
 (ASSETS / "synced_config.json").write_text(
-    json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    json.dumps(config, ensure_ascii=False, indent=2) + "\n",
+    encoding="utf-8",
 )
 
 print(f"NEWS_SOURCES={len(news)}")
 print(f"VIDEO_SOURCES={len(videos)}")
+print(f"DEFAULT_TERMS={len(default_terms)}")
 print(f"AUTH={config['auth_api_url']}")
 print(f"DESKTOP_HEAD={sha}")

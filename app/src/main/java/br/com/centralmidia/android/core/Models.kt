@@ -20,6 +20,7 @@ data class NewsSource(
     val region: String,
     val state: String,
     val group: String,
+    val aliases: List<String> = emptyList(),
 )
 
 data class VideoSource(
@@ -31,6 +32,9 @@ data class VideoSource(
     val landingUrl: String,
     val searchUrlTemplate: String,
     val searchPrefix: String,
+    val aliases: List<String> = emptyList(),
+    val linkHints: List<String> = emptyList(),
+    val youtubeHandle: String = "",
 )
 
 data class NewsItem(
@@ -38,6 +42,11 @@ data class NewsItem(
     val source: String,
     val link: String,
     val pubDate: String,
+    val snippet: String = "",
+    val publishedAt: Long = 0L,
+    val matchedTerm: String = "",
+    val matchedDemand: String = "",
+    val isNew: Boolean = false,
 )
 
 data class Newspaper(
