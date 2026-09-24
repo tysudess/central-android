@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+
+    <application
+        android:name=".CentralApp"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="Central Inteligente de Mídia"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Central">
+
+        <activity android:name=".ui.SettingsActivity" />
+        <activity android:name=".ui.AccountActivity" />
+        <activity android:name=".ui.ScreenRecorderActivity" />
+        <activity android:name=".ui.VideoEditorActivity" />
+        <activity android:name=".ui.GloboplayLoginActivity" />
+        <activity android:name=".ui.VideoExtractorActivity" />
+        <activity android:name=".ui.PdfEditorActivity" />
+        <activity android:name=".ui.CoversActivity" />
+        <activity android:name=".ui.NewsExtractorActivity" />
+        <activity android:name=".ui.TermsActivity" />
+        <activity android:name=".ui.HistoryActivity" />
+        <activity android:name=".ui.SourcesActivity" />
+        <activity android:name=".ui.DemandsActivity" />
+        <activity android:name=".ui.VideosActivity" />
+        <activity android:name=".ui.NewsActivity" />
+        <activity android:name=".ui.BrowserActivity" />
+        <activity android:name=".ui.MainActivity" />
+        <activity
+            android:name=".ui.LoginActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".recording.ScreenRecordService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+
+    </application>
+</manifest>

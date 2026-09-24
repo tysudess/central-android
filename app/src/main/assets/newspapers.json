@@ -1,0 +1,53 @@
+[
+  {
+    "name": "O GLOBO",
+    "urls": [
+      "https://www.frontpages.com/o-globo/",
+      "https://infoglobo.pressreader.com/o-globo"
+    ]
+  },
+  {
+    "name": "FOLHA DE SÃO PAULO",
+    "urls": [
+      "https://www.frontpages.com/folha-de-s-paulo/",
+      "https://acervo.folha.uol.com.br/digital/"
+    ]
+  },
+  {
+    "name": "ESTADÃO",
+    "urls": [
+      "https://www.frontpages.com/o-estado-de-s-paulo/",
+      "https://digital.estadao.com.br"
+    ]
+  },
+  {
+    "name": "VALOR ECONÔMICO",
+    "urls": [
+      "https://valoreconomico.pressreader.com/valor-economico"
+    ]
+  },
+  {
+    "name": "CORREIO BRAZILIENSE",
+    "urls": [
+      "https://flip.correiobraziliense.com.br"
+    ]
+  },
+  {
+    "name": "ESTADO DE MINAS",
+    "urls": [
+      "https://www.em.com.br/capa-do-dia"
+    ]
+  },
+  {
+    "name": "THE NEW YORK TIMES",
+    "urls": [
+      "https://www.frontpages.com/the-new-york-times/"
+    ]
+  },
+  {
+    "name": "THE WASHINGTON POST",
+    "urls": [
+      "https://www.frontpages.com/the-washington-post/"
+    ]
+  }
+]

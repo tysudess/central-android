@@ -1,0 +1,2 @@
+-keep class dev.ffmpegkit_maintained.ytdlp.** { *; }
+-keep class com.arthenica.ffmpegkit.** { *; }
