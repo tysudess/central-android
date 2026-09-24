@@ -1,0 +1,30 @@
+<resources>
+    <!-- NOVO LAYOUT v1.9.11: premium roxo + azul -->
+    <color name="navy">#111321</color>
+    <color name="navy_dark">#070811</color>
+    <color name="blue">#3A78FF</color>
+    <color name="blue_dark">#6F8CFF</color>
+    <color name="blue_soft">#17254D</color>
+    <color name="accent">#8A5CFF</color>
+    <color name="accent_dark">#6E46F2</color>
+    <color name="accent_soft">#24194B</color>
+    <color name="purple">#B14EFF</color>
+    <color name="purple_soft">#30194B</color>
+    <color name="background">#080912</color>
+    <color name="surface">#11121F</color>
+    <color name="surface_subtle">#141522</color>
+    <color name="surface_elevated">#191A2A</color>
+    <color name="border">#2B2D42</color>
+    <color name="border_strong">#51487C</color>
+    <color name="text_primary">#F5F5FC</color>
+    <color name="text_secondary">#A8A9BD</color>
+    <color name="text_muted">#74768B</color>
+    <color name="success">#62DEA7</color>
+    <color name="success_soft">#122A22</color>
+    <color name="error">#FF7890</color>
+    <color name="error_soft">#321621</color>
+    <color name="warning">#F6C96B</color>
+    <color name="warning_soft">#332712</color>
+    <color name="disabled">#505267</color>
+    <color name="black">#000000</color>
+</resources>

@@ -7,7 +7,9 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
+import android.view.GestureDetector
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
@@ -20,11 +22,9 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import br.com.centralmidia.android.R
-import br.com.centralmidia.android.automation.MonitoringScheduler
 import br.com.centralmidia.android.core.dp
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 object MobileScaffold {
     enum class Tab { HOME, NEWS, VIDEOS, MORE }
@@ -108,8 +108,9 @@ object MobileScaffold {
             insets
         }
 
+        installEdgeSwipe(activity, shell, selected)
         activity.setContentView(shell)
-        ViewCompat.requestApplyInsets(shell)
+        ViewCompat.requestApplyWindowInsets(shell)
         return content
     }
 
@@ -186,12 +187,7 @@ object MobileScaffold {
                 activity.dp(4),
             )
             setOnClickListener {
-                activity.startActivity(
-                    Intent(
-                        activity,
-                        AccountActivity::class.java,
-                    ),
-                )
+                open(activity, AccountActivity::class.java, true)
             }
         }
 
@@ -314,20 +310,14 @@ object MobileScaffold {
             )
 
             WorkManager.getInstance(activity)
-                .getWorkInfosForUniqueWorkLiveData(
-                    "central-monitoring",
-                )
+                .getWorkInfosByTagLiveData("central-monitoring")
                 .observe(activity) { infos ->
                     val active = infos.any {
                         it.state == WorkInfo.State.ENQUEUED ||
                             it.state == WorkInfo.State.RUNNING
                     }
                     automation.text =
-                        if (active) {
-                            "●  Automação ativa"
-                        } else {
-                            "●  Automação pronta"
-                        }
+                        if (active) "●  Automação ativa" else "●  Automação pronta"
                 }
         }
 
@@ -356,10 +346,7 @@ object MobileScaffold {
                 activity.dp(8),
                 activity.dp(8),
             )
-            background = MobileUi.rounded(
-                Color.WHITE,
-                0f,
-            )
+            background = MobileUi.rounded(Color.WHITE, 0f)
             elevation = activity.dp(14).toFloat()
         }
 
@@ -367,16 +354,19 @@ object MobileScaffold {
             val tab: Tab,
             val icon: Int,
             val label: String,
+            val cls: Class<*>,
         )
 
         val items = listOf(
-            Nav(Tab.HOME, R.drawable.ic_home, "Início"),
-            Nav(Tab.NEWS, R.drawable.ic_news, "Notícias"),
-            Nav(Tab.VIDEOS, R.drawable.ic_video, "Vídeos"),
-            Nav(Tab.MORE, R.drawable.ic_more, "Mais"),
+            Nav(Tab.HOME, R.drawable.ic_home, "Início", MainActivity::class.java),
+            Nav(Tab.NEWS, R.drawable.ic_news, "Notícias", NewsActivity::class.java),
+            Nav(Tab.VIDEOS, R.drawable.ic_video, "Vídeos", VideosActivity::class.java),
+            Nav(Tab.MORE, R.drawable.ic_more, "Mais", MoreHubActivity::class.java),
         )
 
-        items.forEach { item ->
+        val selectedIndex = items.indexOfFirst { it.tab == selected }.coerceAtLeast(0)
+
+        items.forEachIndexed { index, item ->
             val selectedItem = item.tab == selected
 
             val itemView = LinearLayout(activity).apply {
@@ -397,20 +387,8 @@ object MobileScaffold {
                 isClickable = true
                 isFocusable = true
                 setOnClickListener {
-                    when (item.tab) {
-                        Tab.HOME -> open(
-                            activity,
-                            MainActivity::class.java,
-                        )
-                        Tab.NEWS -> open(
-                            activity,
-                            NewsActivity::class.java,
-                        )
-                        Tab.VIDEOS -> open(
-                            activity,
-                            VideosActivity::class.java,
-                        )
-                        Tab.MORE -> showMore(activity)
+                    if (!selectedItem) {
+                        open(activity, item.cls, index >= selectedIndex)
                     }
                 }
             }
@@ -419,11 +397,7 @@ object MobileScaffold {
                 MobileUi.icon(
                     activity,
                     item.icon,
-                    if (selectedItem) {
-                        MobileUi.BLUE
-                    } else {
-                        MobileUi.NAVY
-                    },
+                    if (selectedItem) MobileUi.BLUE else MobileUi.NAVY,
                     24,
                 ),
             )
@@ -433,11 +407,7 @@ object MobileScaffold {
                     activity,
                     item.label,
                     11.5f,
-                    if (selectedItem) {
-                        MobileUi.BLUE
-                    } else {
-                        MobileUi.MUTED
-                    },
+                    if (selectedItem) MobileUi.BLUE else MobileUi.MUTED,
                     selectedItem,
                 ).apply {
                     gravity = Gravity.CENTER
@@ -461,130 +431,85 @@ object MobileScaffold {
         return bar
     }
 
+    private fun installEdgeSwipe(
+        activity: BaseActivity,
+        shell: View,
+        selected: Tab,
+    ) {
+        val order = listOf(
+            Tab.HOME to MainActivity::class.java,
+            Tab.NEWS to NewsActivity::class.java,
+            Tab.VIDEOS to VideosActivity::class.java,
+            Tab.MORE to MoreHubActivity::class.java,
+        )
+        val current = order.indexOfFirst { it.first == selected }
+        if (current < 0) return
+
+        val edge = activity.dp(34).toFloat()
+        val minimum = activity.dp(90).toFloat()
+        var width = 0
+
+        val detector = GestureDetector(
+            activity,
+            object : GestureDetector.SimpleOnGestureListener() {
+                override fun onDown(e: MotionEvent): Boolean = true
+
+                override fun onFling(
+                    e1: MotionEvent?,
+                    e2: MotionEvent,
+                    velocityX: Float,
+                    velocityY: Float,
+                ): Boolean {
+                    val start = e1 ?: return false
+                    if (width <= 0) width = shell.width
+                    val dx = e2.x - start.x
+                    if (kotlin.math.abs(dx) < minimum || kotlin.math.abs(velocityX) < 550f) {
+                        return false
+                    }
+                    if (kotlin.math.abs(dx) < kotlin.math.abs(e2.y - start.y) * 1.35f) {
+                        return false
+                    }
+
+                    if (dx < 0 && start.x >= width - edge && current < order.lastIndex) {
+                        open(activity, order[current + 1].second, true)
+                        return true
+                    }
+                    if (dx > 0 && start.x <= edge && current > 0) {
+                        open(activity, order[current - 1].second, false)
+                        return true
+                    }
+                    return false
+                }
+            },
+        )
+
+        shell.setOnTouchListener { _, event ->
+            width = shell.width
+            detector.onTouchEvent(event)
+            false
+        }
+    }
+
     private fun open(
         activity: BaseActivity,
         cls: Class<*>,
+        forward: Boolean,
     ) {
         if (activity::class.java == cls) return
-        activity.startActivity(Intent(activity, cls))
-    }
-
-    private fun showMore(activity: BaseActivity) {
-        val session = activity.auth.session ?: return
-
-        data class Item(
-            val label: String,
-            val permission: String?,
-            val action: () -> Unit,
+        activity.startActivity(
+            Intent(activity, cls).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),
         )
-
-        val all =
-            session.user.profile.equals("ADMIN", true) ||
-                session.user.profile.equals("OPERADOR", true)
-
-        fun allowed(permission: String?): Boolean =
-            permission == null ||
-                all ||
-                permission in session.user.permissions
-
-        fun launch(cls: Class<*>) = {
-            activity.startActivity(
-                Intent(activity, cls),
+        if (forward) {
+            activity.overridePendingTransition(
+                R.anim.central_slide_in_right,
+                R.anim.central_slide_out_left,
+            )
+        } else {
+            activity.overridePendingTransition(
+                R.anim.central_slide_in_left,
+                R.anim.central_slide_out_right,
             )
         }
-
-        val items = listOf(
-            Item(
-                "Demandas",
-                "demands",
-                launch(DemandsActivity::class.java),
-            ),
-            Item(
-                "Fontes",
-                "sources",
-                launch(SourcesActivity::class.java),
-            ),
-            Item(
-                "Histórico",
-                "history",
-                launch(HistoryActivity::class.java),
-            ),
-            Item(
-                "Termos",
-                "terms",
-                launch(TermsActivity::class.java),
-            ),
-            Item(
-                "Parar buscas",
-                null,
-            ) {
-                MonitoringScheduler.cancel(activity)
-                WorkManager.getInstance(activity)
-                    .cancelAllWorkByTag("central-monitoring")
-                activity.stopService(
-                    Intent(
-                        activity,
-                        br.com.centralmidia.android.recording.ScreenRecordService::class.java,
-                    ),
-                )
-                activity.toast(
-                    "Buscas, automações e gravações solicitadas para parar.",
-                )
-            },
-            Item(
-                "Extrator de Notícias",
-                "news_extractor",
-                launch(NewsExtractorActivity::class.java),
-            ),
-            Item(
-                "Capas",
-                "covers",
-                launch(CoversActivity::class.java),
-            ),
-            Item(
-                "Editor PDF",
-                "pdf_editor",
-                launch(PdfEditorActivity::class.java),
-            ),
-            Item(
-                "Extrator de Vídeos",
-                "extractor",
-                launch(VideoExtractorActivity::class.java),
-            ),
-            Item(
-                "Editor de Vídeo",
-                "video_editor",
-                launch(VideoEditorActivity::class.java),
-            ),
-            Item(
-                "Gravador de Tela",
-                "video_editor",
-                launch(ScreenRecorderActivity::class.java),
-            ),
-            Item(
-                "Configurações",
-                "settings",
-                launch(SettingsActivity::class.java),
-            ),
-            Item(
-                "Minha conta",
-                null,
-                launch(AccountActivity::class.java),
-            ),
-        ).filter {
-            allowed(it.permission)
-        }
-
-        MaterialAlertDialogBuilder(activity)
-            .setTitle("Mais opções")
-            .setItems(
-                items.map { it.label }.toTypedArray(),
-            ) { dialog, which ->
-                dialog.dismiss()
-                items[which].action()
-            }
-            .setNegativeButton("Fechar", null)
-            .show()
     }
 }
 
@@ -612,7 +537,7 @@ object MobileUi {
         bold: Boolean = false,
     ): TextView =
         TextView(context).apply {
-            this.text = value
+            text = value
             textSize = size
             setTextColor(color)
             if (bold) {
@@ -708,7 +633,7 @@ object MobileUi {
         onClick: () -> Unit,
     ): MaterialButton =
         MaterialButton(context).apply {
-            this.text = label
+            text = label
             isAllCaps = false
             textSize = 12.5f
             cornerRadius = context.dp(12)
@@ -723,17 +648,14 @@ object MobileUi {
             )
 
             if (primary) {
-                backgroundTintList =
-                    ColorStateList.valueOf(accent)
+                backgroundTintList = ColorStateList.valueOf(accent)
                 setTextColor(Color.WHITE)
                 strokeWidth = 0
                 iconTint = ColorStateList.valueOf(Color.WHITE)
             } else {
-                backgroundTintList =
-                    ColorStateList.valueOf(Color.WHITE)
+                backgroundTintList = ColorStateList.valueOf(Color.WHITE)
                 setTextColor(accent)
-                strokeColor =
-                    ColorStateList.valueOf(BORDER)
+                strokeColor = ColorStateList.valueOf(BORDER)
                 strokeWidth = context.dp(1)
                 iconTint = ColorStateList.valueOf(accent)
             }
@@ -745,9 +667,7 @@ object MobileUi {
                 iconGravity = MaterialButton.ICON_GRAVITY_TEXT_START
             }
 
-            setOnClickListener {
-                onClick()
-            }
+            setOnClickListener { onClick() }
         }
 
     fun statusChip(
@@ -769,17 +689,9 @@ object MobileUi {
                 context.dp(7),
             )
             background = rounded(
-                if (accent == GREEN) {
-                    GREEN_TINT
-                } else {
-                    BLUE_TINT
-                },
+                if (accent == GREEN) GREEN_TINT else BLUE_TINT,
                 context.dp(14).toFloat(),
-                if (accent == GREEN) {
-                    Color.rgb(182, 232, 207)
-                } else {
-                    Color.rgb(190, 218, 249)
-                },
+                if (accent == GREEN) Color.rgb(182, 232, 207) else Color.rgb(190, 218, 249),
                 context.dp(1),
             )
         }

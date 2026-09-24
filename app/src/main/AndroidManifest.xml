@@ -2,20 +2,35 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
 
     <application
         android:name=".CentralApp"
         android:allowBackup="false"
+        android:extractNativeLibs="true"
         android:icon="@mipmap/ic_launcher"
         android:label="Central Inteligente de Mídia"
+        android:requestLegacyExternalStorage="true"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Central">
+        android:theme="@style/Theme.Central"
+        android:usesCleartextTraffic="false">
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/covers_file_paths" />
+        </provider>
 
         <activity android:name=".ui.SettingsActivity" />
         <activity android:name=".ui.AccountActivity" />
@@ -30,13 +45,37 @@
         <activity android:name=".ui.HistoryActivity" />
         <activity android:name=".ui.SourcesActivity" />
         <activity android:name=".ui.DemandsActivity" />
+        <activity android:name=".ui.MoreHubActivity" />
         <activity android:name=".ui.VideosActivity" />
         <activity android:name=".ui.NewsActivity" />
         <activity android:name=".ui.BrowserActivity" />
         <activity android:name=".ui.MainActivity" />
+
+        <!-- Módulos Android importados dos projetos fornecidos pelo usuário. -->
+        <activity
+            android:name="br.com.principaiscapas.ModernMainActivity"
+            android:exported="false"
+            android:theme="@style/CoversModuleTheme" />
+        <activity
+            android:name="br.com.editorpdf.MainActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified"
+            android:theme="@style/Theme.EditorPDF" />
+        <activity
+            android:name="br.com.extratorvideos.MainActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified"
+            android:theme="@style/VideoModuleTheme" />
+        <activity
+            android:name="br.com.extratorvideos.EditorActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified"
+            android:theme="@style/VideoModuleTheme" />
+
         <activity
             android:name=".ui.LoginActivity"
-            android:exported="true">
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
