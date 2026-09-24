@@ -110,7 +110,7 @@ object MobileScaffold {
 
         installEdgeSwipe(activity, shell, selected)
         activity.setContentView(shell)
-        ViewCompat.requestApplyWindowInsets(shell)
+        ViewCompat.requestApplyInsets(shell)
         return content
     }
 
