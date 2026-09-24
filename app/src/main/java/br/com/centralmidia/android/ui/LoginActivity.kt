@@ -285,7 +285,7 @@ class LoginActivity : BaseActivity() {
                     { session ->
                         setBusy(false)
                         if (session.user.mustChangePassword) {
-                            PasswordDialogs.show(this, true, p) { openMain() }
+                            PasswordDialogs.show(this@LoginActivity, true, p) { openMain() }
                         } else {
                             openMain()
                         }
