@@ -136,6 +136,17 @@ covers_assets = (
 )
 (ASSETS / "newspapers.json").write_bytes(covers_assets.read_bytes())
 
+default_cover = (
+    SRC
+    / "monitor_noticias"
+    / "capas_tool"
+    / "assets"
+    / "principais_capas_cover.png"
+)
+if default_cover.exists():
+    (ASSETS / "principais_capas_cover.png").write_bytes(default_cover.read_bytes())
+
+
 
 def constant(path: Path, name: str) -> str:
     text = path.read_text(encoding="utf-8")
