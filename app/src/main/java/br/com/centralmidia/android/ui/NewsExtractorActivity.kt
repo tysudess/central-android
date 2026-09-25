@@ -7,12 +7,15 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.EditText
@@ -21,18 +24,44 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import br.com.centralmidia.android.R
 import br.com.centralmidia.android.core.CentralDb
+import br.com.centralmidia.android.core.GoogleNewsUrlResolver
 import br.com.centralmidia.android.core.dp
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.json.JSONObject
 import org.json.JSONTokener
+import org.jsoup.Jsoup
+import java.net.URI
+import java.util.concurrent.TimeUnit
 
 class NewsExtractorActivity : BaseActivity() {
+    private data class ExtractedArticle(
+        val title: String,
+        val source: String,
+        val date: String,
+        val author: String,
+        val subtitle: String,
+        val text: String,
+        val url: String,
+    )
+
     private lateinit var web: WebView
     private lateinit var urlInput: EditText
     private lateinit var output: EditText
     private lateinit var status: TextView
     private lateinit var counter: TextView
+
     private val meta = linkedMapOf<String, TextView>()
-    private var pendingExtract = false
+    private val resolver = GoogleNewsUrlResolver()
+
+    private val http = OkHttpClient.Builder()
+        .connectTimeout(12, TimeUnit.SECONDS)
+        .readTimeout(25, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .build()
+
+    private var webFallbackRunning = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,43 +70,135 @@ class NewsExtractorActivity : BaseActivity() {
         val root = MobileScaffold.page(
             this,
             "Extrator de Notícias",
-            "Extraia o texto principal e os dados da matéria sem sair do aplicativo.",
+            "",
             MobileScaffold.Tab.MORE,
-            showAutomation = true,
+            showAutomation = false,
         )
 
-        root.addView(inputCard(), MobileUi.match(dp(14)))
+        root.addView(inputCard(), MobileUi.match(dp(8)))
         root.addView(statusCard(), MobileUi.match(dp(10)))
         root.addView(metadataCard(), MobileUi.match(dp(10)))
         root.addView(textCard(), MobileUi.match(dp(10)))
 
         web = WebView(this).apply {
-            visibility = View.GONE
+            visibility = View.INVISIBLE
+
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
-            settings.loadsImagesAutomatically = true
+            settings.loadsImagesAutomatically = false
+            settings.javaScriptCanOpenWindowsAutomatically = false
+            settings.userAgentString =
+                "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 " +
+                    "(KHTML, like Gecko) Chrome/125.0 Mobile Safari/537.36"
+
             webChromeClient = WebChromeClient()
+
             webViewClient = object : WebViewClient() {
-                override fun onPageFinished(view: WebView?, url: String?) {
+                override fun onPageFinished(
+                    view: WebView?,
+                    url: String?,
+                ) {
                     super.onPageFinished(view, url)
-                    if (pendingExtract) {
-                        pendingExtract = false
-                        evaluateExtraction()
+
+                    if (!webFallbackRunning) {
+                        return
+                    }
+
+                    val current =
+                        url.orEmpty()
+                            .trim()
+
+                    if (
+                        current.isBlank() ||
+                        current == "about:blank"
+                    ) {
+                        return
+                    }
+
+                    if (
+                        resolver.isGoogleNews(
+                            current,
+                        )
+                    ) {
+                        status.text =
+                            "O Google News ainda está redirecionando para o veículo…"
+                        return
+                    }
+
+                    webFallbackRunning = false
+                    evaluateWebExtraction()
+                }
+
+                override fun onReceivedError(
+                    view: WebView?,
+                    request: WebResourceRequest?,
+                    error: WebResourceError?,
+                ) {
+                    super.onReceivedError(
+                        view,
+                        request,
+                        error,
+                    )
+
+                    if (
+                        request?.isForMainFrame == true &&
+                        webFallbackRunning
+                    ) {
+                        webFallbackRunning = false
+                        status.text =
+                            "Não foi possível abrir a matéria: " +
+                                error?.description.orEmpty()
                     }
                 }
             }
         }
-        root.addView(web, LinearLayout.LayoutParams(1, 1))
 
-        val incoming = intent.getStringExtra("url").orEmpty().trim()
+        root.addView(
+            web,
+            LinearLayout.LayoutParams(
+                1,
+                1,
+            ),
+        )
+
+        val incoming =
+            intent.getStringExtra(
+                "url",
+            )
+                .orEmpty()
+                .trim()
+
         if (incoming.isNotBlank()) {
             urlInput.setText(incoming)
-            status.text = "Link recebido da aba Notícias. Toque em Extrair matéria."
+
+            status.text =
+                if (
+                    resolver.isGoogleNews(
+                        incoming,
+                    )
+                ) {
+                    "Link recebido. O endereço direto do veículo será resolvido ao extrair."
+                } else {
+                    "Link recebido da aba Notícias. Toque em Extrair matéria."
+                }
         }
+    }
+
+    override fun onDestroy() {
+        if (::web.isInitialized) {
+            runCatching {
+                web.stopLoading()
+                web.loadUrl("about:blank")
+                web.destroy()
+            }
+        }
+
+        super.onDestroy()
     }
 
     private fun inputCard(): View {
         val card = MobileUi.card(this)
+
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
@@ -91,6 +212,7 @@ class NewsExtractorActivity : BaseActivity() {
                 true,
             ),
         )
+
         box.addView(
             MobileUi.text(
                 this,
@@ -106,6 +228,7 @@ class NewsExtractorActivity : BaseActivity() {
             this,
             "https://veiculo.com.br/noticia/materia-completa",
         )
+
         box.addView(
             urlInput,
             LinearLayout.LayoutParams(
@@ -137,7 +260,7 @@ class NewsExtractorActivity : BaseActivity() {
         box.addView(
             MobileUi.text(
                 this,
-                "O endereço recebido de Notícias é o mesmo usado em Abrir matéria e Copiar link.",
+                "O Android tenta primeiro a extração direta. Se o site exigir navegador, a Central usa um WebView interno automaticamente.",
                 9.5f,
                 MobileUi.MUTED,
             ),
@@ -147,6 +270,7 @@ class NewsExtractorActivity : BaseActivity() {
         val scroll = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
         }
+
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
         }
@@ -172,10 +296,7 @@ class NewsExtractorActivity : BaseActivity() {
                 MobileUi.NAVY,
                 R.drawable.ic_open,
             ) {
-                val u = urlInput.text?.toString().orEmpty().trim()
-                if (u.isNotBlank()) {
-                    openUrl(u)
-                }
+                openCurrentArticle()
             },
             actionLp(),
         )
@@ -220,6 +341,7 @@ class NewsExtractorActivity : BaseActivity() {
         )
 
         scroll.addView(actions)
+
         box.addView(
             scroll,
             MobileUi.match(dp(9)),
@@ -234,13 +356,24 @@ class NewsExtractorActivity : BaseActivity() {
             this,
             11,
         ).apply {
-            setCardBackgroundColor(MobileUi.GREEN_TINT)
-            strokeColor = Color.rgb(190, 233, 211)
+            setCardBackgroundColor(
+                MobileUi.GREEN_TINT,
+            )
+
+            strokeColor =
+                Color.rgb(
+                    190,
+                    233,
+                    211,
+                )
         }
 
         val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+            orientation =
+                LinearLayout.HORIZONTAL
+
+            gravity =
+                Gravity.CENTER_VERTICAL
         }
 
         row.addView(
@@ -257,7 +390,11 @@ class NewsExtractorActivity : BaseActivity() {
             this,
             "Pronto para receber um link da aba Notícias.",
             10.5f,
-            Color.rgb(4, 120, 78),
+            Color.rgb(
+                4,
+                120,
+                78,
+            ),
             true,
         )
 
@@ -278,8 +415,10 @@ class NewsExtractorActivity : BaseActivity() {
 
     private fun metadataCard(): View {
         val card = MobileUi.card(this)
+
         val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
+            orientation =
+                LinearLayout.VERTICAL
         }
 
         box.addView(
@@ -309,6 +448,7 @@ class NewsExtractorActivity : BaseActivity() {
                 ),
                 MobileUi.match(dp(9)),
             )
+
             val value = MobileUi.text(
                 this,
                 "—",
@@ -316,8 +456,13 @@ class NewsExtractorActivity : BaseActivity() {
                 MobileUi.NAVY,
                 false,
             )
-            value.setTextIsSelectable(true)
+
+            value.setTextIsSelectable(
+                true,
+            )
+
             meta[key] = value
+
             box.addView(
                 value,
                 MobileUi.match(dp(2)),
@@ -330,13 +475,18 @@ class NewsExtractorActivity : BaseActivity() {
 
     private fun textCard(): View {
         val card = MobileUi.card(this)
+
         val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
+            orientation =
+                LinearLayout.VERTICAL
         }
 
         val header = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+            orientation =
+                LinearLayout.HORIZONTAL
+
+            gravity =
+                Gravity.CENTER_VERTICAL
         }
 
         header.addView(
@@ -360,29 +510,54 @@ class NewsExtractorActivity : BaseActivity() {
             9.5f,
             MobileUi.MUTED,
         )
-        header.addView(counter)
-        box.addView(header)
+
+        header.addView(
+            counter,
+        )
+
+        box.addView(
+            header,
+        )
 
         output = EditText(this).apply {
-            hint = "O conteúdo extraído aparecerá aqui."
+            hint =
+                "O conteúdo extraído aparecerá aqui."
+
             textSize = 12.5f
-            setTextColor(MobileUi.NAVY)
-            setHintTextColor(MobileUi.MUTED)
-            gravity = Gravity.TOP or Gravity.START
+
+            setTextColor(
+                MobileUi.NAVY,
+            )
+
+            setHintTextColor(
+                MobileUi.MUTED,
+            )
+
+            gravity =
+                Gravity.TOP or
+                    Gravity.START
+
             minLines = 16
             isSingleLine = false
+
             setPadding(
                 dp(12),
                 dp(12),
                 dp(12),
                 dp(12),
             )
-            background = MobileUi.rounded(
-                Color.rgb(248, 251, 255),
-                dp(11).toFloat(),
-                MobileUi.BORDER,
-                dp(1),
-            )
+
+            background =
+                MobileUi.rounded(
+                    Color.rgb(
+                        248,
+                        251,
+                        255,
+                    ),
+                    dp(11).toFloat(),
+                    MobileUi.BORDER,
+                    dp(1),
+                )
         }
 
         box.addView(
@@ -408,124 +583,677 @@ class NewsExtractorActivity : BaseActivity() {
         }
 
     private fun startExtraction() {
-        val raw = urlInput.text?.toString().orEmpty().trim()
+        val raw =
+            urlInput.text
+                ?.toString()
+                .orEmpty()
+                .trim()
 
         if (
-            !raw.startsWith("http://") &&
-            !raw.startsWith("https://")
+            !raw.startsWith(
+                "http://",
+            ) &&
+            !raw.startsWith(
+                "https://",
+            )
         ) {
-            toast("Informe um link http:// ou https:// válido.")
+            toast(
+                "Informe um link http:// ou https:// válido.",
+            )
             return
         }
 
-        status.text = "Abrindo a matéria e preparando a extração…"
-        pendingExtract = true
-        web.loadUrl(raw)
+        webFallbackRunning = false
+
+        status.text =
+            if (
+                resolver.isGoogleNews(
+                    raw,
+                )
+            ) {
+                "Resolvendo o link direto do veículo…"
+            } else {
+                "Extraindo a matéria…"
+            }
+
+        io(
+            {
+                val direct =
+                    resolver.resolve(
+                        raw,
+                    )
+                        .ifBlank {
+                            raw
+                        }
+
+                try {
+                    extractWithHttp(
+                        direct,
+                    )
+                } catch (
+                    error: Exception
+                ) {
+                    ExtractedArticle(
+                        title = "",
+                        source = "",
+                        date = "",
+                        author = "",
+                        subtitle = "",
+                        text = "",
+                        url = direct,
+                    )
+                }
+            },
+            { result ->
+                val direct =
+                    result.url.ifBlank {
+                        raw
+                    }
+
+                urlInput.setText(
+                    direct,
+                )
+
+                if (
+                    result.text.length >=
+                    MIN_DIRECT_TEXT
+                ) {
+                    applyResult(
+                        result,
+                    )
+                } else {
+                    startWebFallback(
+                        direct,
+                    )
+                }
+            },
+            {
+                startWebFallback(
+                    raw,
+                )
+            },
+        )
     }
 
-    private fun evaluateExtraction() {
-        val js = """
-            (function(){
-              function m(prop, name){
-                var e = prop ? document.querySelector('meta[property="'+prop+'"]') : document.querySelector('meta[name="'+name+'"]');
-                return e ? (e.content || '').trim() : '';
-              }
-              function text(sel){ var e=document.querySelector(sel); return e ? (e.innerText || e.textContent || '').trim() : ''; }
-              var article = document.querySelector('article') || document.querySelector('main') || document.body;
-              var body = article ? (article.innerText || article.textContent || '') : '';
-              var author = m('', 'author') || text('[rel=author]') || text('.author') || text('[class*=author]');
-              var date = m('article:published_time','') || m('', 'date') || m('', 'pubdate') || text('time');
-              var source = m('og:site_name','') || location.hostname.replace(/^www./,'');
-              var subtitle = m('og:description','') || m('', 'description') || text('article h2') || text('main h2');
-              return JSON.stringify({
-                title:(m('og:title','') || document.title || text('h1')).trim(),
-                source:source,
-                date:date,
-                author:author,
-                subtitle:subtitle,
-                text:(body || '').replace(/
-{3,}/g,'
+    private fun extractWithHttp(
+        url: String,
+    ): ExtractedArticle {
+        val request = Request.Builder()
+            .url(url)
+            .header(
+                "User-Agent",
+                DESKTOP_UA,
+            )
+            .header(
+                "Accept-Language",
+                "pt-BR,pt;q=0.9,en;q=0.7",
+            )
+            .build()
 
-').trim(),
-                url:location.href
+        http.newCall(
+            request,
+        )
+            .execute()
+            .use { response ->
+                if (
+                    !response.isSuccessful
+                ) {
+                    error(
+                        "HTTP ${response.code}",
+                    )
+                }
+
+                val html =
+                    response.body
+                        ?.string()
+                        .orEmpty()
+
+                if (
+                    html.isBlank()
+                ) {
+                    error(
+                        "Página vazia.",
+                    )
+                }
+
+                val finalUrl =
+                    response.request
+                        .url
+                        .toString()
+
+                val doc =
+                    Jsoup.parse(
+                        html,
+                        finalUrl,
+                    )
+
+                doc.select(
+                    "script,style,noscript,svg,nav,footer,header,aside,form",
+                )
+                    .remove()
+
+                fun metaValue(
+                    css: String,
+                ): String =
+                    doc.selectFirst(
+                        css,
+                    )
+                        ?.attr(
+                            "content",
+                        )
+                        .orEmpty()
+                        .trim()
+
+                val title =
+                    metaValue(
+                        "meta[property=og:title]",
+                    )
+                        .ifBlank {
+                            doc.selectFirst(
+                                "h1",
+                            )
+                                ?.text()
+                                .orEmpty()
+                        }
+                        .ifBlank {
+                            doc.title()
+                        }
+                        .trim()
+
+                val source =
+                    metaValue(
+                        "meta[property=og:site_name]",
+                    )
+                        .ifBlank {
+                            runCatching {
+                                URI(
+                                    finalUrl,
+                                )
+                                    .host
+                                    .orEmpty()
+                                    .removePrefix(
+                                        "www.",
+                                    )
+                            }
+                                .getOrDefault(
+                                    "",
+                                )
+                        }
+
+                val date =
+                    metaValue(
+                        "meta[property=article:published_time]",
+                    )
+                        .ifBlank {
+                            metaValue(
+                                "meta[name=date]",
+                            )
+                        }
+                        .ifBlank {
+                            doc.selectFirst(
+                                "time[datetime]",
+                            )
+                                ?.attr(
+                                    "datetime",
+                                )
+                                .orEmpty()
+                        }
+                        .ifBlank {
+                            doc.selectFirst(
+                                "time",
+                            )
+                                ?.text()
+                                .orEmpty()
+                        }
+
+                val author =
+                    metaValue(
+                        "meta[name=author]",
+                    )
+                        .ifBlank {
+                            doc.selectFirst(
+                                "[rel=author], .author, [class*=author]",
+                            )
+                                ?.text()
+                                .orEmpty()
+                        }
+
+                val subtitle =
+                    metaValue(
+                        "meta[property=og:description]",
+                    )
+                        .ifBlank {
+                            metaValue(
+                                "meta[name=description]",
+                            )
+                        }
+                        .ifBlank {
+                            doc.selectFirst(
+                                "article h2, main h2",
+                            )
+                                ?.text()
+                                .orEmpty()
+                        }
+
+                val article =
+                    doc.selectFirst(
+                        "article",
+                    )
+                        ?: doc.selectFirst(
+                            "main",
+                        )
+                        ?: doc.body()
+
+                val paragraphs =
+                    article
+                        ?.select(
+                            "p",
+                        )
+                        ?.map {
+                            it.text()
+                                .trim()
+                        }
+                        ?.filter {
+                            it.length >=
+                                MIN_PARAGRAPH
+                        }
+                        ?.distinct()
+                        .orEmpty()
+
+                val paragraphText =
+                    paragraphs.joinToString(
+                        "\n\n",
+                    )
+
+                val text =
+                    if (
+                        paragraphText.length >=
+                        MIN_DIRECT_TEXT
+                    ) {
+                        paragraphText
+                    } else {
+                        article
+                            ?.text()
+                            .orEmpty()
+                            .trim()
+                    }
+
+                return ExtractedArticle(
+                    title = title,
+                    source = source,
+                    date = date,
+                    author = author,
+                    subtitle = subtitle,
+                    text = normalizeText(
+                        text,
+                    ),
+                    url = finalUrl,
+                )
+            }
+    }
+
+    private fun startWebFallback(
+        input: String,
+    ) {
+        if (
+            !::web.isInitialized
+        ) {
+            status.text =
+                "O navegador interno não está disponível."
+            return
+        }
+
+        status.text =
+            "O site exige navegador. Tentando pelo WebView interno…"
+
+        webFallbackRunning = true
+
+        runCatching {
+            web.stopLoading()
+            web.clearHistory()
+            web.loadUrl(
+                input,
+            )
+        }.onFailure {
+            webFallbackRunning = false
+            status.text =
+                "Não foi possível abrir a matéria no navegador interno."
+        }
+    }
+
+    private fun evaluateWebExtraction() {
+        val js = """
+            (function() {
+              function meta(selector) {
+                var el = document.querySelector(selector);
+                return el ? (el.content || '').trim() : '';
+              }
+
+              function firstText(selector) {
+                var el = document.querySelector(selector);
+                return el ? (el.innerText || el.textContent || '').trim() : '';
+              }
+
+              var root =
+                document.querySelector('article') ||
+                document.querySelector('main') ||
+                document.body;
+
+              var paragraphs = [];
+              if (root) {
+                var nodes = root.querySelectorAll('p');
+                for (var i = 0; i < nodes.length; i++) {
+                  var value =
+                    (nodes[i].innerText || nodes[i].textContent || '').trim();
+                  if (value.length >= 30 && paragraphs.indexOf(value) < 0) {
+                    paragraphs.push(value);
+                  }
+                }
+              }
+
+              var body = paragraphs.join('\n\n');
+
+              if (body.length < 120 && root) {
+                body = (root.innerText || root.textContent || '').trim();
+              }
+
+              body = body.replace(/\n{3,}/g, '\n\n').trim();
+
+              var author =
+                meta('meta[name="author"]') ||
+                firstText('[rel="author"]') ||
+                firstText('.author') ||
+                firstText('[class*="author"]');
+
+              var date =
+                meta('meta[property="article:published_time"]') ||
+                meta('meta[name="date"]') ||
+                firstText('time');
+
+              var source =
+                meta('meta[property="og:site_name"]') ||
+                location.hostname.replace(/^www\./, '');
+
+              var subtitle =
+                meta('meta[property="og:description"]') ||
+                meta('meta[name="description"]') ||
+                firstText('article h2') ||
+                firstText('main h2');
+
+              var title =
+                meta('meta[property="og:title"]') ||
+                firstText('h1') ||
+                document.title ||
+                '';
+
+              return JSON.stringify({
+                title: title.trim(),
+                source: source.trim(),
+                date: date.trim(),
+                author: author.trim(),
+                subtitle: subtitle.trim(),
+                text: body,
+                url: location.href
               });
             })()
         """.trimIndent()
 
-        web.evaluateJavascript(js) { raw ->
+        web.evaluateJavascript(
+            js,
+        ) { raw ->
             runCatching {
-                val inner = JSONTokener(raw).nextValue() as String
-                val obj = JSONObject(inner)
-                applyResult(obj)
+                val value =
+                    JSONTokener(
+                        raw,
+                    )
+                        .nextValue()
+
+                val inner =
+                    value as? String
+                        ?: error(
+                            "Resposta JavaScript inválida.",
+                        )
+
+                val obj =
+                    JSONObject(
+                        inner,
+                    )
+
+                val extracted =
+                    ExtractedArticle(
+                        title =
+                            obj.optString(
+                                "title",
+                            ),
+                        source =
+                            obj.optString(
+                                "source",
+                            ),
+                        date =
+                            obj.optString(
+                                "date",
+                            ),
+                        author =
+                            obj.optString(
+                                "author",
+                            ),
+                        subtitle =
+                            obj.optString(
+                                "subtitle",
+                            ),
+                        text =
+                            normalizeText(
+                                obj.optString(
+                                    "text",
+                                ),
+                            ),
+                        url =
+                            obj.optString(
+                                "url",
+                            )
+                                .ifBlank {
+                                    urlInput.text
+                                        ?.toString()
+                                        .orEmpty()
+                                },
+                    )
+
+                if (
+                    extracted.text.isBlank()
+                ) {
+                    error(
+                        "Texto principal não identificado.",
+                    )
+                }
+
+                applyResult(
+                    extracted,
+                )
             }.onFailure {
-                status.text = "Não foi possível interpretar o conteúdo desta página."
-                toast("Falha ao extrair a matéria.")
+                status.text =
+                    "A página abriu, mas o texto principal não pôde ser identificado."
+                toast(
+                    "Não foi possível extrair esta matéria.",
+                )
             }
         }
     }
 
-    private fun applyResult(obj: JSONObject) {
-        val values = mapOf(
-            "title" to obj.optString("title"),
-            "source" to obj.optString("source"),
-            "date" to obj.optString("date"),
-            "author" to obj.optString("author"),
-            "subtitle" to obj.optString("subtitle"),
+    private fun applyResult(
+        result: ExtractedArticle,
+    ) {
+        val values =
+            mapOf(
+                "title" to result.title,
+                "source" to result.source,
+                "date" to result.date,
+                "author" to result.author,
+                "subtitle" to result.subtitle,
+            )
+
+        values.forEach {
+                (key, value) ->
+            meta[key]?.text =
+                value.ifBlank {
+                    "—"
+                }
+        }
+
+        output.setText(
+            result.text,
         )
 
-        values.forEach { (key, value) ->
-            meta[key]?.text = value.ifBlank { "—" }
-        }
-
-        val text = obj.optString("text").trim()
-        output.setText(text)
-
-        val words = text
-            .split(Regex("\\s+"))
-            .count { it.isNotBlank() }
+        val words =
+            result.text
+                .split(
+                    Regex(
+                        "\\s+",
+                    ),
+                )
+                .count {
+                    it.isNotBlank()
+                }
 
         counter.text =
-            "$words palavra(s) • ${text.length} caractere(s)"
+            "$words palavra(s) • ${result.text.length} caractere(s)"
 
-        val directUrl = obj.optString("url").ifBlank {
-            urlInput.text?.toString().orEmpty()
-        }
-
-        urlInput.setText(directUrl)
+        urlInput.setText(
+            result.url,
+        )
 
         status.text =
-            if (text.isBlank()) {
-                "A página abriu, mas não foi possível identificar texto principal."
-            } else {
-                "Matéria extraída com sucesso."
-            }
+            "✓ Matéria extraída com sucesso."
 
-        CentralDb(this).addHistory(
-            "extract_news",
-            values["title"].orEmpty().ifBlank {
-                "Matéria extraída"
+        CentralDb(
+            this,
+        )
+            .addHistory(
+                "extract_news",
+                result.title.ifBlank {
+                    "Matéria extraída"
+                },
+                result.source,
+                result.url,
+            )
+    }
+
+    private fun normalizeText(
+        value: String,
+    ): String =
+        value
+            .replace(
+                "\r\n",
+                "\n",
+            )
+            .replace(
+                "\r",
+                "\n",
+            )
+            .replace(
+                Regex(
+                    "[ \\t]+\\n",
+                ),
+                "\n",
+            )
+            .replace(
+                Regex(
+                    "\\n{3,}",
+                ),
+                "\n\n",
+            )
+            .trim()
+
+    private fun openCurrentArticle() {
+        val raw =
+            urlInput.text
+                ?.toString()
+                .orEmpty()
+                .trim()
+
+        if (
+            raw.isBlank()
+        ) {
+            toast(
+                "Nenhum link informado.",
+            )
+            return
+        }
+
+        status.text =
+            "Preparando link da matéria…"
+
+        io(
+            {
+                resolver.resolve(
+                    raw,
+                )
+                    .ifBlank {
+                        raw
+                    }
             },
-            values["source"].orEmpty(),
-            directUrl,
+            { direct ->
+                urlInput.setText(
+                    direct,
+                )
+
+                openUrl(
+                    direct,
+                )
+
+                status.text =
+                    "Matéria aberta no navegador."
+            },
+            {
+                openUrl(
+                    raw,
+                )
+            },
         )
     }
 
     private fun clearAll() {
-        pendingExtract = false
-        urlInput.setText("")
-        output.setText("")
+        webFallbackRunning = false
+
+        urlInput.setText(
+            "",
+        )
+
+        output.setText(
+            "",
+        )
+
         meta.values.forEach {
             it.text = "—"
         }
-        counter.text = "Nenhuma matéria extraída"
-        status.text = "Pronto para receber um link da aba Notícias."
-        web.loadUrl("about:blank")
+
+        counter.text =
+            "Nenhuma matéria extraída"
+
+        status.text =
+            "Pronto para receber um link da aba Notícias."
+
+        if (
+            ::web.isInitialized
+        ) {
+            web.stopLoading()
+            web.loadUrl(
+                "about:blank",
+            )
+        }
     }
 
     private fun copyText() {
-        val text = output.text?.toString().orEmpty()
-        if (text.isBlank()) {
-            toast("Nenhum texto extraído.")
+        val text =
+            output.text
+                ?.toString()
+                .orEmpty()
+
+        if (
+            text.isBlank()
+        ) {
+            toast(
+                "Nenhum texto extraído.",
+            )
             return
         }
 
@@ -541,59 +1269,94 @@ class NewsExtractorActivity : BaseActivity() {
             ),
         )
 
-        toast("Texto copiado.")
+        toast(
+            "Texto copiado.",
+        )
     }
 
     private fun saveText() {
-        val text = output.text?.toString().orEmpty()
-        if (text.isBlank()) {
-            toast("Nada para salvar.")
+        val text =
+            output.text
+                ?.toString()
+                .orEmpty()
+
+        if (
+            text.isBlank()
+        ) {
+            toast(
+                "Nada para salvar.",
+            )
             return
         }
 
-        val values = ContentValues().apply {
-            put(
-                MediaStore.Downloads.DISPLAY_NAME,
-                "materia-${System.currentTimeMillis()}.txt",
-            )
-            put(
-                MediaStore.Downloads.MIME_TYPE,
-                "text/plain",
-            )
-            put(
-                MediaStore.Downloads.RELATIVE_PATH,
-                "Download/Central Inteligente de Midia/Noticias",
-            )
-        }
+        val values =
+            ContentValues().apply {
+                put(
+                    MediaStore.Downloads.DISPLAY_NAME,
+                    "materia-${System.currentTimeMillis()}.txt",
+                )
 
-        val uri = contentResolver.insert(
-            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-            values,
-        ) ?: run {
-            toast("Não foi possível criar o arquivo.")
-            return
-        }
+                put(
+                    MediaStore.Downloads.MIME_TYPE,
+                    "text/plain",
+                )
 
-        contentResolver.openOutputStream(uri)?.use {
-            it.write(
-                text.toByteArray(),
+                put(
+                    MediaStore.Downloads.RELATIVE_PATH,
+                    "Download/Central Inteligente de Midia/Noticias",
+                )
+            }
+
+        val uri =
+            contentResolver.insert(
+                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                values,
             )
-        }
+                ?: run {
+                    toast(
+                        "Não foi possível criar o arquivo.",
+                    )
+                    return
+                }
 
-        toast("Texto salvo em Downloads.")
+        contentResolver
+            .openOutputStream(
+                uri,
+            )
+            ?.use {
+                it.write(
+                    text.toByteArray(),
+                )
+            }
+
+        toast(
+            "Texto salvo em Downloads.",
+        )
     }
 
     private fun shareText() {
-        val text = output.text?.toString().orEmpty()
-        if (text.isBlank()) {
-            toast("Nenhum texto extraído.")
+        val text =
+            output.text
+                ?.toString()
+                .orEmpty()
+
+        if (
+            text.isBlank()
+        ) {
+            toast(
+                "Nenhum texto extraído.",
+            )
             return
         }
 
         startActivity(
             Intent.createChooser(
-                Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
+                Intent(
+                    Intent.ACTION_SEND,
+                ).apply {
+                    type =
+                        "text/plain"
+
                     putExtra(
                         Intent.EXTRA_TEXT,
                         text,
@@ -602,5 +1365,18 @@ class NewsExtractorActivity : BaseActivity() {
                 "Compartilhar matéria",
             ),
         )
+    }
+
+    companion object {
+        private const val MIN_DIRECT_TEXT =
+            120
+
+        private const val MIN_PARAGRAPH =
+            30
+
+        private const val DESKTOP_UA =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+                "AppleWebKit/537.36 (KHTML, like Gecko) " +
+                "Chrome/125.0 Safari/537.36"
     }
 }
