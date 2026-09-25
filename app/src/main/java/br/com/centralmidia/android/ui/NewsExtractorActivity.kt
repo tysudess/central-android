@@ -9,8 +9,10 @@ import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.text.method.ScrollingMovementMethod
 import android.provider.MediaStore
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebChromeClient
@@ -28,6 +30,7 @@ import br.com.centralmidia.android.core.GoogleNewsUrlResolver
 import br.com.centralmidia.android.core.dp
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
 import org.json.JSONObject
 import org.json.JSONTokener
 import org.jsoup.Jsoup
@@ -519,6 +522,16 @@ class NewsExtractorActivity : BaseActivity() {
             header,
         )
 
+        box.addView(
+            MobileUi.text(
+                this,
+                "Deslize dentro do quadro abaixo para ler a matéria completa.",
+                9.2f,
+                MobileUi.MUTED,
+            ),
+            MobileUi.match(dp(4)),
+        )
+
         output = EditText(this).apply {
             hint =
                 "O conteúdo extraído aparecerá aqui."
@@ -539,6 +552,24 @@ class NewsExtractorActivity : BaseActivity() {
 
             minLines = 16
             isSingleLine = false
+            setHorizontallyScrolling(false)
+            isVerticalScrollBarEnabled = true
+            scrollBarStyle = View.SCROLLBARS_INSIDE_INSET
+            overScrollMode = View.OVER_SCROLL_ALWAYS
+            movementMethod = ScrollingMovementMethod.getInstance()
+
+            setOnTouchListener { view, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN,
+                    MotionEvent.ACTION_MOVE,
+                    -> view.parent?.requestDisallowInterceptTouchEvent(true)
+
+                    MotionEvent.ACTION_UP,
+                    MotionEvent.ACTION_CANCEL,
+                    -> view.parent?.requestDisallowInterceptTouchEvent(false)
+                }
+                false
+            }
 
             setPadding(
                 dp(12),
@@ -727,6 +758,16 @@ class NewsExtractorActivity : BaseActivity() {
                         finalUrl,
                     )
 
+                // O extrator desktop devolve campos estruturados (título, veículo,
+                // data, autor, subtítulo e corpo formatado). No Android tentamos
+                // primeiro o JSON-LD NewsArticle/Article da própria página, que é
+                // normalmente a fonte mais fiel para esses mesmos campos.
+                val structured =
+                    extractStructuredArticle(
+                        doc,
+                        finalUrl,
+                    )
+
                 doc.select(
                     "script,style,noscript,svg,nav,footer,header,aside,form",
                 )
@@ -745,9 +786,12 @@ class NewsExtractorActivity : BaseActivity() {
                         .trim()
 
                 val title =
-                    metaValue(
-                        "meta[property=og:title]",
-                    )
+                    structured?.title.orEmpty()
+                        .ifBlank {
+                            metaValue(
+                                "meta[property=og:title]",
+                            )
+                        }
                         .ifBlank {
                             doc.selectFirst(
                                 "h1",
@@ -761,9 +805,12 @@ class NewsExtractorActivity : BaseActivity() {
                         .trim()
 
                 val source =
-                    metaValue(
-                        "meta[property=og:site_name]",
-                    )
+                    structured?.source.orEmpty()
+                        .ifBlank {
+                            metaValue(
+                                "meta[property=og:site_name]",
+                            )
+                        }
                         .ifBlank {
                             runCatching {
                                 URI(
@@ -781,12 +828,25 @@ class NewsExtractorActivity : BaseActivity() {
                         }
 
                 val date =
-                    metaValue(
-                        "meta[property=article:published_time]",
-                    )
+                    structured?.date.orEmpty()
+                        .ifBlank {
+                            metaValue(
+                                "meta[property=article:published_time]",
+                            )
+                        }
                         .ifBlank {
                             metaValue(
                                 "meta[name=date]",
+                            )
+                        }
+                        .ifBlank {
+                            metaValue(
+                                "meta[itemprop=datePublished]",
+                            )
+                        }
+                        .ifBlank {
+                            metaValue(
+                                "meta[name=parsely-pub-date]",
                             )
                         }
                         .ifBlank {
@@ -807,9 +867,27 @@ class NewsExtractorActivity : BaseActivity() {
                         }
 
                 val author =
-                    metaValue(
-                        "meta[name=author]",
-                    )
+                    structured?.author.orEmpty()
+                        .ifBlank {
+                            metaValue(
+                                "meta[name=author]",
+                            )
+                        }
+                        .ifBlank {
+                            metaValue(
+                                "meta[property=article:author]",
+                            )
+                        }
+                        .ifBlank {
+                            metaValue(
+                                "meta[name=parsely-author]",
+                            )
+                        }
+                        .ifBlank {
+                            metaValue(
+                                "meta[name=byl]",
+                            )
+                        }
                         .ifBlank {
                             doc.selectFirst(
                                 "[rel=author], .author, [class*=author]",
@@ -819,9 +897,12 @@ class NewsExtractorActivity : BaseActivity() {
                         }
 
                 val subtitle =
-                    metaValue(
-                        "meta[property=og:description]",
-                    )
+                    structured?.subtitle.orEmpty()
+                        .ifBlank {
+                            metaValue(
+                                "meta[property=og:description]",
+                            )
+                        }
                         .ifBlank {
                             metaValue(
                                 "meta[name=description]",
@@ -866,16 +947,20 @@ class NewsExtractorActivity : BaseActivity() {
                     )
 
                 val text =
-                    if (
+                    when {
+                        structured?.text.orEmpty().length >=
+                            MIN_DIRECT_TEXT ->
+                            structured?.text.orEmpty()
+
                         paragraphText.length >=
-                        MIN_DIRECT_TEXT
-                    ) {
-                        paragraphText
-                    } else {
-                        article
-                            ?.text()
-                            .orEmpty()
-                            .trim()
+                            MIN_DIRECT_TEXT ->
+                            paragraphText
+
+                        else ->
+                            article
+                                ?.text()
+                                .orEmpty()
+                                .trim()
                     }
 
                 return ExtractedArticle(
@@ -891,6 +976,177 @@ class NewsExtractorActivity : BaseActivity() {
                 )
             }
     }
+
+    private fun extractStructuredArticle(
+        doc: org.jsoup.nodes.Document,
+        finalUrl: String,
+    ): ExtractedArticle? {
+        val objects = mutableListOf<JSONObject>()
+
+        doc.select("script[type=application/ld+json]")
+            .forEach { script ->
+                val raw = script.data()
+                    .ifBlank { script.html() }
+                    .trim()
+
+                if (raw.isBlank()) {
+                    return@forEach
+                }
+
+                runCatching {
+                    JSONTokener(raw).nextValue()
+                }
+                    .getOrNull()
+                    ?.let { value ->
+                        collectJsonObjects(
+                            value,
+                            objects,
+                        )
+                    }
+            }
+
+        if (objects.isEmpty()) {
+            return null
+        }
+
+        val article = objects.firstOrNull { obj ->
+            jsonTypes(obj).any { type ->
+                type.equals("NewsArticle", true) ||
+                    type.equals("Article", true) ||
+                    type.equals("ReportageNewsArticle", true) ||
+                    type.equals("AnalysisNewsArticle", true)
+            }
+        } ?: objects.firstOrNull { obj ->
+            obj.optString("articleBody").isNotBlank()
+        } ?: return null
+
+        val publisher =
+            jsonName(
+                article.opt("publisher"),
+            )
+
+        val author =
+            jsonName(
+                article.opt("author"),
+            )
+
+        val title =
+            article.optString("headline")
+                .ifBlank {
+                    article.optString("name")
+                }
+
+        val subtitle =
+            article.optString("description")
+
+        val date =
+            article.optString("datePublished")
+                .ifBlank {
+                    article.optString("dateModified")
+                }
+
+        val body =
+            normalizeText(
+                article.optString("articleBody"),
+            )
+
+        return ExtractedArticle(
+            title = title.trim(),
+            source = publisher.trim(),
+            date = date.trim(),
+            author = author.trim(),
+            subtitle = subtitle.trim(),
+            text = body,
+            url = finalUrl,
+        )
+    }
+
+    private fun collectJsonObjects(
+        value: Any?,
+        out: MutableList<JSONObject>,
+    ) {
+        when (value) {
+            is JSONObject -> {
+                out += value
+
+                val keys = value.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    collectJsonObjects(
+                        value.opt(key),
+                        out,
+                    )
+                }
+            }
+
+            is JSONArray -> {
+                for (index in 0 until value.length()) {
+                    collectJsonObjects(
+                        value.opt(index),
+                        out,
+                    )
+                }
+            }
+        }
+    }
+
+    private fun jsonTypes(
+        obj: JSONObject,
+    ): List<String> {
+        val raw = obj.opt("@type")
+
+        return when (raw) {
+            is JSONArray ->
+                buildList {
+                    for (index in 0 until raw.length()) {
+                        raw.optString(index)
+                            .trim()
+                            .takeIf { it.isNotBlank() }
+                            ?.let(::add)
+                    }
+                }
+
+            is String ->
+                listOf(raw.trim())
+                    .filter { it.isNotBlank() }
+
+            else ->
+                emptyList()
+        }
+    }
+
+    private fun jsonName(
+        value: Any?,
+    ): String =
+        when (value) {
+            is JSONObject ->
+                value.optString("name")
+                    .ifBlank {
+                        value.optString("headline")
+                    }
+
+            is JSONArray ->
+                buildList {
+                    for (index in 0 until value.length()) {
+                        val name = jsonName(
+                            value.opt(index),
+                        )
+                            .trim()
+
+                        if (name.isNotBlank()) {
+                            add(name)
+                        }
+                    }
+                }
+                    .distinct()
+                    .joinToString(", ")
+
+            is String ->
+                value
+
+            else ->
+                ""
+        }
 
     private fun startWebFallback(
         input: String,
@@ -1122,7 +1378,7 @@ class NewsExtractorActivity : BaseActivity() {
         )
 
         status.text =
-            "✓ Matéria extraída com sucesso."
+            "✓ Matéria extraída com sucesso. O conteúdo pode ser revisado e editado nesta tela."
 
         CentralDb(
             this,

@@ -1,6 +1,11 @@
 package br.com.centralmidia.android.ui
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
+import android.os.Build
+import android.provider.Settings
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
@@ -9,6 +14,8 @@ import android.widget.ArrayAdapter
 import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import br.com.centralmidia.android.R
 import br.com.centralmidia.android.automation.MonitoringScheduler
 import br.com.centralmidia.android.core.AutomationPreferences
@@ -27,6 +34,20 @@ class SettingsActivity : BaseActivity() {
     private lateinit var status: TextView
 
     private val intervals = listOf(15, 30, 45, 60, 120)
+
+    private val notificationPermissionLauncher =
+        registerForActivityResult(
+            ActivityResultContracts.RequestPermission(),
+        ) { granted ->
+            if (::status.isInitialized) {
+                status.text =
+                    if (granted) {
+                        "Notificações liberadas. A Central avisará quando as buscas automáticas terminarem."
+                    } else {
+                        "As buscas continuam em segundo plano, mas o Android não permitirá os avisos até liberar Notificações para a Central."
+                    }
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -107,9 +128,36 @@ class SettingsActivity : BaseActivity() {
         )
 
         root.addView(
+            MobileUi.button(
+                this,
+                "Configurar bateria / segundo plano",
+                false,
+                MobileUi.NAVY,
+            ) {
+                runCatching {
+                    startActivity(
+                        Intent(
+                            Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS,
+                        ),
+                    )
+                }.onFailure {
+                    toast(
+                        "Abra Configurações do Android e deixe a Central sem restrição de bateria.",
+                    )
+                }
+            },
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(48),
+            ).apply {
+                topMargin = dp(8)
+            },
+        )
+
+        root.addView(
             MobileUi.text(
                 this,
-                "Conexões diretas pela internet. O Android usa WorkManager para manter as rotinas automáticas.",
+                "As buscas continuam com a tela apagada. Se o aparelho for totalmente desligado, elas são retomadas após o próximo boot. Em aparelhos com economia agressiva, deixe a Central sem restrição de bateria.",
                 9.5f,
                 MobileUi.MUTED,
             ),
@@ -538,6 +586,19 @@ class SettingsActivity : BaseActivity() {
         )
 
         MonitoringScheduler.apply(this)
+
+        if (
+            general.isChecked &&
+            Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(
+                Manifest.permission.POST_NOTIFICATIONS,
+            )
+        }
 
         status.text =
             if (general.isChecked) {
