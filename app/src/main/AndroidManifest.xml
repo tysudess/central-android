@@ -35,7 +35,13 @@
 
         <activity android:name=".ui.SettingsActivity" />
         <activity android:name=".ui.AccountActivity" />
-        <activity android:name=".ui.CaptureAreaActivity" android:exported="false" />
+
+        <activity
+            android:name=".ui.CaptureAreaActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.Central.CaptureArea" />
+
         <activity android:name=".ui.ScreenRecorderActivity" />
         <activity android:name=".ui.VideoEditorActivity" />
         <activity android:name=".ui.GloboplayLoginActivity" />
