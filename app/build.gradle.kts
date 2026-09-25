@@ -11,8 +11,8 @@ android {
         applicationId = "br.com.centralmidia.android"
         minSdk = 24
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.0.7"
+        versionCode = 8
+        versionName = "1.0.8"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
@@ -72,11 +72,9 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
-    // Busca de vídeos e motor original do app de Capas enviado pelo usuário.
     implementation("org.jsoup:jsoup:1.18.3")
     implementation("com.google.mlkit:text-recognition:16.0.1")
 
-    // Extrator/Editor de Vídeos importado do projeto enviado pelo usuário.
     implementation("io.github.junkfood02.youtubedl-android:library:0.18.1")
     implementation("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1")
 

@@ -147,7 +147,7 @@ class NewsExtractorActivity : BaseActivity() {
                         webFallbackRunning = false
                         status.text =
                             "Não foi possível abrir a matéria: " +
-                                error?.description.orEmpty()
+                                error?.description?.toString().orEmpty()
                     }
                 }
             }
