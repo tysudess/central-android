@@ -9,8 +9,11 @@ import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.PixelFormat
+import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
@@ -30,6 +33,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.annotation.OptIn
@@ -57,6 +61,8 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.roundToInt
 
 @OptIn(UnstableApi::class)
@@ -81,6 +87,10 @@ class ScreenRecordService : Service() {
     private var overlayPrimary: Button? = null
     private var overlayStop: Button? = null
 
+    private var selectorWindowManager: WindowManager? = null
+    private var selectorOverlay: View? = null
+    private var selectorAreaView: AreaSelectionView? = null
+
     private val prefs by lazy { getSharedPreferences(PREFS, MODE_PRIVATE) }
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -99,6 +109,7 @@ class ScreenRecordService : Service() {
         when (intent?.action) {
             ACTION_ENABLE_WIDGET -> enableWidget()
             ACTION_DISABLE_WIDGET -> disableWidget()
+            ACTION_BEGIN_CAPTURE -> beginCaptureFlow()
             ACTION_STOP -> stopRecording()
             ACTION_PAUSE -> pauseRecording()
             ACTION_RESUME -> resumeRecording()
@@ -248,9 +259,26 @@ class ScreenRecordService : Service() {
             isRecording = true
             isPaused = false
 
-            if (isWidgetEnabled && Settings.canDrawOverlays(this)) {
-                showFloatingWidget()
+            if (
+                isWidgetEnabled &&
+                Settings.canDrawOverlays(this) &&
+                needsCrop()
+            ) {
+                val shownOutsideCapture =
+                    showFloatingWidget(
+                        placeOutsideCapture = true,
+                    )
+
+                if (!shownOutsideCapture) {
+                    hideFloatingWidget()
+                }
+            } else {
+                // Em tela inteira o Android não oferece exclusão pública de um
+                // overlay da MediaProjection sem gerar artefatos. Por isso o
+                // widget some enquanto grava e os controles ficam na notificação.
+                hideFloatingWidget()
             }
+
             updateNotification()
         } catch (error: Throwable) {
             lastError = error.message ?: "Falha ao iniciar a gravação de tela."
@@ -543,156 +571,1673 @@ class ScreenRecordService : Service() {
         }
     }
 
-    private fun showFloatingWidget() {
-        if (!Settings.canDrawOverlays(this)) return
+
+    /**
+     * Mostra o controle flutuante.
+     *
+     * Em gravação de tela inteira ele não é exibido: qualquer overlay normal
+     * seria capturado e FLAG_SECURE produziria o retângulo preto que vimos.
+     *
+     * Em área personalizada o widget só é mantido quando cabe completamente
+     * fora do retângulo selecionado. Como o arquivo final é recortado para a
+     * área escolhida, o widget continua visível para o usuário sem entrar no
+     * vídeo final.
+     */
+    private fun showFloatingWidget(
+        placeOutsideCapture: Boolean = false,
+    ): Boolean {
+        if (!Settings.canDrawOverlays(this)) {
+            return false
+        }
 
         hideFloatingWidget()
-        val wm = getSystemService(WINDOW_SERVICE) as WindowManager
-        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams.TYPE_PHONE
-        }
 
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            type,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_SECURE,
-            PixelFormat.TRANSLUCENT,
-        ).apply {
-            gravity = Gravity.TOP or Gravity.END
-            x = dp(10)
-            y = dp(105)
-        }
+        val wm =
+            getSystemService(
+                WINDOW_SERVICE,
+            ) as WindowManager
 
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(9), dp(7), dp(7), dp(7))
-            background = rounded(
-                Color.argb(247, 232, 244, 255),
-                dp(18),
-                Color.rgb(143, 192, 241),
+        val type =
+            if (
+                Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.O
+            ) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            }
+
+        val position =
+            if (placeOutsideCapture) {
+                calculateWidgetPositionOutsideCapture()
+                    ?: return false
+            } else {
+                Pair(
+                    dp(12),
+                    dp(105),
+                )
+            }
+
+        val params =
+            WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                type,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT,
             )
-            elevation = dp(9).toFloat()
-        }
+                .apply {
+                    gravity =
+                        Gravity.TOP or
+                            Gravity.START
 
-        val drag = TextView(this).apply {
-            text = "●  PRONTO"
-            textSize = 12.5f
-            setTextColor(Color.rgb(7, 49, 103))
-            gravity = Gravity.CENTER
-            setPadding(dp(4), 0, dp(8), 0)
-        }
-        overlayTimer = drag
+                    x =
+                        position.first
 
-        val primary = Button(this).apply {
-            text = "REC"
-            textSize = 12.5f
-            setTextColor(Color.WHITE)
-            minWidth = 0
-            minHeight = 0
-            setPadding(dp(8), 0, dp(8), 0)
-            background = rounded(
-                Color.rgb(232, 38, 91),
-                dp(12),
-                Color.rgb(232, 38, 91),
-            )
-            setOnClickListener {
-                when {
-                    isProcessing -> Unit
-                    isRecording && isPaused -> resumeRecording()
-                    isRecording -> pauseRecording()
-                    else -> launchCaptureController()
+                    y =
+                        position.second
+                }
+
+        val root =
+            LinearLayout(this).apply {
+                orientation =
+                    LinearLayout.HORIZONTAL
+
+                gravity =
+                    Gravity.CENTER_VERTICAL
+
+                setPadding(
+                    dp(8),
+                    dp(6),
+                    dp(6),
+                    dp(6),
+                )
+
+                background =
+                    rounded(
+                        Color.argb(
+                            248,
+                            232,
+                            244,
+                            255,
+                        ),
+                        dp(17),
+                        Color.rgb(
+                            143,
+                            192,
+                            241,
+                        ),
+                    )
+
+                elevation =
+                    dp(8).toFloat()
+            }
+
+        val drag =
+            TextView(this).apply {
+                text =
+                    "●  PRONTO"
+
+                textSize =
+                    11.8f
+
+                setTextColor(
+                    Color.rgb(
+                        7,
+                        49,
+                        103,
+                    ),
+                )
+
+                gravity =
+                    Gravity.CENTER
+
+                setPadding(
+                    dp(3),
+                    0,
+                    dp(6),
+                    0,
+                )
+            }
+
+        overlayTimer =
+            drag
+
+        val primary =
+            Button(this).apply {
+                text =
+                    "REC"
+
+                textSize =
+                    11.5f
+
+                setTextColor(
+                    Color.WHITE,
+                )
+
+                minWidth =
+                    0
+
+                minHeight =
+                    0
+
+                setPadding(
+                    dp(6),
+                    0,
+                    dp(6),
+                    0,
+                )
+
+                background =
+                    rounded(
+                        Color.rgb(
+                            232,
+                            38,
+                            91,
+                        ),
+                        dp(11),
+                        Color.rgb(
+                            232,
+                            38,
+                            91,
+                        ),
+                    )
+
+                setOnClickListener {
+                    when {
+                        isProcessing ->
+                            Unit
+
+                        isRecording &&
+                        isPaused ->
+                            resumeRecording()
+
+                        isRecording ->
+                            pauseRecording()
+
+                        else ->
+                            beginCaptureFlow()
+                    }
                 }
             }
-        }
-        overlayPrimary = primary
 
-        val stop = Button(this).apply {
-            text = "×"
-            textSize = 18f
-            setTextColor(Color.rgb(190, 25, 70))
-            minWidth = 0
-            minHeight = 0
-            setPadding(dp(7), 0, dp(7), 0)
-            background = rounded(
-                Color.WHITE,
-                dp(12),
-                Color.rgb(211, 225, 241),
-            )
-            setOnClickListener {
-                if (isRecording) {
-                    stopRecording()
-                } else if (!isProcessing) {
-                    prefs.edit().putBoolean(KEY_ENABLED, false).apply()
-                    isWidgetEnabled = false
-                    hideFloatingWidget()
-                    stopSelf()
+        overlayPrimary =
+            primary
+
+        val stop =
+            Button(this).apply {
+                text =
+                    "×"
+
+                textSize =
+                    17f
+
+                setTextColor(
+                    Color.rgb(
+                        190,
+                        25,
+                        70,
+                    ),
+                )
+
+                minWidth =
+                    0
+
+                minHeight =
+                    0
+
+                setPadding(
+                    dp(5),
+                    0,
+                    dp(5),
+                    0,
+                )
+
+                background =
+                    rounded(
+                        Color.WHITE,
+                        dp(11),
+                        Color.rgb(
+                            211,
+                            225,
+                            241,
+                        ),
+                    )
+
+                setOnClickListener {
+                    if (isRecording) {
+                        stopRecording()
+                    } else if (!isProcessing) {
+                        prefs.edit()
+                            .putBoolean(
+                                KEY_ENABLED,
+                                false,
+                            )
+                            .apply()
+
+                        isWidgetEnabled =
+                            false
+
+                        hideFloatingWidget()
+                        stopSelf()
+                    }
                 }
             }
-        }
-        overlayStop = stop
 
-        root.addView(drag, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(40)))
-        root.addView(primary, LinearLayout.LayoutParams(dp(54), dp(40)).apply { marginEnd = dp(5) })
-        root.addView(stop, LinearLayout.LayoutParams(dp(44), dp(40)))
+        overlayStop =
+            stop
 
-        var touchX = 0f
-        var touchY = 0f
-        var startX = 0
-        var startY = 0
-        drag.setOnTouchListener { _, event ->
-            when (event.actionMasked) {
+        root.addView(
+            drag,
+            LinearLayout.LayoutParams(
+                dp(102),
+                dp(38),
+            ),
+        )
+
+        root.addView(
+            primary,
+            LinearLayout.LayoutParams(
+                dp(48),
+                dp(38),
+            ).apply {
+                marginEnd =
+                    dp(4)
+            },
+        )
+
+        root.addView(
+            stop,
+            LinearLayout.LayoutParams(
+                dp(40),
+                dp(38),
+            ),
+        )
+
+        var touchX =
+            0f
+
+        var touchY =
+            0f
+
+        var startX =
+            0
+
+        var startY =
+            0
+
+        drag.setOnTouchListener {
+                _,
+                event,
+            ->
+            when (
+                event.actionMasked
+            ) {
                 MotionEvent.ACTION_DOWN -> {
-                    touchX = event.rawX
-                    touchY = event.rawY
-                    startX = params.x
-                    startY = params.y
+                    touchX =
+                        event.rawX
+
+                    touchY =
+                        event.rawY
+
+                    startX =
+                        params.x
+
+                    startY =
+                        params.y
+
                     true
                 }
+
                 MotionEvent.ACTION_MOVE -> {
-                    params.x = (startX + (touchX - event.rawX).roundToInt()).coerceAtLeast(0)
-                    params.y = (startY + (event.rawY - touchY).roundToInt()).coerceAtLeast(0)
-                    runCatching { wm.updateViewLayout(root, params) }
+                    params.x =
+                        (
+                            startX +
+                                (
+                                    event.rawX -
+                                        touchX
+                                    )
+                                    .roundToInt()
+                            )
+                            .coerceAtLeast(
+                                0,
+                            )
+
+                    params.y =
+                        (
+                            startY +
+                                (
+                                    event.rawY -
+                                        touchY
+                                    )
+                                    .roundToInt()
+                            )
+                            .coerceAtLeast(
+                                0,
+                            )
+
+                    runCatching {
+                        wm.updateViewLayout(
+                            root,
+                            params,
+                        )
+                    }
+
                     true
                 }
-                else -> false
+
+                else ->
+                    false
             }
         }
+
+        return runCatching {
+            wm.addView(
+                root,
+                params,
+            )
+
+            windowManager =
+                wm
+
+            overlayView =
+                root
+
+            updateOverlay()
+
+            mainHandler.removeCallbacks(
+                overlayTick,
+            )
+
+            mainHandler.post(
+                overlayTick,
+            )
+
+            true
+        }
+            .getOrDefault(
+                false,
+            )
+    }
+
+    private fun calculateWidgetPositionOutsideCapture():
+        Pair<Int, Int>? {
+        val wm =
+            getSystemService(
+                WindowManager::class.java,
+            )
+
+        val bounds =
+            if (
+                Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.R
+            ) {
+                wm.maximumWindowMetrics
+                    .bounds
+            } else {
+                @Suppress("DEPRECATION")
+                android.graphics.Rect(
+                    0,
+                    0,
+                    resources.displayMetrics
+                        .widthPixels,
+                    resources.displayMetrics
+                        .heightPixels,
+                )
+            }
+
+        val screenW =
+            bounds.width()
+
+        val screenH =
+            bounds.height()
+
+        val widgetW =
+            dp(206)
+
+        val widgetH =
+            dp(52)
+
+        val gap =
+            dp(10)
+
+        val leftPx =
+            (
+                cropLeft *
+                    screenW
+                )
+                .roundToInt()
+
+        val topPx =
+            (
+                cropTop *
+                    screenH
+                )
+                .roundToInt()
+
+        val rightPx =
+            (
+                cropRight *
+                    screenW
+                )
+                .roundToInt()
+
+        val bottomPx =
+            (
+                cropBottom *
+                    screenH
+                )
+                .roundToInt()
+
+        val topSpace =
+            topPx
+
+        val bottomSpace =
+            screenH -
+                bottomPx
+
+        val leftSpace =
+            leftPx
+
+        val rightSpace =
+            screenW -
+                rightPx
+
+        return when {
+            topSpace >=
+                widgetH +
+                    gap *
+                    2 ->
+                Pair(
+                    (
+                        screenW -
+                            widgetW -
+                            gap
+                        )
+                        .coerceAtLeast(
+                            gap,
+                        ),
+                    gap,
+                )
+
+            bottomSpace >=
+                widgetH +
+                    gap *
+                    2 ->
+                Pair(
+                    (
+                        screenW -
+                            widgetW -
+                            gap
+                        )
+                        .coerceAtLeast(
+                            gap,
+                        ),
+                    (
+                        screenH -
+                            widgetH -
+                            gap
+                        )
+                        .coerceAtLeast(
+                            gap,
+                        ),
+                )
+
+            leftSpace >=
+                widgetW +
+                    gap *
+                    2 ->
+                Pair(
+                    gap,
+                    (
+                        topPx +
+                            (
+                                bottomPx -
+                                    topPx -
+                                    widgetH
+                                ) /
+                            2
+                        )
+                        .coerceIn(
+                            gap,
+                            (
+                                screenH -
+                                    widgetH -
+                                    gap
+                                )
+                                .coerceAtLeast(
+                                    gap,
+                                ),
+                        ),
+                )
+
+            rightSpace >=
+                widgetW +
+                    gap *
+                    2 ->
+                Pair(
+                    (
+                        screenW -
+                            widgetW -
+                            gap
+                        )
+                        .coerceAtLeast(
+                            gap,
+                        ),
+                    (
+                        topPx +
+                            (
+                                bottomPx -
+                                    topPx -
+                                    widgetH
+                                ) /
+                            2
+                        )
+                        .coerceIn(
+                            gap,
+                            (
+                                screenH -
+                                    widgetH -
+                                    gap
+                                )
+                                .coerceAtLeast(
+                                    gap,
+                                ),
+                        ),
+                )
+
+            else ->
+                null
+        }
+    }
+
+    private fun beginCaptureFlow() {
+        if (
+            isRecording ||
+            isProcessing
+        ) {
+            return
+        }
+
+        val custom =
+            prefs.getInt(
+                KEY_AREA_MODE,
+                0,
+            ) ==
+            1
+
+        if (custom) {
+            showAreaSelectorOverlay()
+        } else {
+            savePendingCrop(
+                0f,
+                0f,
+                1f,
+                1f,
+            )
+
+            launchCaptureController()
+        }
+    }
+
+    /**
+     * Seleção de área como overlay real do sistema, antes da MediaProjection.
+     * Assim o usuário marca a região sobre o aplicativo que realmente quer
+     * gravar. O overlay é removido antes da autorização e nunca entra no vídeo.
+     */
+    private fun showAreaSelectorOverlay() {
+        if (
+            !Settings.canDrawOverlays(
+                this,
+            )
+        ) {
+            lastError =
+                "Autorize a Central a aparecer sobre outros aplicativos."
+            return
+        }
+
+        hideFloatingWidget()
+        hideAreaSelectorOverlay()
+
+        val wm =
+            getSystemService(
+                WINDOW_SERVICE,
+            ) as WindowManager
+
+        val type =
+            if (
+                Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.O
+            ) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            }
+
+        val params =
+            WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                type,
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT,
+            )
+                .apply {
+                    gravity =
+                        Gravity.TOP or
+                            Gravity.START
+                }
+
+        val root =
+            FrameLayout(this).apply {
+                setBackgroundColor(
+                    Color.TRANSPARENT,
+                )
+            }
+
+        val area =
+            AreaSelectionView(
+                this,
+            )
+
+        selectorAreaView =
+            area
+
+        root.addView(
+            area,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
+
+        val hint =
+            TextView(this).apply {
+                text =
+                    "Selecione a área da gravação\nArraste a moldura ou os cantos"
+
+                textSize =
+                    14f
+
+                setTextColor(
+                    Color.rgb(
+                        7,
+                        49,
+                        103,
+                    ),
+                )
+
+                gravity =
+                    Gravity.CENTER
+
+                setPadding(
+                    dp(12),
+                    dp(9),
+                    dp(12),
+                    dp(9),
+                )
+
+                background =
+                    rounded(
+                        Color.argb(
+                            246,
+                            245,
+                            250,
+                            255,
+                        ),
+                        dp(14),
+                        Color.rgb(
+                            183,
+                            211,
+                            240,
+                        ),
+                    )
+            }
+
+        root.addView(
+            hint,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP,
+            ).apply {
+                leftMargin =
+                    dp(12)
+
+                rightMargin =
+                    dp(12)
+
+                topMargin =
+                    dp(26)
+            },
+        )
+
+        val actions =
+            LinearLayout(this).apply {
+                orientation =
+                    LinearLayout.HORIZONTAL
+
+                gravity =
+                    Gravity.CENTER
+
+                setPadding(
+                    dp(7),
+                    dp(7),
+                    dp(7),
+                    dp(7),
+                )
+
+                background =
+                    rounded(
+                        Color.argb(
+                            250,
+                            255,
+                            255,
+                            255,
+                        ),
+                        dp(16),
+                        Color.rgb(
+                            190,
+                            216,
+                            243,
+                        ),
+                    )
+            }
+
+        fun actionButton(
+            label: String,
+            fill: Int,
+            textColor: Int,
+            onClick: () -> Unit,
+        ): Button =
+            Button(this).apply {
+                text =
+                    label
+
+                isAllCaps =
+                    false
+
+                textSize =
+                    11.5f
+
+                setTextColor(
+                    textColor,
+                )
+
+                minHeight =
+                    0
+
+                minWidth =
+                    0
+
+                setPadding(
+                    dp(7),
+                    0,
+                    dp(7),
+                    0,
+                )
+
+                background =
+                    rounded(
+                        fill,
+                        dp(11),
+                        if (
+                            fill ==
+                            Color.WHITE
+                        ) {
+                            Color.rgb(
+                                202,
+                                221,
+                                242,
+                            )
+                        } else {
+                            fill
+                        },
+                    )
+
+                setOnClickListener {
+                    onClick()
+                }
+            }
+
+        actions.addView(
+            actionButton(
+                "Cancelar",
+                Color.WHITE,
+                Color.rgb(
+                    190,
+                    25,
+                    70,
+                ),
+            ) {
+                hideAreaSelectorOverlay()
+
+                if (
+                    isWidgetEnabled
+                ) {
+                    showFloatingWidget()
+                }
+            },
+            LinearLayout.LayoutParams(
+                0,
+                dp(46),
+                1f,
+            ).apply {
+                marginEnd =
+                    dp(3)
+            },
+        )
+
+        actions.addView(
+            actionButton(
+                "Tela inteira",
+                Color.WHITE,
+                Color.rgb(
+                    7,
+                    49,
+                    103,
+                ),
+            ) {
+                savePendingCrop(
+                    0f,
+                    0f,
+                    1f,
+                    1f,
+                )
+
+                hideAreaSelectorOverlay()
+                launchCaptureController()
+            },
+            LinearLayout.LayoutParams(
+                0,
+                dp(46),
+                1f,
+            ).apply {
+                marginStart =
+                    dp(3)
+
+                marginEnd =
+                    dp(3)
+            },
+        )
+
+        actions.addView(
+            actionButton(
+                "Usar área",
+                Color.rgb(
+                    20,
+                    126,
+                    246,
+                ),
+                Color.WHITE,
+            ) {
+                val region =
+                    selectorAreaView
+                        ?.normalizedRegion()
+                        ?: AreaRegion(
+                            0f,
+                            0f,
+                            1f,
+                            1f,
+                        )
+
+                savePendingCrop(
+                    region.left,
+                    region.top,
+                    region.right,
+                    region.bottom,
+                )
+
+                hideAreaSelectorOverlay()
+                launchCaptureController()
+            },
+            LinearLayout.LayoutParams(
+                0,
+                dp(46),
+                1f,
+            ).apply {
+                marginStart =
+                    dp(3)
+            },
+        )
+
+        root.addView(
+            actions,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM,
+            ).apply {
+                leftMargin =
+                    dp(10)
+
+                rightMargin =
+                    dp(10)
+
+                bottomMargin =
+                    dp(28)
+            },
+        )
 
         runCatching {
-            wm.addView(root, params)
-            windowManager = wm
-            overlayView = root
-            updateOverlay()
-            mainHandler.removeCallbacks(overlayTick)
-            mainHandler.post(overlayTick)
+            wm.addView(
+                root,
+                params,
+            )
+
+            selectorWindowManager =
+                wm
+
+            selectorOverlay =
+                root
         }
+            .onFailure {
+                lastError =
+                    it.message
+                        ?: "Não foi possível abrir a seleção de área."
+
+                hideAreaSelectorOverlay()
+
+                if (
+                    isWidgetEnabled
+                ) {
+                    showFloatingWidget()
+                }
+            }
+    }
+
+    private fun savePendingCrop(
+        left: Float,
+        top: Float,
+        right: Float,
+        bottom: Float,
+    ) {
+        val safeLeft =
+            left.coerceIn(
+                0f,
+                0.98f,
+            )
+
+        val safeTop =
+            top.coerceIn(
+                0f,
+                0.98f,
+            )
+
+        val safeRight =
+            right.coerceIn(
+                safeLeft +
+                    0.02f,
+                1f,
+            )
+
+        val safeBottom =
+            bottom.coerceIn(
+                safeTop +
+                    0.02f,
+                1f,
+            )
+
+        prefs.edit()
+            .putFloat(
+                KEY_PENDING_CROP_LEFT,
+                safeLeft,
+            )
+            .putFloat(
+                KEY_PENDING_CROP_TOP,
+                safeTop,
+            )
+            .putFloat(
+                KEY_PENDING_CROP_RIGHT,
+                safeRight,
+            )
+            .putFloat(
+                KEY_PENDING_CROP_BOTTOM,
+                safeBottom,
+            )
+            .apply()
     }
 
     private fun launchCaptureController() {
         hideFloatingWidget()
+        hideAreaSelectorOverlay()
+
         runCatching {
-            val pending = PendingIntent.getActivity(
-                this,
-                4401,
-                Intent(this, CaptureAreaActivity::class.java).addFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK or
-                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                        Intent.FLAG_ACTIVITY_NO_ANIMATION,
-                ),
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
+            val pending =
+                PendingIntent.getActivity(
+                    this,
+                    4401,
+                    Intent(
+                        this,
+                        CaptureAreaActivity::class.java,
+                    )
+                        .addFlags(
+                            Intent.FLAG_ACTIVITY_NEW_TASK or
+                                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                                Intent.FLAG_ACTIVITY_NO_ANIMATION,
+                        ),
+                    PendingIntent.FLAG_UPDATE_CURRENT or
+                        PendingIntent.FLAG_IMMUTABLE,
+                )
+
             pending.send()
-        }.onFailure {
-            lastError = it.message ?: "Não foi possível abrir o seletor de gravação."
-            if (isWidgetEnabled) showFloatingWidget()
+        }
+            .onFailure {
+                lastError =
+                    it.message
+                        ?: "Não foi possível abrir a autorização de gravação."
+
+                if (
+                    isWidgetEnabled
+                ) {
+                    showFloatingWidget()
+                }
+            }
+    }
+
+    private fun hideAreaSelectorOverlay() {
+        val view =
+            selectorOverlay
+
+        val wm =
+            selectorWindowManager
+
+        if (
+            view != null &&
+            wm != null
+        ) {
+            runCatching {
+                wm.removeView(
+                    view,
+                )
+            }
+        }
+
+        selectorOverlay =
+            null
+
+        selectorAreaView =
+            null
+
+        selectorWindowManager =
+            null
+    }
+
+    private data class AreaRegion(
+        val left: Float,
+        val top: Float,
+        val right: Float,
+        val bottom: Float,
+    )
+
+    private class AreaSelectionView(
+        context:
+            android.content.Context,
+    ) : View(context) {
+        private val shade =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG,
+            )
+                .apply {
+                    color =
+                        Color.argb(
+                            112,
+                            5,
+                            31,
+                            68,
+                        )
+                }
+
+        private val border =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG,
+            )
+                .apply {
+                    color =
+                        Color.rgb(
+                            20,
+                            126,
+                            246,
+                        )
+
+                    style =
+                        Paint.Style.STROKE
+
+                    strokeWidth =
+                        context.dp(3)
+                            .toFloat()
+                }
+
+        private val handleFill =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG,
+            )
+                .apply {
+                    color =
+                        Color.WHITE
+                }
+
+        private val handleStroke =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG,
+            )
+                .apply {
+                    color =
+                        Color.rgb(
+                            20,
+                            126,
+                            246,
+                        )
+
+                    style =
+                        Paint.Style.STROKE
+
+                    strokeWidth =
+                        context.dp(3)
+                            .toFloat()
+                }
+
+        private val labelBg =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG,
+            )
+                .apply {
+                    color =
+                        Color.argb(
+                            220,
+                            7,
+                            49,
+                            103,
+                        )
+                }
+
+        private val labelPaint =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG,
+            )
+                .apply {
+                    color =
+                        Color.WHITE
+
+                    textSize =
+                        context.dp(12)
+                            .toFloat()
+
+                    textAlign =
+                        Paint.Align.CENTER
+
+                    isFakeBoldText =
+                        true
+                }
+
+        private val rect =
+            RectF()
+
+        private val minSize =
+            context.dp(96)
+                .toFloat()
+
+        private val handleRadius =
+            context.dp(10)
+                .toFloat()
+
+        private val hitRadius =
+            context.dp(40)
+                .toFloat()
+
+        private var initialized =
+            false
+
+        private var mode =
+            MODE_NONE
+
+        private var lastX =
+            0f
+
+        private var lastY =
+            0f
+
+        override fun onSizeChanged(
+            w: Int,
+            h: Int,
+            oldw: Int,
+            oldh: Int,
+        ) {
+            super.onSizeChanged(
+                w,
+                h,
+                oldw,
+                oldh,
+            )
+
+            if (
+                !initialized &&
+                w > 0 &&
+                h > 0
+            ) {
+                rect.set(
+                    w *
+                        0.08f,
+                    h *
+                        0.18f,
+                    w *
+                        0.92f,
+                    h *
+                        0.82f,
+                )
+
+                initialized =
+                    true
+            }
+        }
+
+        override fun onDraw(
+            canvas: Canvas,
+        ) {
+            super.onDraw(
+                canvas,
+            )
+
+            canvas.drawRect(
+                0f,
+                0f,
+                width.toFloat(),
+                rect.top,
+                shade,
+            )
+
+            canvas.drawRect(
+                0f,
+                rect.bottom,
+                width.toFloat(),
+                height.toFloat(),
+                shade,
+            )
+
+            canvas.drawRect(
+                0f,
+                rect.top,
+                rect.left,
+                rect.bottom,
+                shade,
+            )
+
+            canvas.drawRect(
+                rect.right,
+                rect.top,
+                width.toFloat(),
+                rect.bottom,
+                shade,
+            )
+
+            canvas.drawRoundRect(
+                rect,
+                context.dp(12)
+                    .toFloat(),
+                context.dp(12)
+                    .toFloat(),
+                border,
+            )
+
+            drawHandle(
+                canvas,
+                rect.left,
+                rect.top,
+            )
+
+            drawHandle(
+                canvas,
+                rect.right,
+                rect.top,
+            )
+
+            drawHandle(
+                canvas,
+                rect.left,
+                rect.bottom,
+            )
+
+            drawHandle(
+                canvas,
+                rect.right,
+                rect.bottom,
+            )
+
+            val value =
+                "${rect.width().roundToInt()} × ${rect.height().roundToInt()} px"
+
+            val labelRect =
+                RectF(
+                    rect.centerX() -
+                        context.dp(68),
+                    rect.centerY() -
+                        context.dp(20),
+                    rect.centerX() +
+                        context.dp(68),
+                    rect.centerY() +
+                        context.dp(10),
+                )
+
+            canvas.drawRoundRect(
+                labelRect,
+                context.dp(9)
+                    .toFloat(),
+                context.dp(9)
+                    .toFloat(),
+                labelBg,
+            )
+
+            canvas.drawText(
+                value,
+                rect.centerX(),
+                rect.centerY(),
+                labelPaint,
+            )
+        }
+
+        private fun drawHandle(
+            canvas: Canvas,
+            x: Float,
+            y: Float,
+        ) {
+            canvas.drawCircle(
+                x,
+                y,
+                handleRadius,
+                handleFill,
+            )
+
+            canvas.drawCircle(
+                x,
+                y,
+                handleRadius,
+                handleStroke,
+            )
+        }
+
+        override fun onTouchEvent(
+            event: MotionEvent,
+        ): Boolean {
+            when (
+                event.actionMasked
+            ) {
+                MotionEvent.ACTION_DOWN -> {
+                    mode =
+                        detectMode(
+                            event.x,
+                            event.y,
+                        )
+
+                    lastX =
+                        event.x
+
+                    lastY =
+                        event.y
+
+                    return mode !=
+                        MODE_NONE
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    val dx =
+                        event.x -
+                            lastX
+
+                    val dy =
+                        event.y -
+                            lastY
+
+                    when (
+                        mode
+                    ) {
+                        MODE_MOVE ->
+                            move(
+                                dx,
+                                dy,
+                            )
+
+                        MODE_TL -> {
+                            rect.left =
+                                event.x.coerceIn(
+                                    0f,
+                                    rect.right -
+                                        minSize,
+                                )
+
+                            rect.top =
+                                event.y.coerceIn(
+                                    0f,
+                                    rect.bottom -
+                                        minSize,
+                                )
+                        }
+
+                        MODE_TR -> {
+                            rect.right =
+                                event.x.coerceIn(
+                                    rect.left +
+                                        minSize,
+                                    width.toFloat(),
+                                )
+
+                            rect.top =
+                                event.y.coerceIn(
+                                    0f,
+                                    rect.bottom -
+                                        minSize,
+                                )
+                        }
+
+                        MODE_BL -> {
+                            rect.left =
+                                event.x.coerceIn(
+                                    0f,
+                                    rect.right -
+                                        minSize,
+                                )
+
+                            rect.bottom =
+                                event.y.coerceIn(
+                                    rect.top +
+                                        minSize,
+                                    height.toFloat(),
+                                )
+                        }
+
+                        MODE_BR -> {
+                            rect.right =
+                                event.x.coerceIn(
+                                    rect.left +
+                                        minSize,
+                                    width.toFloat(),
+                                )
+
+                            rect.bottom =
+                                event.y.coerceIn(
+                                    rect.top +
+                                        minSize,
+                                    height.toFloat(),
+                                )
+                        }
+                    }
+
+                    lastX =
+                        event.x
+
+                    lastY =
+                        event.y
+
+                    invalidate()
+
+                    return true
+                }
+
+                MotionEvent.ACTION_UP,
+                MotionEvent.ACTION_CANCEL,
+                -> {
+                    mode =
+                        MODE_NONE
+
+                    return true
+                }
+            }
+
+            return super.onTouchEvent(
+                event,
+            )
+        }
+
+        private fun detectMode(
+            x: Float,
+            y: Float,
+        ): Int {
+            fun near(
+                hx: Float,
+                hy: Float,
+            ): Boolean =
+                abs(
+                    x -
+                        hx,
+                ) <=
+                    hitRadius &&
+                    abs(
+                        y -
+                            hy,
+                    ) <=
+                    hitRadius
+
+            return when {
+                near(
+                    rect.left,
+                    rect.top,
+                ) ->
+                    MODE_TL
+
+                near(
+                    rect.right,
+                    rect.top,
+                ) ->
+                    MODE_TR
+
+                near(
+                    rect.left,
+                    rect.bottom,
+                ) ->
+                    MODE_BL
+
+                near(
+                    rect.right,
+                    rect.bottom,
+                ) ->
+                    MODE_BR
+
+                rect.contains(
+                    x,
+                    y,
+                ) ->
+                    MODE_MOVE
+
+                else ->
+                    MODE_NONE
+            }
+        }
+
+        private fun move(
+            dx: Float,
+            dy: Float,
+        ) {
+            rect.offset(
+                dx.coerceIn(
+                    -rect.left,
+                    width -
+                        rect.right,
+                ),
+                dy.coerceIn(
+                    -rect.top,
+                    height -
+                        rect.bottom,
+                ),
+            )
+        }
+
+        fun normalizedRegion():
+            AreaRegion {
+            val safeW =
+                max(
+                    1,
+                    width,
+                )
+                    .toFloat()
+
+            val safeH =
+                max(
+                    1,
+                    height,
+                )
+                    .toFloat()
+
+            return AreaRegion(
+                left =
+                    (
+                        rect.left /
+                            safeW
+                        )
+                        .coerceIn(
+                            0f,
+                            1f,
+                        ),
+                top =
+                    (
+                        rect.top /
+                            safeH
+                        )
+                        .coerceIn(
+                            0f,
+                            1f,
+                        ),
+                right =
+                    (
+                        rect.right /
+                            safeW
+                        )
+                        .coerceIn(
+                            0f,
+                            1f,
+                        ),
+                bottom =
+                    (
+                        rect.bottom /
+                            safeH
+                        )
+                        .coerceIn(
+                            0f,
+                            1f,
+                        ),
+            )
+        }
+
+        companion object {
+            private const val MODE_NONE =
+                0
+
+            private const val MODE_MOVE =
+                1
+
+            private const val MODE_TL =
+                2
+
+            private const val MODE_TR =
+                3
+
+            private const val MODE_BL =
+                4
+
+            private const val MODE_BR =
+                5
         }
     }
 
@@ -750,6 +2295,7 @@ class ScreenRecordService : Service() {
         mainHandler.removeCallbacks(overlayTick)
         runCatching { transformer?.cancel() }
         if (isRecording && !stopping) runCatching { stopRecording() }
+        hideAreaSelectorOverlay()
         hideFloatingWidget()
         super.onDestroy()
     }
@@ -757,6 +2303,7 @@ class ScreenRecordService : Service() {
     companion object {
         const val ACTION_ENABLE_WIDGET = "central.record.ENABLE_WIDGET"
         const val ACTION_DISABLE_WIDGET = "central.record.DISABLE_WIDGET"
+        const val ACTION_BEGIN_CAPTURE = "central.record.BEGIN_CAPTURE"
         const val ACTION_START = "central.record.START"
         const val ACTION_STOP = "central.record.STOP"
         const val ACTION_PAUSE = "central.record.PAUSE"
@@ -775,6 +2322,11 @@ class ScreenRecordService : Service() {
 
         private const val PREFS = "screen_recorder_settings"
         private const val KEY_ENABLED = "enabled"
+        private const val KEY_AREA_MODE = "area_mode"
+        const val KEY_PENDING_CROP_LEFT = "pending_crop_left"
+        const val KEY_PENDING_CROP_TOP = "pending_crop_top"
+        const val KEY_PENDING_CROP_RIGHT = "pending_crop_right"
+        const val KEY_PENDING_CROP_BOTTOM = "pending_crop_bottom"
         private const val NOTIFICATION_ID = 991
         private val timerLock = Any()
 

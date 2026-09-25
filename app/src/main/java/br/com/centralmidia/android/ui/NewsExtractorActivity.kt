@@ -307,7 +307,7 @@ class NewsExtractorActivity : BaseActivity() {
         actions.addView(
             MobileUi.button(
                 this,
-                "Copiar texto",
+                "Copiar matéria",
                 false,
                 MobileUi.NAVY,
                 R.drawable.ic_copy,
@@ -525,7 +525,7 @@ class NewsExtractorActivity : BaseActivity() {
         box.addView(
             MobileUi.text(
                 this,
-                "Deslize dentro do quadro abaixo para ler a matéria completa.",
+                "Deslize dentro do quadro para ler a matéria inteira. A saída segue o padrão Windows/Ubuntu.",
                 9.2f,
                 MobileUi.MUTED,
             ),
@@ -948,13 +948,15 @@ class NewsExtractorActivity : BaseActivity() {
 
                 val text =
                     when {
+                        paragraphText.length >=
+                            MIN_DIRECT_TEXT &&
+                            paragraphs.size >=
+                            2 ->
+                            paragraphText
+
                         structured?.text.orEmpty().length >=
                             MIN_DIRECT_TEXT ->
                             structured?.text.orEmpty()
-
-                        paragraphText.length >=
-                            MIN_DIRECT_TEXT ->
-                            paragraphText
 
                         else ->
                             article
@@ -963,16 +965,18 @@ class NewsExtractorActivity : BaseActivity() {
                                 .trim()
                     }
 
-                return ExtractedArticle(
-                    title = title,
-                    source = source,
-                    date = date,
-                    author = author,
-                    subtitle = subtitle,
-                    text = normalizeText(
-                        text,
+                return normalizeArticle(
+                    ExtractedArticle(
+                        title = title,
+                        source = source,
+                        date = date,
+                        author = author,
+                        subtitle = subtitle,
+                        text = normalizeText(
+                            text,
+                        ),
+                        url = finalUrl,
                     ),
-                    url = finalUrl,
                 )
             }
     }
@@ -1050,14 +1054,16 @@ class NewsExtractorActivity : BaseActivity() {
                 article.optString("articleBody"),
             )
 
-        return ExtractedArticle(
-            title = title.trim(),
-            source = publisher.trim(),
-            date = date.trim(),
-            author = author.trim(),
-            subtitle = subtitle.trim(),
-            text = body,
-            url = finalUrl,
+        return normalizeArticle(
+            ExtractedArticle(
+                title = title.trim(),
+                source = publisher.trim(),
+                date = date.trim(),
+                author = author.trim(),
+                subtitle = subtitle.trim(),
+                text = body,
+                url = finalUrl,
+            ),
         )
     }
 
@@ -1190,6 +1196,69 @@ class NewsExtractorActivity : BaseActivity() {
                 return el ? (el.innerText || el.textContent || '').trim() : '';
               }
 
+              function nameOf(value) {
+                if (!value) return '';
+                if (typeof value === 'string') return value.trim();
+                if (Array.isArray(value)) {
+                  return value.map(nameOf).filter(Boolean).filter(function(v, i, a) {
+                    return a.indexOf(v) === i;
+                  }).join(', ');
+                }
+                if (typeof value === 'object') {
+                  return String(value.name || value.headline || '').trim();
+                }
+                return '';
+              }
+
+              function findArticle(value) {
+                if (!value) return null;
+                if (Array.isArray(value)) {
+                  for (var i = 0; i < value.length; i++) {
+                    var nested = findArticle(value[i]);
+                    if (nested) return nested;
+                  }
+                  return null;
+                }
+                if (typeof value !== 'object') return null;
+
+                var type = value['@type'];
+                var types = Array.isArray(type) ? type : [type];
+                for (var t = 0; t < types.length; t++) {
+                  var current = String(types[t] || '').toLowerCase();
+                  if (
+                    current === 'newsarticle' ||
+                    current === 'article' ||
+                    current === 'reportagenewsarticle' ||
+                    current === 'analysisnewsarticle'
+                  ) {
+                    return value;
+                  }
+                }
+
+                if (value.articleBody) return value;
+
+                for (var key in value) {
+                  if (!Object.prototype.hasOwnProperty.call(value, key)) continue;
+                  var child = findArticle(value[key]);
+                  if (child) return child;
+                }
+                return null;
+              }
+
+              function structuredArticle() {
+                var scripts = document.querySelectorAll('script[type="application/ld+json"]');
+                for (var i = 0; i < scripts.length; i++) {
+                  try {
+                    var parsed = JSON.parse(scripts[i].textContent || scripts[i].innerText || '');
+                    var found = findArticle(parsed);
+                    if (found) return found;
+                  } catch (e) {}
+                }
+                return null;
+              }
+
+              var structured = structuredArticle();
+
               var root =
                 document.querySelector('article') ||
                 document.querySelector('main') ||
@@ -1215,28 +1284,40 @@ class NewsExtractorActivity : BaseActivity() {
 
               body = body.replace(/\n{3,}/g, '\n\n').trim();
 
+              if (body.length < 120 && structured && structured.articleBody) {
+                body = String(structured.articleBody || '').trim();
+              }
+
               var author =
+                (structured ? nameOf(structured.author) : '') ||
                 meta('meta[name="author"]') ||
+                meta('meta[name="parsely-author"]') ||
+                meta('meta[property="article:author"]') ||
                 firstText('[rel="author"]') ||
                 firstText('.author') ||
                 firstText('[class*="author"]');
 
               var date =
+                (structured ? String(structured.datePublished || structured.dateModified || '') : '') ||
                 meta('meta[property="article:published_time"]') ||
                 meta('meta[name="date"]') ||
+                meta('meta[name="parsely-pub-date"]') ||
                 firstText('time');
 
               var source =
+                (structured ? nameOf(structured.publisher) : '') ||
                 meta('meta[property="og:site_name"]') ||
                 location.hostname.replace(/^www\./, '');
 
               var subtitle =
+                (structured ? String(structured.description || '') : '') ||
                 meta('meta[property="og:description"]') ||
                 meta('meta[name="description"]') ||
                 firstText('article h2') ||
                 firstText('main h2');
 
               var title =
+                (structured ? String(structured.headline || structured.name || '') : '') ||
                 meta('meta[property="og:title"]') ||
                 firstText('h1') ||
                 document.title ||
@@ -1336,27 +1417,47 @@ class NewsExtractorActivity : BaseActivity() {
     }
 
     private fun applyResult(
-        result: ExtractedArticle,
+        rawResult: ExtractedArticle,
     ) {
+        val result =
+            normalizeArticle(
+                rawResult,
+            )
+
         val values =
             mapOf(
-                "title" to result.title,
-                "source" to result.source,
-                "date" to result.date,
-                "author" to result.author,
-                "subtitle" to result.subtitle,
+                "title" to
+                    result.title,
+                "source" to
+                    result.source,
+                "date" to
+                    result.date,
+                "author" to
+                    result.author,
+                "subtitle" to
+                    result.subtitle,
             )
 
         values.forEach {
-                (key, value) ->
+                (key, value),
+            ->
             meta[key]?.text =
                 value.ifBlank {
                     "—"
                 }
         }
 
+        val formatted =
+            formatDesktopOutput(
+                result,
+            )
+
         output.setText(
-            result.text,
+            formatted,
+        )
+
+        output.setSelection(
+            0,
         )
 
         val words =
@@ -1378,7 +1479,7 @@ class NewsExtractorActivity : BaseActivity() {
         )
 
         status.text =
-            "✓ Matéria extraída com sucesso. O conteúdo pode ser revisado e editado nesta tela."
+            "✓ Matéria extraída no padrão Windows/Ubuntu."
 
         CentralDb(
             this,
@@ -1391,6 +1492,412 @@ class NewsExtractorActivity : BaseActivity() {
                 result.source,
                 result.url,
             )
+    }
+
+    /**
+     * Padroniza a saída do Android para o mesmo formato textual entregue pelo
+     * motor Windows/Ubuntu:
+     *
+     * URL
+     *
+     * VEÍCULO
+     *
+     * *TÍTULO*
+     *
+     * _SUBTÍTULO_
+     *
+     * AUTOR
+     * DATA
+     *
+     * CORPO EM PARÁGRAFOS
+     */
+    private fun formatDesktopOutput(
+        article: ExtractedArticle,
+    ): String {
+        val blocks =
+            mutableListOf<String>()
+
+        blocks +=
+            article.url.trim()
+
+        blocks +=
+            article.source.ifBlank {
+                "—"
+            }
+
+        blocks +=
+            if (
+                article.title.isBlank()
+            ) {
+                "*—*"
+            } else {
+                "*${article.title.trim()}*"
+            }
+
+        if (
+            article.subtitle.isNotBlank()
+        ) {
+            blocks +=
+                "_${article.subtitle.trim()}_"
+        }
+
+        blocks +=
+            buildString {
+                append(
+                    article.author.ifBlank {
+                        "—"
+                    },
+                )
+
+                append(
+                    "\n",
+                )
+
+                append(
+                    article.date.ifBlank {
+                        "—"
+                    },
+                )
+            }
+
+        if (
+            article.text.isNotBlank()
+        ) {
+            blocks +=
+                article.text.trim()
+        }
+
+        return blocks
+            .filter {
+                it.isNotBlank()
+            }
+            .joinToString(
+                "\n\n",
+            )
+            .trim()
+    }
+
+    private fun normalizeArticle(
+        input: ExtractedArticle,
+    ): ExtractedArticle {
+        val directUrl =
+            input.url
+                .trim()
+
+        val source =
+            canonicalSource(
+                input.source,
+                directUrl,
+            )
+
+        val title =
+            cleanInline(
+                input.title,
+            )
+
+        val subtitle =
+            cleanInline(
+                input.subtitle,
+            )
+
+        val author =
+            cleanAuthor(
+                input.author,
+            )
+
+        val date =
+            formatArticleDate(
+                input.date,
+            )
+
+        val body =
+            cleanArticleBody(
+                input.text,
+                title,
+                subtitle,
+                author,
+                date,
+            )
+
+        return input.copy(
+            title =
+                title,
+            source =
+                source,
+            date =
+                date,
+            author =
+                author,
+            subtitle =
+                subtitle,
+            text =
+                body,
+            url =
+                directUrl,
+        )
+    }
+
+    private fun cleanInline(
+        value: String,
+    ): String =
+        value
+            .replace(
+                Regex(
+                    "\\s+",
+                ),
+                " ",
+            )
+            .trim()
+            .trim(
+                '|',
+                '•',
+            )
+            .trim()
+
+    private fun cleanAuthor(
+        value: String,
+    ): String =
+        cleanInline(
+            value,
+        )
+            .replace(
+                Regex(
+                    "^(por|by)\\s+",
+                    RegexOption.IGNORE_CASE,
+                ),
+                "",
+            )
+            .replace(
+                Regex(
+                    "\\s*[|•]\\s*$",
+                ),
+                "",
+            )
+            .trim()
+
+    private fun formatArticleDate(
+        value: String,
+    ): String {
+        val raw =
+            cleanInline(
+                value,
+            )
+
+        if (
+            raw.isBlank()
+        ) {
+            return ""
+        }
+
+        Regex(
+            "(\\d{4})-(\\d{2})-(\\d{2})",
+        )
+            .find(
+                raw,
+            )
+            ?.let {
+                match,
+            ->
+                val year =
+                    match.groupValues[
+                        1
+                    ]
+
+                val month =
+                    match.groupValues[
+                        2
+                    ]
+
+                val day =
+                    match.groupValues[
+                        3
+                    ]
+
+                return "$day/$month/$year"
+            }
+
+        Regex(
+            "(\\d{2})[/-](\\d{2})[/-](\\d{4})",
+        )
+            .find(
+                raw,
+            )
+            ?.let {
+                return "${it.groupValues[1]}/${it.groupValues[2]}/${it.groupValues[3]}"
+            }
+
+        return raw
+            .substringBefore(
+                "T",
+            )
+            .substringBefore(
+                " | ",
+            )
+            .trim()
+    }
+
+    private fun canonicalSource(
+        source: String,
+        url: String,
+    ): String {
+        val clean =
+            cleanInline(
+                source,
+            )
+
+        if (
+            clean.isNotBlank() &&
+            !clean.contains(
+                ".",
+            )
+        ) {
+            return clean
+        }
+
+        val host =
+            runCatching {
+                URI(
+                    url,
+                )
+                    .host
+                    .orEmpty()
+                    .lowercase()
+                    .removePrefix(
+                        "www.",
+                    )
+            }
+                .getOrDefault(
+                    "",
+                )
+
+        return when {
+            "oglobo.globo.com" in
+                host ->
+                "O Globo"
+
+            host ==
+                "g1.globo.com" ||
+                host.endsWith(
+                    ".g1.globo.com",
+                ) ->
+                "g1"
+
+            "folha.uol.com.br" in
+                host ->
+                "Folha de S.Paulo"
+
+            "estadao.com.br" in
+                host ->
+                "Estadão"
+
+            "cnnbrasil.com.br" in
+                host ->
+                "CNN Brasil"
+
+            clean.isNotBlank() ->
+                clean
+
+            else ->
+                host
+        }
+    }
+
+    private fun cleanArticleBody(
+        body: String,
+        title: String,
+        subtitle: String,
+        author: String,
+        date: String,
+    ): String {
+        val normalized =
+            normalizeText(
+                body,
+            )
+
+        if (
+            normalized.isBlank()
+        ) {
+            return ""
+        }
+
+        fun comparable(
+            value: String,
+        ): String =
+            value
+                .lowercase()
+                .replace(
+                    Regex(
+                        "[^\\p{L}\\p{N}]+",
+                    ),
+                    " ",
+                )
+                .replace(
+                    Regex(
+                        "\\s+",
+                    ),
+                    " ",
+                )
+                .trim()
+
+        val remove =
+            setOf(
+                comparable(
+                    title,
+                ),
+                comparable(
+                    subtitle,
+                ),
+                comparable(
+                    author,
+                ),
+                comparable(
+                    date,
+                ),
+            )
+                .filter {
+                    it.isNotBlank()
+                }
+                .toSet()
+
+        return normalized
+            .split(
+                Regex(
+                    "\\n\\s*\\n",
+                ),
+            )
+            .map {
+                it.trim()
+            }
+            .filter {
+                paragraph,
+            ->
+                if (
+                    paragraph.isBlank()
+                ) {
+                    false
+                } else {
+                    val cmp =
+                        comparable(
+                            paragraph,
+                        )
+
+                    cmp !in
+                        remove &&
+                        !cmp.equals(
+                            "publicidade",
+                            true,
+                        ) &&
+                        !cmp.equals(
+                            "continua depois da publicidade",
+                            true,
+                        )
+                }
+            }
+            .distinct()
+            .joinToString(
+                "\n\n",
+            )
+            .trim()
     }
 
     private fun normalizeText(

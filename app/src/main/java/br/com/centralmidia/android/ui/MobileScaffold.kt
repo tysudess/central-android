@@ -858,7 +858,7 @@ object MobileScaffold {
                     } else {
                         MobileUi.NAVY
                     },
-                    22,
+                    21,
                 ),
             )
 
@@ -866,7 +866,7 @@ object MobileScaffold {
                 MobileUi.text(
                     activity,
                     item.label,
-                    10.5f,
+                    10f,
                     if (selected) {
                         item.accent
                     } else {
@@ -888,8 +888,8 @@ object MobileScaffold {
             row.addView(
                 itemView,
                 LinearLayout.LayoutParams(
-                    activity.dp(82),
-                    activity.dp(62),
+                    activity.dp(88),
+                    activity.dp(60),
                 ).apply {
                     marginStart =
                         activity.dp(2)
@@ -916,7 +916,7 @@ object MobileScaffold {
             scroll,
             LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                activity.dp(70),
+                activity.dp(68),
             ),
         )
 
@@ -1016,6 +1016,7 @@ object MobileUi {
         TextView(context).apply {
             text = value
             textSize = size
+            includeFontPadding = false
             setTextColor(color)
             if (bold) {
                 setTypeface(typeface, Typeface.BOLD)
@@ -1112,8 +1113,10 @@ object MobileUi {
         MaterialButton(context).apply {
             text = label
             isAllCaps = false
-            textSize = 12.5f
-            cornerRadius = context.dp(12)
+            textSize = 13f
+            includeFontPadding = false
+            cornerRadius = context.dp(13)
+            letterSpacing = 0.01f
             insetTop = 0
             insetBottom = 0
             minimumHeight = 0
@@ -1125,6 +1128,7 @@ object MobileUi {
             )
 
             if (primary) {
+                setTypeface(typeface, Typeface.BOLD)
                 backgroundTintList = ColorStateList.valueOf(accent)
                 setTextColor(Color.WHITE)
                 strokeWidth = 0

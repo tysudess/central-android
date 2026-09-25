@@ -305,8 +305,25 @@ class ScreenRecorderActivity : BaseActivity() {
             master.isChecked = true
             return
         }
+
         saveSettings()
-        startActivity(Intent(this, CaptureAreaActivity::class.java))
+
+        runCatching {
+            startService(
+                Intent(
+                    this,
+                    ScreenRecordService::class.java,
+                )
+                    .setAction(
+                        ScreenRecordService.ACTION_BEGIN_CAPTURE,
+                    ),
+            )
+        }.onFailure {
+            toast(
+                it.message
+                    ?: "Não foi possível iniciar a seleção da gravação.",
+            )
+        }
     }
 
     private fun ensureOverlayAndEnable() {
