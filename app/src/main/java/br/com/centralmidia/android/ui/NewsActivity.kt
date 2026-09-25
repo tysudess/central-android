@@ -51,8 +51,11 @@ class NewsActivity : BaseActivity() {
     private lateinit var timeValue: TextView
     private lateinit var resultCountLabel: TextView
     private lateinit var stopButton: MaterialButton
+    private lateinit var recentFilterButton: MaterialButton
+    private lateinit var newFilterButton: MaterialButton
 
     private var selectedPeriod = Period.TODAY
+    private var resultView = ResultView.RECENT
     private var customFrom: Long? = null
     private var customTo: Long? = null
 
@@ -65,6 +68,11 @@ class NewsActivity : BaseActivity() {
         DAYS_7,
         DAYS_30,
         CUSTOM,
+    }
+
+    private enum class ResultView {
+        RECENT,
+        NEW,
     }
 
     private data class SearchTask(
@@ -332,11 +340,63 @@ class NewsActivity : BaseActivity() {
                 1f,
             ),
         )
+        val resultFilters = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+        }
+
+        val resultFilterRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        recentFilterButton = MobileUi.button(
+            this,
+            "Mais recentes",
+            false,
+            MobileUi.BLUE,
+        ) {
+            resultView = ResultView.RECENT
+            updateResultViewButtons()
+            renderFilteredResults()
+        }
+
+        newFilterButton = MobileUi.button(
+            this,
+            "Novas",
+            false,
+            MobileUi.PURPLE,
+        ) {
+            resultView = ResultView.NEW
+            updateResultViewButtons()
+            renderFilteredResults()
+        }
+
+        resultFilterRow.addView(
+            recentFilterButton,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(38),
+            ).apply {
+                marginEnd = dp(5)
+            },
+        )
+
+        resultFilterRow.addView(
+            newFilterButton,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(38),
+            ),
+        )
+
+        resultFilters.addView(resultFilterRow)
+
         resultsHeader.addView(
-            MobileUi.statusChip(
-                this,
-                "Mais recentes",
-                MobileUi.BLUE,
+            resultFilters,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(42),
             ),
         )
 
@@ -344,6 +404,7 @@ class NewsActivity : BaseActivity() {
             resultsHeader,
             MobileUi.match(dp(14)),
         )
+        updateResultViewButtons()
 
         resultCountLabel = MobileUi.text(
             this,
@@ -646,6 +707,68 @@ class NewsActivity : BaseActivity() {
                 )
             button.strokeWidth = dp(1)
         }
+    }
+
+    private fun updateResultViewButtons() {
+        if (
+            !::recentFilterButton.isInitialized ||
+            !::newFilterButton.isInitialized
+        ) {
+            return
+        }
+
+        fun style(
+            button: MaterialButton,
+            selected: Boolean,
+            accent: Int,
+            selectedBackground: Int,
+        ) {
+            button.backgroundTintList =
+                android.content.res.ColorStateList.valueOf(
+                    if (selected) {
+                        selectedBackground
+                    } else {
+                        Color.WHITE
+                    },
+                )
+
+            button.setTextColor(
+                if (selected) {
+                    accent
+                } else {
+                    MobileUi.MUTED
+                },
+            )
+
+            button.strokeColor =
+                android.content.res.ColorStateList.valueOf(
+                    if (selected) {
+                        accent
+                    } else {
+                        MobileUi.BORDER
+                    },
+                )
+
+            button.strokeWidth = dp(1)
+        }
+
+        style(
+            recentFilterButton,
+            resultView == ResultView.RECENT,
+            MobileUi.BLUE,
+            MobileUi.BLUE_TINT,
+        )
+
+        style(
+            newFilterButton,
+            resultView == ResultView.NEW,
+            MobileUi.PURPLE,
+            Color.rgb(
+                247,
+                239,
+                255,
+            ),
+        )
     }
 
     private fun chooseCustomPeriod(
@@ -1246,14 +1369,27 @@ class NewsActivity : BaseActivity() {
                     !onlyDemands.isChecked ||
                         item.matchedDemand.isNotBlank()
 
+                val matchesResultView =
+                    resultView == ResultView.RECENT ||
+                        item.isNew
+
                 matchesPeriod &&
                     matchesText &&
-                    matchesDemand
+                    matchesDemand &&
+                    matchesResultView
+            }
+            .sortedByDescending {
+                it.publishedAt
             }
 
         resultContainer.removeAllViews()
+
         resultCountLabel.text =
-            "${visible.size} resultado(s) para o período selecionado"
+            if (resultView == ResultView.NEW) {
+                "${visible.size} notícia(s) nova(s) para o período selecionado"
+            } else {
+                "${visible.size} resultado(s) para o período selecionado"
+            }
 
         if (visible.isEmpty()) {
             renderEmpty(
@@ -1335,7 +1471,11 @@ class NewsActivity : BaseActivity() {
         box.addView(
             MobileUi.text(
                 this,
-                "Execute uma busca ou ajuste os filtros locais.",
+                if (resultView == ResultView.NEW) {
+                    "Nenhuma notícia nova encontrada na última busca para estes filtros."
+                } else {
+                    "Execute uma busca ou ajuste os filtros locais."
+                },
                 12f,
                 MobileUi.MUTED,
             ).apply {

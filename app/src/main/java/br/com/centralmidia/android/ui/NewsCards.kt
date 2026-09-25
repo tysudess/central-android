@@ -15,6 +15,10 @@ import br.com.centralmidia.android.R
 import br.com.centralmidia.android.core.GoogleNewsUrlResolver
 import br.com.centralmidia.android.core.NewsItem
 import br.com.centralmidia.android.core.dp
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 object NewsCards {
     private val resolver = GoogleNewsUrlResolver()
@@ -54,8 +58,16 @@ object NewsCards {
         val copy = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
         val meta = buildString {
             append(item.source.ifBlank { "Fonte" })
-            if (item.pubDate.isNotBlank()) append("  •  ").append(item.pubDate)
-            if (item.isNew) append("  •  NOVO")
+
+            val localDate = formatLocalPublicationTime(item)
+            if (localDate.isNotBlank()) {
+                append("  •  ")
+                append(localDate)
+            }
+
+            if (item.isNew) {
+                append("  •  NOVO")
+            }
         }
         copy.addView(MobileUi.text(activity, meta, 10f, MobileUi.MUTED, false))
         copy.addView(
@@ -157,6 +169,75 @@ object NewsCards {
                 )
             },
         )
+    }
+
+    /**
+     * O Google News entrega pubDate em GMT/UTC.
+     *
+     * A ordenação continua usando publishedAt (epoch UTC), mas a interface
+     * sempre converte esse instante para o fuso configurado no celular.
+     * Isso também corrige resultados antigos salvos com a string RFC-822
+     * "Fri, 25 Sep 2026 ... GMT".
+     */
+    private fun formatLocalPublicationTime(item: NewsItem): String {
+        val timestamp =
+            if (item.publishedAt > 0L) {
+                item.publishedAt
+            } else {
+                parseLegacyPublicationTime(item.pubDate)
+            }
+
+        if (timestamp <= 0L) {
+            return item.pubDate
+        }
+
+        return SimpleDateFormat(
+            "dd/MM/yyyy HH:mm",
+            Locale(
+                "pt",
+                "BR",
+            ),
+        ).apply {
+            timeZone = TimeZone.getDefault()
+        }.format(
+            Date(timestamp),
+        )
+    }
+
+    private fun parseLegacyPublicationTime(raw: String): Long {
+        if (raw.isBlank()) {
+            return 0L
+        }
+
+        val patterns =
+            listOf(
+                "EEE, dd MMM yyyy HH:mm:ss z",
+                "EEE, dd MMM yyyy HH:mm:ss Z",
+                "dd/MM/yyyy HH:mm",
+            )
+
+        for (pattern in patterns) {
+            val parsed =
+                runCatching {
+                    SimpleDateFormat(
+                        pattern,
+                        if (pattern.startsWith("EEE")) {
+                            Locale.US
+                        } else {
+                            Locale(
+                                "pt",
+                                "BR",
+                            )
+                        },
+                    ).parse(raw)
+                }.getOrNull()
+
+            if (parsed != null) {
+                return parsed.time
+            }
+        }
+
+        return 0L
     }
 
     private fun actionLp(context: Context): LinearLayout.LayoutParams =
