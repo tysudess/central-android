@@ -84,6 +84,19 @@ class ScreenRecorderActivity : BaseActivity() {
 
     override fun onResume() {
         super.onResume()
+
+        if (::areaMode.isInitialized) {
+            areaMode.setSelection(
+                prefs.getInt(
+                    KEY_AREA_MODE,
+                    0,
+                ).coerceIn(
+                    0,
+                    1,
+                ),
+            )
+        }
+
         refreshState()
         refreshRecent()
 
@@ -232,7 +245,7 @@ class ScreenRecorderActivity : BaseActivity() {
         box.addView(
             MobileUi.text(
                 this,
-                "O widget aparece assim que o Gravador é ligado. Para gravar outra tela, deixe o widget ligado, abra o aplicativo desejado e toque em REC. Em Área personalizada, a moldura aparecerá sobre essa própria tela.",
+                "No widget, toque em ÁREA para marcar ou redefinir a região que será gravada. Depois toque em REC. O widget ficará fora da área selecionada para continuar disponível sem aparecer no vídeo final.",
                 9.5f,
                 MobileUi.MUTED,
             ).apply {

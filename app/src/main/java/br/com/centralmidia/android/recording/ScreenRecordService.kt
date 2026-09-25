@@ -84,6 +84,7 @@ class ScreenRecordService : Service() {
     private var windowManager: WindowManager? = null
     private var overlayView: View? = null
     private var overlayTimer: TextView? = null
+    private var overlayArea: Button? = null
     private var overlayPrimary: Button? = null
     private var overlayStop: Button? = null
 
@@ -706,6 +707,73 @@ class ScreenRecordService : Service() {
         overlayTimer =
             drag
 
+        val areaButton =
+            Button(this).apply {
+                text =
+                    if (
+                        prefs.getBoolean(
+                            KEY_AREA_SELECTED,
+                            false,
+                        )
+                    ) {
+                        "ÁREA ✓"
+                    } else {
+                        "ÁREA"
+                    }
+
+                textSize =
+                    10.8f
+
+                isAllCaps =
+                    false
+
+                setTextColor(
+                    Color.rgb(
+                        12,
+                        94,
+                        184,
+                    ),
+                )
+
+                minWidth =
+                    0
+
+                minHeight =
+                    0
+
+                setPadding(
+                    dp(5),
+                    0,
+                    dp(5),
+                    0,
+                )
+
+                background =
+                    rounded(
+                        Color.WHITE,
+                        dp(11),
+                        Color.rgb(
+                            174,
+                            207,
+                            240,
+                        ),
+                    )
+
+                setOnClickListener {
+                    if (
+                        !isRecording &&
+                        !isProcessing
+                    ) {
+                        showAreaSelectorOverlay(
+                            startAfterSelection = false,
+                        )
+                    }
+                }
+            }
+
+        overlayArea =
+            areaButton
+
         val primary =
             Button(this).apply {
                 text =
@@ -839,6 +907,17 @@ class ScreenRecordService : Service() {
         )
 
         root.addView(
+            areaButton,
+            LinearLayout.LayoutParams(
+                dp(62),
+                dp(38),
+            ).apply {
+                marginEnd =
+                    dp(4)
+            },
+        )
+
+        root.addView(
             primary,
             LinearLayout.LayoutParams(
                 dp(48),
@@ -964,7 +1043,19 @@ class ScreenRecordService : Service() {
     }
 
     private fun calculateWidgetPositionOutsideCapture():
-        Pair<Int, Int>? {
+        Pair<Int, Int>? =
+        calculateWidgetPositionOutsideRegion(
+            AreaRegion(
+                cropLeft,
+                cropTop,
+                cropRight,
+                cropBottom,
+            ),
+        )
+
+    private fun calculateWidgetPositionOutsideRegion(
+        region: AreaRegion,
+    ): Pair<Int, Int>? {
         val wm =
             getSystemService(
                 WindowManager::class.java,
@@ -1006,28 +1097,28 @@ class ScreenRecordService : Service() {
 
         val leftPx =
             (
-                cropLeft *
+                region.left *
                     screenW
                 )
                 .roundToInt()
 
         val topPx =
             (
-                cropTop *
+                region.top *
                     screenH
                 )
                 .roundToInt()
 
         val rightPx =
             (
-                cropRight *
+                region.right *
                     screenW
                 )
                 .roundToInt()
 
         val bottomPx =
             (
-                cropBottom *
+                region.bottom *
                     screenH
                 )
                 .roundToInt()
@@ -1170,8 +1261,27 @@ class ScreenRecordService : Service() {
             1
 
         if (custom) {
-            showAreaSelectorOverlay()
+            val hasSavedArea =
+                prefs.getBoolean(
+                    KEY_AREA_SELECTED,
+                    false,
+                )
+
+            if (hasSavedArea) {
+                launchCaptureController()
+            } else {
+                showAreaSelectorOverlay(
+                    startAfterSelection = true,
+                )
+            }
         } else {
+            prefs.edit()
+                .putBoolean(
+                    KEY_AREA_SELECTED,
+                    false,
+                )
+                .apply()
+
             savePendingCrop(
                 0f,
                 0f,
@@ -1188,7 +1298,9 @@ class ScreenRecordService : Service() {
      * Assim o usuário marca a região sobre o aplicativo que realmente quer
      * gravar. O overlay é removido antes da autorização e nunca entra no vídeo.
      */
-    private fun showAreaSelectorOverlay() {
+    private fun showAreaSelectorOverlay(
+        startAfterSelection: Boolean = true,
+    ) {
         if (
             !Settings.canDrawOverlays(
                 this,
@@ -1442,6 +1554,17 @@ class ScreenRecordService : Service() {
                     103,
                 ),
             ) {
+                prefs.edit()
+                    .putInt(
+                        KEY_AREA_MODE,
+                        0,
+                    )
+                    .putBoolean(
+                        KEY_AREA_SELECTED,
+                        false,
+                    )
+                    .apply()
+
                 savePendingCrop(
                     0f,
                     0f,
@@ -1450,7 +1573,14 @@ class ScreenRecordService : Service() {
                 )
 
                 hideAreaSelectorOverlay()
-                launchCaptureController()
+
+                if (startAfterSelection) {
+                    launchCaptureController()
+                } else if (
+                    isWidgetEnabled
+                ) {
+                    showFloatingWidget()
+                }
             },
             LinearLayout.LayoutParams(
                 0,
@@ -1485,6 +1615,21 @@ class ScreenRecordService : Service() {
                             1f,
                         )
 
+                if (
+                    calculateWidgetPositionOutsideRegion(
+                        region,
+                    ) ==
+                    null
+                ) {
+                    android.widget.Toast.makeText(
+                        this,
+                        "Deixe uma faixa livre fora da área para o widget de pausa/parada.",
+                        android.widget.Toast.LENGTH_LONG,
+                    ).show()
+
+                    return@actionButton
+                }
+
                 savePendingCrop(
                     region.left,
                     region.top,
@@ -1492,8 +1637,26 @@ class ScreenRecordService : Service() {
                     region.bottom,
                 )
 
+                prefs.edit()
+                    .putInt(
+                        KEY_AREA_MODE,
+                        1,
+                    )
+                    .putBoolean(
+                        KEY_AREA_SELECTED,
+                        true,
+                    )
+                    .apply()
+
                 hideAreaSelectorOverlay()
-                launchCaptureController()
+
+                if (startAfterSelection) {
+                    launchCaptureController()
+                } else if (
+                    isWidgetEnabled
+                ) {
+                    showFloatingWidget()
+                }
             },
             LinearLayout.LayoutParams(
                 0,
@@ -2248,6 +2411,34 @@ class ScreenRecordService : Service() {
             isRecording -> "●  ${formatElapsed(elapsedRecordingMs())}"
             else -> "●  PRONTO"
         }
+        overlayArea?.apply {
+            text =
+                if (
+                    prefs.getBoolean(
+                        KEY_AREA_SELECTED,
+                        false,
+                    )
+                ) {
+                    "ÁREA ✓"
+                } else {
+                    "ÁREA"
+                }
+
+            visibility =
+                if (
+                    isRecording ||
+                    isProcessing
+                ) {
+                    View.GONE
+                } else {
+                    View.VISIBLE
+                }
+
+            isEnabled =
+                !isRecording &&
+                    !isProcessing
+        }
+
         overlayPrimary?.apply {
             text = when {
                 isProcessing -> "…"
@@ -2272,6 +2463,7 @@ class ScreenRecordService : Service() {
         }
         overlayView = null
         overlayTimer = null
+        overlayArea = null
         overlayPrimary = null
         overlayStop = null
         windowManager = null
@@ -2323,6 +2515,7 @@ class ScreenRecordService : Service() {
         private const val PREFS = "screen_recorder_settings"
         private const val KEY_ENABLED = "enabled"
         private const val KEY_AREA_MODE = "area_mode"
+        private const val KEY_AREA_SELECTED = "area_selected"
         const val KEY_PENDING_CROP_LEFT = "pending_crop_left"
         const val KEY_PENDING_CROP_TOP = "pending_crop_top"
         const val KEY_PENDING_CROP_RIGHT = "pending_crop_right"
