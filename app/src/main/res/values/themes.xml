@@ -6,10 +6,13 @@
         <item name="colorPrimaryVariant">@color/central_blue_dark</item>
         <item name="colorSecondary">#1683F8</item>
         <item name="android:fontFamily">sans</item>
-        <item name="android:windowLightStatusBar">false</item>
-        <item name="android:statusBarColor">@color/central_blue_dark</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@color/white</item>
         <item name="android:windowBackground">@color/central_bg</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:colorAccent">@color/central_blue</item>
     </style>
 
     <style name="Theme.Central.CaptureArea" parent="Theme.MaterialComponents.DayNight.NoActionBar">

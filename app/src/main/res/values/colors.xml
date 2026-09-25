@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="central_blue">#0B4F9C</color>
+    <color name="central_blue">#147EF6</color>
     <color name="central_blue_dark">#082E63</color>
-    <color name="central_bg">#F3F7FC</color>
-    <color name="central_text">#123264</color>
+    <color name="central_bg">#F4F8FD</color>
+    <color name="central_surface">#FDFEFF</color>
+    <color name="central_text">#082A5B</color>
+    <color name="central_muted">#576F97</color>
+    <color name="central_border">#D3E2F3</color>
     <color name="white">#FFFFFF</color>
 </resources>

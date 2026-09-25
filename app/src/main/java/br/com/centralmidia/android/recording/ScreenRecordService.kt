@@ -260,17 +260,19 @@ class ScreenRecordService : Service() {
             isRecording = true
             isPaused = false
 
+            var widgetVisibleDuringCapture = false
+
             if (
                 isWidgetEnabled &&
                 Settings.canDrawOverlays(this) &&
                 needsCrop()
             ) {
-                val shownOutsideCapture =
+                widgetVisibleDuringCapture =
                     showFloatingWidget(
                         placeOutsideCapture = true,
                     )
 
-                if (!shownOutsideCapture) {
+                if (!widgetVisibleDuringCapture) {
                     hideFloatingWidget()
                 }
             } else {
@@ -280,7 +282,13 @@ class ScreenRecordService : Service() {
                 hideFloatingWidget()
             }
 
-            updateNotification()
+            if (needsCrop() && !widgetVisibleDuringCapture) {
+                updateNotification(
+                    "Gravando área • pausar/parar pela notificação",
+                )
+            } else {
+                updateNotification()
+            }
         } catch (error: Throwable) {
             lastError = error.message ?: "Falha ao iniciar a gravação de tela."
             releaseCaptureResources()
@@ -1086,11 +1094,14 @@ class ScreenRecordService : Service() {
         val screenH =
             bounds.height()
 
+        // Durante a gravação o botão ÁREA fica oculto, portanto o controle
+        // real é menor do que o widget em repouso. Usar essa medida aumenta a
+        // chance de mantê-lo fora do recorte sem invadir a área capturada.
         val widgetW =
-            dp(206)
+            dp(178)
 
         val widgetH =
-            dp(52)
+            dp(48)
 
         val gap =
             dp(10)
@@ -1370,7 +1381,7 @@ class ScreenRecordService : Service() {
         val hint =
             TextView(this).apply {
                 text =
-                    "Selecione a área da gravação\nArraste a moldura ou os cantos"
+                    "Selecione a área da gravação\nArraste a moldura ou os cantos\nSe não houver espaço para o widget, os controles ficarão na notificação."
 
                 textSize =
                     14f
@@ -1615,21 +1626,6 @@ class ScreenRecordService : Service() {
                             1f,
                         )
 
-                if (
-                    calculateWidgetPositionOutsideRegion(
-                        region,
-                    ) ==
-                    null
-                ) {
-                    android.widget.Toast.makeText(
-                        this,
-                        "Deixe uma faixa livre fora da área para o widget de pausa/parada.",
-                        android.widget.Toast.LENGTH_LONG,
-                    ).show()
-
-                    return@actionButton
-                }
-
                 savePendingCrop(
                     region.left,
                     region.top,
@@ -1649,12 +1645,16 @@ class ScreenRecordService : Service() {
                     .apply()
 
                 hideAreaSelectorOverlay()
+                lastError = ""
 
                 if (startAfterSelection) {
                     launchCaptureController()
                 } else if (
                     isWidgetEnabled
                 ) {
+                    // A seleção feita pelo botão ÁREA do widget deve sempre
+                    // devolver o controle flutuante ao usuário. O encaixe fora
+                    // da área só é exigido depois que a gravação realmente começa.
                     showFloatingWidget()
                 }
             },

@@ -758,6 +758,22 @@ class NewsExtractorActivity : BaseActivity() {
                         finalUrl,
                     )
 
+                val canonicalUrl =
+                    doc.selectFirst(
+                        "link[rel=canonical]",
+                    )
+                        ?.absUrl(
+                            "href",
+                        )
+                        .orEmpty()
+                        .trim()
+                        .ifBlank {
+                            finalUrl
+                        }
+                        .substringBefore(
+                            "#",
+                        )
+
                 // O extrator desktop devolve campos estruturados (título, veículo,
                 // data, autor, subtítulo e corpo formatado). No Android tentamos
                 // primeiro o JSON-LD NewsArticle/Article da própria página, que é
@@ -765,7 +781,7 @@ class NewsExtractorActivity : BaseActivity() {
                 val structured =
                     extractStructuredArticle(
                         doc,
-                        finalUrl,
+                        canonicalUrl,
                     )
 
                 doc.select(
@@ -814,7 +830,7 @@ class NewsExtractorActivity : BaseActivity() {
                         .ifBlank {
                             runCatching {
                                 URI(
-                                    finalUrl,
+                                    canonicalUrl,
                                 )
                                     .host
                                     .orEmpty()
@@ -975,7 +991,7 @@ class NewsExtractorActivity : BaseActivity() {
                         text = normalizeText(
                             text,
                         ),
-                        url = finalUrl,
+                        url = canonicalUrl,
                     ),
                 )
             }
@@ -1323,6 +1339,11 @@ class NewsExtractorActivity : BaseActivity() {
                 document.title ||
                 '';
 
+              var canonicalNode = document.querySelector('link[rel="canonical"]');
+              var canonicalUrl =
+                (canonicalNode && canonicalNode.href ? canonicalNode.href : location.href)
+                  .split('#')[0];
+
               return JSON.stringify({
                 title: title.trim(),
                 source: source.trim(),
@@ -1330,7 +1351,7 @@ class NewsExtractorActivity : BaseActivity() {
                 author: author.trim(),
                 subtitle: subtitle.trim(),
                 text: body,
-                url: location.href
+                url: canonicalUrl
               });
             })()
         """.trimIndent()
@@ -1583,6 +1604,9 @@ class NewsExtractorActivity : BaseActivity() {
         val directUrl =
             input.url
                 .trim()
+                .substringBefore(
+                    "#",
+                )
 
         val source =
             canonicalSource(
@@ -1617,6 +1641,7 @@ class NewsExtractorActivity : BaseActivity() {
                 subtitle,
                 author,
                 date,
+                directUrl,
             )
 
         return input.copy(
@@ -1808,6 +1833,7 @@ class NewsExtractorActivity : BaseActivity() {
         subtitle: String,
         author: String,
         date: String,
+        articleUrl: String,
     ): String {
         val normalized =
             normalizeText(
@@ -1839,6 +1865,66 @@ class NewsExtractorActivity : BaseActivity() {
                 )
                 .trim()
 
+        fun withoutLinks(
+            value: String,
+        ): String {
+            var cleaned =
+                value
+                    // Markdown: mantém o texto visível e elimina somente o destino.
+                    .replace(
+                        Regex(
+                            "\\[([^\\]]+)]\\(https?://[^)]+\\)",
+                            RegexOption.IGNORE_CASE,
+                        ),
+                    ) { match ->
+                        match.groupValues[
+                            1
+                        ]
+                    }
+                    // O motor desktop entrega texto jornalístico limpo; URLs soltas
+                    // de 'leia também', publicidade ou cards não entram no corpo.
+                    .replace(
+                        Regex(
+                            "https?://[^\\s<>()]+",
+                            RegexOption.IGNORE_CASE,
+                        ),
+                        "",
+                    )
+                    .replace(
+                        Regex(
+                            "www\\.[^\\s<>()]+",
+                            RegexOption.IGNORE_CASE,
+                        ),
+                        "",
+                    )
+
+            if (
+                articleUrl.isNotBlank()
+            ) {
+                cleaned =
+                    cleaned.replace(
+                        articleUrl,
+                        "",
+                        ignoreCase = true,
+                    )
+            }
+
+            return cleaned
+                .replace(
+                    Regex(
+                        "[ \\t]{2,}",
+                    ),
+                    " ",
+                )
+                .trim()
+                .trim(
+                    '|',
+                    '•',
+                    '-',
+                )
+                .trim()
+        }
+
         val remove =
             setOf(
                 comparable(
@@ -1853,11 +1939,34 @@ class NewsExtractorActivity : BaseActivity() {
                 comparable(
                     date,
                 ),
+                comparable(
+                    articleUrl,
+                ),
             )
                 .filter {
                     it.isNotBlank()
                 }
                 .toSet()
+
+        val junkPrefixes =
+            listOf(
+                "publicidade",
+                "continua depois da publicidade",
+                "leia também",
+                "leia tambem",
+                "veja também",
+                "veja tambem",
+                "saiba mais",
+                "conteúdo recomendado",
+                "conteudo recomendado",
+                "mais lidas",
+                "mais notícias",
+                "mais noticias",
+                "assine",
+                "compartilhe",
+                "siga o",
+                "clique aqui",
+            )
 
         return normalized
             .split(
@@ -1866,7 +1975,9 @@ class NewsExtractorActivity : BaseActivity() {
                 ),
             )
             .map {
-                it.trim()
+                withoutLinks(
+                    it.trim(),
+                )
             }
             .filter {
                 paragraph,
@@ -1881,15 +1992,21 @@ class NewsExtractorActivity : BaseActivity() {
                             paragraph,
                         )
 
-                    cmp !in
-                        remove &&
-                        !cmp.equals(
-                            "publicidade",
-                            true,
-                        ) &&
-                        !cmp.equals(
-                            "continua depois da publicidade",
-                            true,
+                    cmp !in remove &&
+                        junkPrefixes.none {
+                            prefix,
+                        ->
+                            cmp == comparable(prefix) ||
+                                cmp.startsWith(
+                                    comparable(prefix) + " ",
+                                )
+                        } &&
+                        // Elimina cards/linhas que eram essencialmente um link.
+                        !Regex(
+                            "^(https?://|www\\.)",
+                            RegexOption.IGNORE_CASE,
+                        ).containsMatchIn(
+                            paragraph,
                         )
                 }
             }

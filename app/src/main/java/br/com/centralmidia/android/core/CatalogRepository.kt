@@ -22,7 +22,8 @@ object CatalogRepository {
                 .bufferedReader()
                 .use { it.readText() }
         )
-        return (0 until arr.length()).map { i ->
+
+        val synced = (0 until arr.length()).map { i ->
             val o = arr.getJSONObject(i)
             NewsSource(
                 id = o.optString("id"),
@@ -32,6 +33,34 @@ object CatalogRepository {
                 group = o.optString("group"),
                 aliases = aliases(o),
             )
+        }
+
+        // O workflow continua sincronizando o catálogo oficial do desktop.
+        // Esta fonte é acrescentada somente no Android, sem alterar Windows/Ubuntu.
+        // Se ela entrar futuramente no catálogo desktop, a checagem evita duplicidade.
+        val tribunaDaBahia = NewsSource(
+            id = "ba-tribuna-da-bahia",
+            name = "Tribuna da Bahia",
+            region = "Nordeste",
+            state = "BA",
+            group = "Bahia • Nordeste",
+            aliases = listOf(
+                "TRBN",
+                "TRBN - Tribuna da Bahia",
+                "Jornal Tribuna da Bahia",
+                "trbn.com.br",
+            ),
+        )
+
+        return if (
+            synced.any {
+                it.id.equals(tribunaDaBahia.id, ignoreCase = true) ||
+                    it.name.equals(tribunaDaBahia.name, ignoreCase = true)
+            }
+        ) {
+            synced
+        } else {
+            synced + tribunaDaBahia
         }
     }
 

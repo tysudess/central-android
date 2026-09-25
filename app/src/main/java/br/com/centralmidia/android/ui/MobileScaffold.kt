@@ -55,7 +55,7 @@ object MobileScaffold {
 
         val shell = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(MobileUi.BG)
+            background = MobileUi.appBackground()
         }
 
         val scroll = ScrollView(activity).apply {
@@ -174,7 +174,7 @@ object MobileScaffold {
         val shell = LinearLayout(activity).apply {
             tag = MODULE_SHELL_TAG
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(MobileUi.BG)
+            background = MobileUi.appBackground()
         }
 
         shell.addView(
@@ -240,74 +240,45 @@ object MobileScaffold {
                 gravity =
                     Gravity.CENTER_VERTICAL
                 setPadding(
-                    0,
-                    activity.dp(2),
-                    0,
-                    activity.dp(5),
+                    activity.dp(10),
+                    activity.dp(7),
+                    activity.dp(10),
+                    activity.dp(7),
                 )
+                background =
+                    MobileUi.rounded(
+                        Color.argb(
+                            238,
+                            255,
+                            255,
+                            255,
+                        ),
+                        activity.dp(18).toFloat(),
+                        MobileUi.BORDER,
+                        activity.dp(1),
+                    )
+                elevation =
+                    activity.dp(1).toFloat()
             }
 
         val logo =
-            LinearLayout(activity).apply {
-                orientation =
-                    LinearLayout.HORIZONTAL
-                gravity =
-                    Gravity.BOTTOM
-
-                listOf(
-                    16,
-                    24,
-                    32,
-                ).forEachIndexed {
-                        index,
-                        height,
-                    ->
-                    addView(
-                        View(activity).apply {
-                            background =
-                                MobileUi.rounded(
-                                    when (index) {
-                                        0 ->
-                                            Color.rgb(
-                                                83,
-                                                164,
-                                                255,
-                                            )
-
-                                        1 ->
-                                            Color.rgb(
-                                                48,
-                                                139,
-                                                246,
-                                            )
-
-                                        else ->
-                                            Color.rgb(
-                                                25,
-                                                113,
-                                                230,
-                                            )
-                                    },
-                                    activity.dp(5)
-                                        .toFloat(),
-                                )
-                        },
-                        LinearLayout.LayoutParams(
-                            activity.dp(6),
-                            activity.dp(height),
-                        ).apply {
-                            marginEnd =
-                                activity.dp(3)
-                        },
-                    )
-                }
+            ImageView(activity).apply {
+                setImageResource(
+                    R.mipmap.ic_launcher,
+                )
+                scaleType =
+                    ImageView.ScaleType.CENTER_CROP
+                contentDescription =
+                    "Central Inteligente de Mídia"
+                elevation =
+                    activity.dp(2).toFloat()
             }
 
         row.addView(
             logo,
             LinearLayout.LayoutParams(
-                activity.dp(35),
-                activity.dp(36),
+                activity.dp(42),
+                activity.dp(42),
             ),
         )
 
@@ -325,7 +296,7 @@ object MobileScaffold {
                 1f,
             ).apply {
                 marginStart =
-                    activity.dp(8)
+                    activity.dp(10)
             },
         )
 
@@ -612,52 +583,52 @@ object MobileScaffold {
                 ),
                 NavItem(
                     "Extrator\nNotícias",
-                    R.drawable.ic_news,
+                    R.drawable.ic_news_extract,
                     "news_extractor",
                     NewsExtractorActivity::class.java,
                 ),
                 NavItem(
                     "Capas",
-                    R.drawable.ic_news,
+                    R.drawable.ic_covers,
                     "covers",
                     CoversActivity::class.java,
                 ),
                 NavItem(
                     "Editor\nPDF",
-                    R.drawable.ic_terms,
+                    R.drawable.ic_pdf,
                     "pdf_editor",
                     PdfEditorActivity::class.java,
                     MobileUi.PURPLE,
                 ),
                 NavItem(
                     "Extrator\nVídeos",
-                    R.drawable.ic_video,
+                    R.drawable.ic_video_download,
                     "extractor",
                     VideoExtractorActivity::class.java,
                     MobileUi.PURPLE,
                 ),
                 NavItem(
                     "Editor\nVídeo",
-                    R.drawable.ic_video,
+                    R.drawable.ic_video_edit,
                     "video_editor",
                     VideoEditorActivity::class.java,
                 ),
                 NavItem(
                     "Gravador",
-                    R.drawable.ic_video,
+                    R.drawable.ic_record,
                     "video_editor",
                     ScreenRecorderActivity::class.java,
                     MobileUi.PINK,
                 ),
                 NavItem(
                     "Config.",
-                    R.drawable.ic_more,
+                    R.drawable.ic_settings_modern,
                     "settings",
                     SettingsActivity::class.java,
                 ),
                 NavItem(
                     "Minha\nConta",
-                    R.drawable.ic_home,
+                    R.drawable.ic_account,
                     cls =
                         AccountActivity::class.java,
                     accent =
@@ -711,11 +682,10 @@ object MobileScaffold {
             LinearLayout(activity).apply {
                 orientation =
                     LinearLayout.VERTICAL
-                setBackgroundColor(
-                    Color.WHITE,
-                )
+                background =
+                    MobileUi.navigationBackground()
                 elevation =
-                    activity.dp(14)
+                    activity.dp(12)
                         .toFloat()
             }
 
@@ -793,36 +763,49 @@ object MobileScaffold {
                         activity.dp(5),
                     )
 
+                    val selectedTint =
+                        when (
+                            item.accent
+                        ) {
+                            MobileUi.GREEN ->
+                                MobileUi.GREEN_TINT
+
+                            MobileUi.PURPLE ->
+                                MobileUi.PURPLE_TINT
+
+                            MobileUi.ORANGE ->
+                                MobileUi.ORANGE_TINT
+
+                            MobileUi.PINK ->
+                                MobileUi.PINK_TINT
+
+                            else ->
+                                MobileUi.BLUE_TINT
+                        }
+
                     background =
                         if (selected) {
                             MobileUi.rounded(
-                                when (
-                                    item.accent
-                                ) {
-                                    MobileUi.GREEN ->
-                                        MobileUi.GREEN_TINT
-
-                                    MobileUi.PURPLE ->
-                                        MobileUi.PURPLE_TINT
-
-                                    MobileUi.ORANGE ->
-                                        MobileUi.ORANGE_TINT
-
-                                    MobileUi.PINK ->
-                                        MobileUi.PINK_TINT
-
-                                    else ->
-                                        MobileUi.BLUE_TINT
-                                },
-                                activity.dp(22)
-                                    .toFloat(),
+                                selectedTint,
+                                activity.dp(20).toFloat(),
+                                MobileUi.mixWithWhite(
+                                    item.accent,
+                                    0.62f,
+                                ),
+                                activity.dp(1),
                             )
                         } else {
                             MobileUi.rounded(
                                 Color.TRANSPARENT,
-                                activity.dp(22)
-                                    .toFloat(),
+                                activity.dp(20).toFloat(),
                             )
+                        }
+
+                    elevation =
+                        if (selected) {
+                            activity.dp(2).toFloat()
+                        } else {
+                            0f
                         }
 
                     setOnClickListener {
@@ -858,7 +841,7 @@ object MobileScaffold {
                     } else {
                         MobileUi.NAVY
                     },
-                    21,
+                    22,
                 ),
             )
 
@@ -866,7 +849,7 @@ object MobileScaffold {
                 MobileUi.text(
                     activity,
                     item.label,
-                    10f,
+                    9.7f,
                     if (selected) {
                         item.accent
                     } else {
@@ -888,8 +871,8 @@ object MobileScaffold {
             row.addView(
                 itemView,
                 LinearLayout.LayoutParams(
-                    activity.dp(88),
-                    activity.dp(60),
+                    activity.dp(84),
+                    activity.dp(62),
                 ).apply {
                     marginStart =
                         activity.dp(2)
@@ -916,7 +899,7 @@ object MobileScaffold {
             scroll,
             LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                activity.dp(68),
+                activity.dp(70),
             ),
         )
 
@@ -991,11 +974,12 @@ object MobileScaffold {
 }
 
 object MobileUi {
-    val BG = Color.rgb(246, 249, 253)
-    val NAVY = Color.rgb(10, 43, 99)
-    val MUTED = Color.rgb(91, 116, 158)
+    val BG = Color.rgb(244, 248, 253)
+    val SURFACE = Color.rgb(253, 254, 255)
+    val NAVY = Color.rgb(8, 42, 91)
+    val MUTED = Color.rgb(87, 111, 151)
     val BLUE = Color.rgb(20, 126, 246)
-    val BLUE_TINT = Color.rgb(229, 241, 255)
+    val BLUE_TINT = Color.rgb(232, 243, 255)
     val GREEN = Color.rgb(0, 151, 95)
     val GREEN_TINT = Color.rgb(232, 249, 240)
     val PURPLE = Color.rgb(137, 68, 238)
@@ -1004,7 +988,8 @@ object MobileUi {
     val ORANGE_TINT = Color.rgb(255, 244, 213)
     val PINK = Color.rgb(226, 16, 101)
     val PINK_TINT = Color.rgb(255, 232, 241)
-    val BORDER = Color.rgb(216, 228, 243)
+    val BORDER = Color.rgb(211, 226, 243)
+    val BORDER_FOCUS = Color.rgb(151, 194, 242)
 
     fun text(
         context: Context,
@@ -1018,6 +1003,9 @@ object MobileUi {
             textSize = size
             includeFontPadding = false
             setTextColor(color)
+            if (size >= 10f) {
+                letterSpacing = 0.004f
+            }
             if (bold) {
                 setTypeface(typeface, Typeface.BOLD)
             }
@@ -1060,16 +1048,74 @@ object MobileUi {
             setColor(color)
         }
 
+    fun appBackground(): GradientDrawable =
+        GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            intArrayOf(
+                Color.rgb(248, 251, 255),
+                BG,
+                Color.rgb(241, 247, 253),
+            ),
+        )
+
+    fun navigationBackground(): GradientDrawable =
+        GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(
+                Color.WHITE,
+                Color.rgb(249, 252, 255),
+            ),
+        )
+
+    fun mixWithWhite(
+        color: Int,
+        whiteRatio: Float,
+    ): Int {
+        val ratio =
+            whiteRatio.coerceIn(
+                0f,
+                1f,
+            )
+
+        fun channel(value: Int): Int =
+            (
+                value *
+                    (1f - ratio) +
+                    255f *
+                    ratio
+                )
+                .toInt()
+                .coerceIn(
+                    0,
+                    255,
+                )
+
+        return Color.rgb(
+            channel(
+                Color.red(color),
+            ),
+            channel(
+                Color.green(color),
+            ),
+            channel(
+                Color.blue(color),
+            ),
+        )
+    }
+
     fun card(
         context: Context,
         padding: Int = 14,
     ): MaterialCardView =
         MaterialCardView(context).apply {
-            radius = context.dp(18).toFloat()
-            cardElevation = context.dp(1).toFloat()
-            setCardBackgroundColor(Color.WHITE)
+            radius = context.dp(20).toFloat()
+            cardElevation = context.dp(2).toFloat()
+            maxCardElevation = context.dp(3).toFloat()
+            setCardBackgroundColor(SURFACE)
             strokeWidth = context.dp(1)
             strokeColor = BORDER
+            preventCornerOverlap = false
+            useCompatPadding = false
             setContentPadding(
                 context.dp(padding),
                 context.dp(padding),
@@ -1084,7 +1130,7 @@ object MobileUi {
     ): android.widget.EditText =
         android.widget.EditText(context).apply {
             this.hint = hint
-            textSize = 14.5f
+            textSize = 14f
             setTextColor(NAVY)
             setHintTextColor(MUTED)
             setSingleLine(true)
@@ -1095,9 +1141,9 @@ object MobileUi {
                 context.dp(11),
             )
             background = rounded(
-                Color.WHITE,
-                context.dp(13).toFloat(),
-                Color.rgb(143, 190, 246),
+                SURFACE,
+                context.dp(15).toFloat(),
+                BORDER_FOCUS,
                 context.dp(1),
             )
         }
@@ -1113,10 +1159,10 @@ object MobileUi {
         MaterialButton(context).apply {
             text = label
             isAllCaps = false
-            textSize = 13f
+            textSize = 12.7f
             includeFontPadding = false
             cornerRadius = context.dp(13)
-            letterSpacing = 0.01f
+            letterSpacing = 0.012f
             insetTop = 0
             insetBottom = 0
             minimumHeight = 0
@@ -1127,6 +1173,22 @@ object MobileUi {
                 context.dp(8),
             )
 
+            elevation =
+                context.dp(
+                    if (primary) {
+                        2
+                    } else {
+                        0
+                    },
+                ).toFloat()
+            rippleColor =
+                ColorStateList.valueOf(
+                    mixWithWhite(
+                        accent,
+                        0.76f,
+                    ),
+                )
+
             if (primary) {
                 setTypeface(typeface, Typeface.BOLD)
                 backgroundTintList = ColorStateList.valueOf(accent)
@@ -1134,7 +1196,7 @@ object MobileUi {
                 strokeWidth = 0
                 iconTint = ColorStateList.valueOf(Color.WHITE)
             } else {
-                backgroundTintList = ColorStateList.valueOf(Color.WHITE)
+                backgroundTintList = ColorStateList.valueOf(SURFACE)
                 setTextColor(accent)
                 strokeColor = ColorStateList.valueOf(BORDER)
                 strokeWidth = context.dp(1)
