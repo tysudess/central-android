@@ -13,6 +13,9 @@ import com.google.android.material.textfield.TextInputEditText
 
 fun Context.dp(v:Int):Int=(v*resources.displayMetrics.density).toInt()
 
+// Sobrecarga para os componentes visuais que precisam de valores fracionários.
+fun Context.dp(v:Float):Int=(v*resources.displayMetrics.density).toInt()
+
 object Ui {
     fun page(activity: AppCompatActivity, title:String, subtitle:String=""): LinearLayout {
         val scroll=ScrollView(activity).apply { isFillViewport=true; setBackgroundColor(Color.rgb(243,247,252)) }
