@@ -10,12 +10,14 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.view.Gravity
 import android.view.MotionEvent
+import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.ViewGroup
 import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.Space
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.view.ViewCompat
@@ -70,9 +72,9 @@ object MobileScaffold {
             orientation = LinearLayout.VERTICAL
             setPadding(
                 activity.dp(14),
-                activity.dp(7),
+                activity.dp(6),
                 activity.dp(14),
-                activity.dp(14),
+                activity.dp(12),
             )
         }
 
@@ -289,9 +291,9 @@ object MobileScaffold {
 
                 setPadding(
                     activity.dp(9),
-                    activity.dp(6),
+                    activity.dp(5),
                     activity.dp(9),
-                    activity.dp(6),
+                    activity.dp(5),
                 )
 
                 background =
@@ -325,8 +327,8 @@ object MobileScaffold {
         row.addView(
             logo,
             LinearLayout.LayoutParams(
-                activity.dp(38),
-                activity.dp(38),
+                activity.dp(37),
+                activity.dp(37),
             ),
         )
 
@@ -757,26 +759,85 @@ object MobileScaffold {
                     currentCentralClass
             }
 
+        /*
+         * O dock agora é uma "ilha" flutuante:
+         * - espaço do app aparece ao redor;
+         * - sombra fica limitada ao próprio dock;
+         * - o usuário percebe a navegação como uma peça única do produto.
+         */
         val wrapper =
             LinearLayout(activity).apply {
                 orientation =
                     LinearLayout.VERTICAL
 
                 background =
-                    MobileUi.navigationBackground()
+                    Color.TRANSPARENT
 
-                elevation =
-                    activity.dp(9).toFloat()
+                clipChildren =
+                    false
+
+                clipToPadding =
+                    false
             }
 
-        wrapper.addView(
+        val dock =
+            LinearLayout(activity).apply {
+                orientation =
+                    LinearLayout.VERTICAL
+
+                gravity =
+                    Gravity.CENTER_HORIZONTAL
+
+                background =
+                    MobileUi.navigationDockBackground(
+                        activity,
+                    )
+
+                elevation =
+                    activity.dp(8).toFloat()
+
+                clipChildren =
+                    false
+
+                clipToPadding =
+                    false
+
+                setPadding(
+                    activity.dp(6),
+                    activity.dp(3),
+                    activity.dp(6),
+                    activity.dp(4),
+                )
+
+                contentDescription =
+                    "Barra inferior da Central"
+            }
+
+        val glowRow =
+            LinearLayout(activity).apply {
+                orientation =
+                    LinearLayout.HORIZONTAL
+
+                gravity =
+                    Gravity.CENTER
+            }
+
+        glowRow.addView(
             View(activity).apply {
                 background =
                     MobileUi.navigationIndicator()
             },
             LinearLayout.LayoutParams(
+                activity.dp(58),
+                activity.dp(3),
+            ),
+        )
+
+        dock.addView(
+            glowRow,
+            LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                activity.dp(2),
+                activity.dp(5),
             ),
         )
 
@@ -799,6 +860,12 @@ object MobileScaffold {
                 clipToPadding =
                     false
 
+                isHorizontalFadingEdgeEnabled =
+                    true
+
+                fadingEdgeLength =
+                    activity.dp(18)
+
                 contentDescription =
                     "Navegação das áreas da Central"
             }
@@ -811,13 +878,29 @@ object MobileScaffold {
                 gravity =
                     Gravity.CENTER_VERTICAL
 
-                setPadding(
-                    activity.dp(3),
-                    activity.dp(4),
-                    activity.dp(3),
-                    activity.dp(4),
-                )
+                clipToPadding =
+                    false
             }
+
+        val sideSpace =
+            (
+                activity.resources
+                    .displayMetrics
+                    .widthPixels /
+                    2 -
+                    activity.dp(36)
+                )
+                .coerceAtLeast(
+                    activity.dp(8),
+                )
+
+        row.addView(
+            Space(activity),
+            LinearLayout.LayoutParams(
+                sideSpace,
+                1,
+            ),
+        )
 
         var selectedView:
             View? =
@@ -853,33 +936,36 @@ object MobileScaffold {
                             " ",
                         )
 
+                    minimumWidth =
+                        activity.dp(72)
+
+                    setPadding(
+                        activity.dp(5),
+                        activity.dp(4),
+                        activity.dp(5),
+                        activity.dp(3),
+                    )
+
                     val selectedTint =
                         MobileUi.selectionTint(
                             item.accent,
                         )
 
-                    setPadding(
-                        activity.dp(6),
-                        activity.dp(5),
-                        activity.dp(6),
-                        activity.dp(4),
-                    )
-
                     background =
                         if (selected) {
                             MobileUi.rounded(
                                 selectedTint,
-                                activity.dp(16).toFloat(),
+                                activity.dp(15).toFloat(),
                                 MobileUi.mixWithWhite(
                                     item.accent,
-                                    0.54f,
+                                    0.62f,
                                 ),
                                 activity.dp(1),
                             )
                         } else {
                             MobileUi.rounded(
                                 Color.TRANSPARENT,
-                                activity.dp(16).toFloat(),
+                                activity.dp(15).toFloat(),
                             )
                         }
 
@@ -899,9 +985,15 @@ object MobileScaffold {
                         ) {
                             MotionEvent.ACTION_DOWN -> {
                                 v.animate()
-                                    .scaleX(0.96f)
-                                    .scaleY(0.96f)
-                                    .setDuration(75)
+                                    .scaleX(
+                                        0.965f,
+                                    )
+                                    .scaleY(
+                                        0.965f,
+                                    )
+                                    .setDuration(
+                                        65,
+                                    )
                                     .start()
                             }
 
@@ -909,9 +1001,15 @@ object MobileScaffold {
                             MotionEvent.ACTION_CANCEL,
                             -> {
                                 v.animate()
-                                    .scaleX(1f)
-                                    .scaleY(1f)
-                                    .setDuration(125)
+                                    .scaleX(
+                                        1f,
+                                    )
+                                    .scaleY(
+                                        1f,
+                                    )
+                                    .setDuration(
+                                        120,
+                                    )
                                     .start()
                             }
                         }
@@ -920,6 +1018,10 @@ object MobileScaffold {
                     }
 
                     setOnClickListener {
+                        performHapticFeedback(
+                            HapticFeedbackConstants.VIRTUAL_KEY,
+                        )
+
                         item.action
                             ?.invoke()
                             ?: item.cls?.let {
@@ -939,6 +1041,30 @@ object MobileScaffold {
                     }
                 }
 
+            val iconBox =
+                LinearLayout(
+                    activity,
+                ).apply {
+                    gravity =
+                        Gravity.CENTER
+
+                    background =
+                        if (selected) {
+                            MobileUi.rounded(
+                                MobileUi.mixWithWhite(
+                                    item.accent,
+                                    0.78f,
+                                ),
+                                activity.dp(9).toFloat(),
+                            )
+                        } else {
+                            MobileUi.rounded(
+                                Color.TRANSPARENT,
+                                activity.dp(9).toFloat(),
+                            )
+                        }
+                }
+
             val iconView =
                 MobileUi.icon(
                     activity,
@@ -948,13 +1074,13 @@ object MobileScaffold {
                     } else {
                         MobileUi.NAVY
                     },
-                    20,
+                    19,
                 ).apply {
                     alpha =
                         if (selected) {
                             1f
                         } else {
-                            0.76f
+                            0.68f
                         }
 
                     contentDescription =
@@ -964,15 +1090,23 @@ object MobileScaffold {
                         )
                 }
 
-            itemView.addView(
+            iconBox.addView(
                 iconView,
+            )
+
+            itemView.addView(
+                iconBox,
+                LinearLayout.LayoutParams(
+                    activity.dp(29),
+                    activity.dp(29),
+                ),
             )
 
             itemView.addView(
                 MobileUi.text(
                     activity,
                     item.label,
-                    9.4f,
+                    9.2f,
                     if (selected) {
                         item.accent
                     } else {
@@ -997,8 +1131,8 @@ object MobileScaffold {
             row.addView(
                 itemView,
                 LinearLayout.LayoutParams(
-                    activity.dp(74),
-                    activity.dp(58),
+                    activity.dp(72),
+                    activity.dp(55),
                 ).apply {
                     marginStart =
                         activity.dp(2)
@@ -1008,11 +1142,21 @@ object MobileScaffold {
                 },
             )
 
-            if (selected) {
+            if (
+                selected
+            ) {
                 selectedView =
                     itemView
             }
         }
+
+        row.addView(
+            Space(activity),
+            LinearLayout.LayoutParams(
+                sideSpace,
+                1,
+            ),
+        )
 
         scroll.addView(
             row,
@@ -1022,12 +1166,32 @@ object MobileScaffold {
             ),
         )
 
-        wrapper.addView(
+        dock.addView(
             scroll,
             LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                activity.dp(65),
+                activity.dp(57),
             ),
+        )
+
+        wrapper.addView(
+            dock,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                marginStart =
+                    activity.dp(7)
+
+                marginEnd =
+                    activity.dp(7)
+
+                topMargin =
+                    activity.dp(2)
+
+                bottomMargin =
+                    activity.dp(2)
+            },
         )
 
         selectedView?.let {
@@ -1037,9 +1201,7 @@ object MobileScaffold {
                 val desired =
                     (
                         active.left -
-                            activity.resources
-                                .displayMetrics
-                                .widthPixels /
+                            scroll.width /
                             2 +
                             active.width /
                             2
@@ -1127,23 +1289,23 @@ object MobileUi {
 
     val BLUE =
         Color.rgb(
-            42,
-            132,
-            229,
+            52,
+            137,
+            226,
         )
 
     val BLUE_DEEP =
         Color.rgb(
-            28,
+            31,
             105,
-            193,
+            190,
         )
 
     val BLUE_TINT =
         Color.rgb(
-            232,
-            243,
-            253,
+            235,
+            246,
+            255,
         )
 
     val GREEN =
@@ -1371,6 +1533,43 @@ object MobileUi {
             ),
         )
 
+    fun navigationDockBackground(
+        context: Context,
+    ): GradientDrawable =
+        GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(
+                Color.argb(
+                    252,
+                    255,
+                    255,
+                    255,
+                ),
+                Color.argb(
+                    246,
+                    247,
+                    251,
+                    255,
+                ),
+            ),
+        ).apply {
+            cornerRadius =
+                context.dp(
+                    22,
+                ).toFloat()
+
+            setStroke(
+                context.dp(
+                    1,
+                ),
+                Color.rgb(
+                    217,
+                    229,
+                    241,
+                ),
+            )
+        }
+
     fun navigationBackground():
         GradientDrawable =
         GradientDrawable(
@@ -1432,7 +1631,7 @@ object MobileUi {
         ).apply {
             cornerRadius =
                 context.dp(
-                    18,
+                    17,
                 ).toFloat()
 
             setStroke(
@@ -1595,8 +1794,26 @@ object MobileUi {
 
             minHeight =
                 context.dp(
-                    50,
+                    51,
                 )
+
+            setOnFocusChangeListener { _, focused ->
+                background =
+                    rounded(
+                        SURFACE,
+                        context.dp(
+                            14,
+                        ).toFloat(),
+                        if (focused) {
+                            BORDER_FOCUS
+                        } else {
+                            BORDER
+                        },
+                        context.dp(
+                            if (focused) 1 else 1,
+                        ),
+                    )
+            }
 
             setPadding(
                 context.dp(
@@ -1644,7 +1861,7 @@ object MobileUi {
                 false
 
             textSize =
-                12.5f
+                12.4f
 
             includeFontPadding =
                 false
@@ -1665,7 +1882,7 @@ object MobileUi {
 
             minimumHeight =
                 context.dp(
-                    45,
+                    46,
                 )
 
             setPadding(

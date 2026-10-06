@@ -8,7 +8,7 @@
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@color/white</item>
+        <item name="android:navigationBarColor">@color/central_surface</item>
         <item name="android:windowLightNavigationBar">true</item>
         <item name="android:windowBackground">@color/central_bg</item>
         <item name="android:windowNoTitle">true</item>

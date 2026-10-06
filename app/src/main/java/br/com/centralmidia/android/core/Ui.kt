@@ -81,9 +81,15 @@ object Ui {
                 overScrollMode =
                     android.view.View.OVER_SCROLL_NEVER
 
-                setBackgroundColor(
-                    BG,
-                )
+                background =
+                    GradientDrawable(
+                        GradientDrawable.Orientation.TL_BR,
+                        intArrayOf(
+                            Color.rgb(250, 252, 255),
+                            BG,
+                            Color.rgb(239, 246, 253),
+                        ),
+                    )
             }
 
         val root =
@@ -216,7 +222,7 @@ object Ui {
         ).apply {
             radius =
                 context.dp(
-                    18,
+                    17,
                 ).toFloat()
 
             cardElevation =
@@ -272,11 +278,11 @@ object Ui {
                 false
 
             textSize =
-                12.5f
+                12.4f
 
             minimumHeight =
                 context.dp(
-                    45,
+                    46,
                 )
 
             cornerRadius =
@@ -332,8 +338,41 @@ object Ui {
 
             minHeight =
                 context.dp(
-                    50,
+                    51,
                 )
+
+            setOnFocusChangeListener { _, focused ->
+                background =
+                    GradientDrawable().apply {
+                        shape =
+                            GradientDrawable.RECTANGLE
+                        setColor(
+                            Color.WHITE,
+                        )
+                        cornerRadius =
+                            context.dp(
+                                14,
+                            ).toFloat()
+                        setStroke(
+                            context.dp(
+                                1,
+                            ),
+                            if (focused) {
+                                Color.rgb(
+                                    145,
+                                    192,
+                                    237,
+                                )
+                            } else {
+                                Color.rgb(
+                                    210,
+                                    226,
+                                    241,
+                                )
+                            },
+                        )
+                    }
+            }
 
             setPadding(
                 context.dp(
