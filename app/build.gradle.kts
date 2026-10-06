@@ -12,7 +12,6 @@ android {
         minSdk = 24
         targetSdk = 34
         
-        // Atualizando o versionCode e versionName para a próxima versão após a v1.0.14
         versionCode = 15 
         versionName = "1.0.15"
 
@@ -35,9 +34,6 @@ android {
     }
     
     kotlinOptions {
-        jvmTestOptions {
-            // Configurações de JVM otimizadas
-        }
         jvmTarget = "17"
     }
 }
