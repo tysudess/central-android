@@ -50,18 +50,10 @@ class SourcesActivity : BaseActivity() {
     private var tab = Tab.NEWS
     private var tabButtons = linkedMapOf<Tab, MaterialButton>()
 
-    private val newsSources by lazy {
-        CatalogRepository.news(this)
-    }
-    private val regularNews by lazy {
-        CatalogRepository.regularNews(this)
-    }
-    private val specializedNews by lazy {
-        CatalogRepository.specializedNews(this)
-    }
-    private val videoSources by lazy {
-        CatalogRepository.videos(this)
-    }
+    private val newsSources by lazy { CatalogRepository.news(this) }
+    private val regularNews by lazy { CatalogRepository.regularNews(this) }
+    private val specializedNews by lazy { CatalogRepository.specializedNews(this) }
+    private val videoSources by lazy { CatalogRepository.videos(this) }
 
     private val regions = listOf(
         "Todas",
@@ -115,26 +107,14 @@ class SourcesActivity : BaseActivity() {
             showAutomation = true,
         )
 
-        root.addView(
-            filtersCard(),
-            MobileUi.match(dp(14)),
-        )
-        root.addView(
-            modeCard(),
-            MobileUi.match(dp(10)),
-        )
-        root.addView(
-            controlsCard(),
-            MobileUi.match(dp(10)),
-        )
+        root.addView(filtersCard(), MobileUi.match(dp(14)))
+        root.addView(modeCard(), MobileUi.match(dp(10)))
+        root.addView(controlsCard(), MobileUi.match(dp(10)))
 
         listContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
-        root.addView(
-            listContainer,
-            MobileUi.match(dp(8)),
-        )
+        root.addView(listContainer, MobileUi.match(dp(8)))
 
         refresh()
     }
@@ -159,15 +139,8 @@ class SourcesActivity : BaseActivity() {
             orientation = LinearLayout.HORIZONTAL
         }
 
-        fun addTab(
-            value: Tab,
-            label: String,
-        ) {
-            val button = MobileUi.button(
-                this,
-                label,
-                false,
-            ) {
+        fun addTab(value: Tab, label: String) {
+            val button = MobileUi.button(this, label, false) {
                 tab = value
                 updateTabs()
                 refresh()
@@ -178,24 +151,13 @@ class SourcesActivity : BaseActivity() {
                 LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     dp(46),
-                ).apply {
-                    marginEnd = dp(6)
-                },
+                ).apply { marginEnd = dp(6) },
             )
         }
 
-        addTab(
-            Tab.NEWS,
-            "Notícias",
-        )
-        addTab(
-            Tab.VIDEOS,
-            "Vídeos",
-        )
-        addTab(
-            Tab.SPECIALIZED,
-            "Mídia especializada",
-        )
+        addTab(Tab.NEWS, "Notícias")
+        addTab(Tab.VIDEOS, "Vídeos")
+        addTab(Tab.SPECIALIZED, "Mídia especializada")
 
         tabScroll.addView(tabRow)
         box.addView(tabScroll)
@@ -205,18 +167,14 @@ class SourcesActivity : BaseActivity() {
             this,
             "Pesquisar por nome, região, estado ou grupo...",
         ).apply {
-            doAfterTextChanged {
-                refresh()
-            }
+            doAfterTextChanged { refresh() }
         }
         box.addView(
             query,
             LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 dp(48),
-            ).apply {
-                topMargin = dp(10)
-            },
+            ).apply { topMargin = dp(10) },
         )
 
         val filtersLabel = MobileUi.text(
@@ -226,10 +184,7 @@ class SourcesActivity : BaseActivity() {
             MobileUi.NAVY,
             true,
         )
-        box.addView(
-            filtersLabel,
-            MobileUi.match(dp(10)),
-        )
+        box.addView(filtersLabel, MobileUi.match(dp(10)))
 
         val filtersRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -247,12 +202,7 @@ class SourcesActivity : BaseActivity() {
                 MobileUi.BORDER,
                 dp(1),
             )
-            setPadding(
-                dp(8),
-                0,
-                dp(8),
-                0,
-            )
+            setPadding(dp(8), 0, dp(8), 0)
             onItemSelectedListener =
                 object : android.widget.AdapterView.OnItemSelectedListener {
                     override fun onItemSelected(
@@ -278,12 +228,7 @@ class SourcesActivity : BaseActivity() {
                 MobileUi.BORDER,
                 dp(1),
             )
-            setPadding(
-                dp(8),
-                0,
-                dp(8),
-                0,
-            )
+            setPadding(dp(8), 0, dp(8), 0)
             onItemSelectedListener =
                 object : android.widget.AdapterView.OnItemSelectedListener {
                     override fun onItemSelected(
@@ -301,31 +246,54 @@ class SourcesActivity : BaseActivity() {
                 }
         }
 
+        // Refinamento visual: cada seletor passa a ter identificação própria.
+        fun filterLabel(text: String): TextView =
+            MobileUi.text(
+                this,
+                text.uppercase(Locale.getDefault()),
+                9.5f,
+                MobileUi.BLUE_DEEP,
+                true,
+            ).apply {
+                letterSpacing = 0.035f
+            }
+
+        val regionBox = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(filterLabel("Região"), MobileUi.match())
+            addView(
+                regionSpinner,
+                MobileUi.match(dp(3)),
+            )
+        }
+
+        val stateBox = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(filterLabel("Estado"), MobileUi.match())
+            addView(
+                stateSpinner,
+                MobileUi.match(dp(3)),
+            )
+        }
+
         filtersRow.addView(
-            regionSpinner,
+            regionBox,
             LinearLayout.LayoutParams(
                 0,
-                dp(46),
+                ViewGroup.LayoutParams.WRAP_CONTENT,
                 1f,
-            ).apply {
-                marginEnd = dp(4)
-            },
+            ).apply { marginEnd = dp(4) },
         )
         filtersRow.addView(
-            stateSpinner,
+            stateBox,
             LinearLayout.LayoutParams(
                 0,
-                dp(46),
+                ViewGroup.LayoutParams.WRAP_CONTENT,
                 1f,
-            ).apply {
-                marginStart = dp(4)
-            },
+            ).apply { marginStart = dp(4) },
         )
 
-        box.addView(
-            filtersRow,
-            MobileUi.match(dp(6)),
-        )
+        box.addView(filtersRow, MobileUi.match(dp(6)))
 
         box.addView(
             MobileUi.text(
@@ -343,18 +311,9 @@ class SourcesActivity : BaseActivity() {
     }
 
     private fun modeCard(): View {
-        val card = MobileUi.card(
-            this,
-            12,
-        ).apply {
-            setCardBackgroundColor(
-                MobileUi.GREEN_TINT,
-            )
-            strokeColor = Color.rgb(
-                183,
-                232,
-                207,
-            )
+        val card = MobileUi.card(this, 12).apply {
+            setCardBackgroundColor(MobileUi.GREEN_TINT)
+            strokeColor = Color.rgb(183, 232, 207)
         }
 
         val row = LinearLayout(this).apply {
@@ -380,11 +339,7 @@ class SourcesActivity : BaseActivity() {
             this,
             "Pesquisar todos",
             13f,
-            Color.rgb(
-                4,
-                119,
-                78,
-            ),
+            Color.rgb(4, 119, 78),
             true,
         )
 
@@ -392,18 +347,11 @@ class SourcesActivity : BaseActivity() {
             this,
             "Ative para pesquisar todos os veículos. Desative para usar somente as fontes marcadas abaixo.",
             9.5f,
-            Color.rgb(
-                75,
-                124,
-                108,
-            ),
+            Color.rgb(75, 124, 108),
         )
 
         copy.addView(modeTitle)
-        copy.addView(
-            modeSubtitle,
-            MobileUi.match(dp(3)),
-        )
+        copy.addView(modeSubtitle, MobileUi.match(dp(3)))
 
         row.addView(
             copy,
@@ -421,33 +369,19 @@ class SourcesActivity : BaseActivity() {
             this,
             "ATIVADO",
             true,
-            Color.rgb(
-                4,
-                128,
-                112,
-            ),
+            Color.rgb(4, 128, 112),
         ) {
-            if (tab == Tab.VIDEOS) {
-                return@button
-            }
+            if (tab == Tab.VIDEOS) return@button
 
-            val next =
-                !prefs.newsAllSources()
+            val next = !prefs.newsAllSources()
             prefs.setNewsAllSources(next)
-            if (next) {
-                prefs.setSelectedNewsIds(
-                    emptySet(),
-                )
-            }
+            if (next) prefs.setSelectedNewsIds(emptySet())
             refresh()
         }
 
         row.addView(
             modeButton,
-            LinearLayout.LayoutParams(
-                dp(112),
-                dp(44),
-            ),
+            LinearLayout.LayoutParams(dp(112), dp(44)),
         )
 
         card.addView(row)
@@ -455,21 +389,12 @@ class SourcesActivity : BaseActivity() {
     }
 
     private fun controlsCard(): View {
-        val card = MobileUi.card(
-            this,
-            10,
-        )
+        val card = MobileUi.card(this, 10)
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
 
-        info = MobileUi.text(
-            this,
-            "",
-            15f,
-            MobileUi.NAVY,
-            true,
-        )
+        info = MobileUi.text(this, "", 15f, MobileUi.NAVY, true)
         box.addView(info)
 
         val scroll = HorizontalScrollView(this).apply {
@@ -485,44 +410,33 @@ class SourcesActivity : BaseActivity() {
                 "Selecionar visíveis",
                 true,
                 MobileUi.BLUE,
-            ) {
-                setVisibleSelection(true)
-            },
+            ) { setVisibleSelection(true) },
             actionLp(),
         )
         actions.addView(
             MobileUi.button(
                 this,
                 "Limpar visíveis",
-            ) {
-                setVisibleSelection(false)
-            },
+            ) { setVisibleSelection(false) },
             actionLp(),
         )
         actions.addView(
             MobileUi.button(
                 this,
                 "Selecionar todas",
-            ) {
-                setAll(true)
-            },
+            ) { setAll(true) },
             actionLp(),
         )
         actions.addView(
             MobileUi.button(
                 this,
                 "Limpar todas",
-            ) {
-                setAll(false)
-            },
+            ) { setAll(false) },
             actionLp(),
         )
 
         scroll.addView(actions)
-        box.addView(
-            scroll,
-            MobileUi.match(dp(9)),
-        )
+        box.addView(scroll, MobileUi.match(dp(9)))
 
         card.addView(box)
         return card
@@ -532,280 +446,146 @@ class SourcesActivity : BaseActivity() {
         LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
             dp(44),
-        ).apply {
-            marginEnd = dp(6)
-        }
+        ).apply { marginEnd = dp(6) }
 
     private fun updateTabs() {
         tabButtons.forEach { (value, button) ->
-            val selected =
-                value == tab
-
-            button.backgroundTintList =
-                ColorStateList.valueOf(
-                    if (selected) {
-                        MobileUi.BLUE
-                    } else {
-                        Color.WHITE
-                    },
-                )
-
-            button.setTextColor(
-                if (selected) {
-                    Color.WHITE
-                } else {
-                    MobileUi.NAVY
-                },
+            val selected = value == tab
+            button.backgroundTintList = ColorStateList.valueOf(
+                if (selected) MobileUi.BLUE else Color.WHITE,
             )
-
-            button.strokeColor =
-                ColorStateList.valueOf(
-                    if (selected) {
-                        MobileUi.BLUE
-                    } else {
-                        MobileUi.BORDER
-                    },
-                )
-
+            button.setTextColor(if (selected) Color.WHITE else MobileUi.NAVY)
+            button.strokeColor = ColorStateList.valueOf(
+                if (selected) MobileUi.BLUE else MobileUi.BORDER,
+            )
             button.strokeWidth = dp(1)
         }
     }
 
     private fun reloadStates() {
-        if (!::stateSpinner.isInitialized) {
-            return
-        }
+        if (!::stateSpinner.isInitialized) return
 
-        val old =
-            stateSpinner.selectedItem
-                ?.toString()
-                .orEmpty()
+        val old = stateSpinner.selectedItem?.toString().orEmpty()
+        val region = regionSpinner.selectedItem?.toString().orEmpty().ifBlank { "Todas" }
 
-        val region =
-            regionSpinner.selectedItem
-                ?.toString()
-                .orEmpty()
-                .ifBlank {
-                    "Todas"
-                }
-
-        val values =
-            buildList {
-                add("Todos")
-                states.forEach { state ->
-                    if (
-                        region == "Todas" ||
-                        region == "Nacional" ||
-                        state.third == region
-                    ) {
-                        add(state.first)
-                    }
+        val values = buildList {
+            add("Todos")
+            states.forEach { state ->
+                if (
+                    region == "Todas" ||
+                    region == "Nacional" ||
+                    state.third == region
+                ) {
+                    add(state.first)
                 }
             }
+        }
 
-        stateSpinner.adapter =
-            ArrayAdapter(
-                this,
-                android.R.layout.simple_spinner_dropdown_item,
-                values,
-            )
+        stateSpinner.adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            values,
+        )
 
-        val index =
-            values.indexOf(old)
+        val index = values.indexOf(old)
         stateSpinner.setSelection(
-            if (index >= 0) {
-                index
-            } else {
-                0
-            },
+            if (index >= 0) index else 0,
             false,
         )
     }
 
     private fun allRows(): List<SourceRow> =
         when (tab) {
-            Tab.NEWS ->
-                regularNews.map {
-                    it.toRow()
-                }
-
-            Tab.VIDEOS ->
-                videoSources.map {
-                    it.toRow()
-                }
-
-            Tab.SPECIALIZED ->
-                specializedNews.map {
-                    it.toRow()
-                }
+            Tab.NEWS -> regularNews.map { it.toRow() }
+            Tab.VIDEOS -> videoSources.map { it.toRow() }
+            Tab.SPECIALIZED -> specializedNews.map { it.toRow() }
         }
 
     private fun visibleRows(): List<SourceRow> {
-        val text =
-            query.text
-                ?.toString()
-                .orEmpty()
-                .trim()
-                .lowercase(
-                    Locale.getDefault(),
-                )
+        val text = query.text
+            ?.toString()
+            .orEmpty()
+            .trim()
+            .lowercase(Locale.getDefault())
 
-        val region =
-            regionSpinner.selectedItem
-                ?.toString()
-                .orEmpty()
-                .ifBlank {
-                    "Todas"
-                }
-
-        val state =
-            stateSpinner.selectedItem
-                ?.toString()
-                .orEmpty()
-                .ifBlank {
-                    "Todos"
-                }
+        val region = regionSpinner.selectedItem?.toString().orEmpty().ifBlank { "Todas" }
+        val state = stateSpinner.selectedItem?.toString().orEmpty().ifBlank { "Todos" }
 
         return allRows()
             .filter { source ->
-                val srcRegion =
-                    source.region.ifBlank {
-                        "Nacional"
-                    }
-                val srcState =
-                    source.state.ifBlank {
-                        "BR"
-                    }
+                val srcRegion = source.region.ifBlank { "Nacional" }
+                val srcState = source.state.ifBlank { "BR" }
 
-                if (
-                    region != "Todas" &&
-                    srcRegion != region
-                ) {
-                    return@filter false
-                }
+                if (region != "Todas" && srcRegion != region) return@filter false
+                if (state != "Todos" && srcState != state) return@filter false
 
-                if (
-                    state != "Todos" &&
-                    srcState != state
-                ) {
-                    return@filter false
-                }
+                val haystack = (
+                    "${source.name} " +
+                        "${source.group} " +
+                        "$srcRegion " +
+                        "$srcState " +
+                        source.aliases.joinToString(" ")
+                    ).lowercase(Locale.getDefault())
 
-                val haystack =
-                    (
-                        "${source.name} " +
-                            "${source.group} " +
-                            "$srcRegion " +
-                            "$srcState " +
-                            source.aliases.joinToString(" ")
-                        )
-                        .lowercase(
-                            Locale.getDefault(),
-                        )
-
-                text.isBlank() ||
-                    text in haystack
+                text.isBlank() || text in haystack
             }
     }
 
     private fun selectedIds(): Set<String> =
         when (tab) {
-            Tab.VIDEOS ->
-                prefs.selectedVideoIds(
-                    videoSources,
-                )
-
+            Tab.VIDEOS -> prefs.selectedVideoIds(videoSources)
             Tab.NEWS,
             Tab.SPECIALIZED ->
                 if (prefs.newsAllSources()) {
-                    newsSources
-                        .map { it.id }
-                        .toSet()
+                    newsSources.map { it.id }.toSet()
                 } else {
                     prefs.selectedNewsIds()
                 }
         }
 
     private fun refresh() {
-        if (
-            !::listContainer.isInitialized ||
-            !::modeButton.isInitialized
-        ) {
-            return
-        }
+        if (!::listContainer.isInitialized || !::modeButton.isInitialized) return
 
-        val visible =
-            visibleRows()
-        val selected =
-            selectedIds()
+        val visible = visibleRows()
+        val selected = selectedIds()
 
         when (tab) {
             Tab.NEWS -> {
-                modeTitle.text =
-                    "Pesquisar todos"
+                modeTitle.text = "Pesquisar todos"
                 modeSubtitle.text =
                     "Ative para pesquisar todos os veículos. Desative para usar somente as fontes marcadas abaixo."
-                modeButton.visibility =
-                    View.VISIBLE
+                modeButton.visibility = View.VISIBLE
             }
 
             Tab.VIDEOS -> {
-                modeTitle.text =
-                    "Fontes de vídeo"
-                modeSubtitle.text =
-                    "Escolha quais fontes participam da busca de vídeos."
-                modeButton.visibility =
-                    View.GONE
+                modeTitle.text = "Fontes de vídeo"
+                modeSubtitle.text = "Escolha quais fontes participam da busca de vídeos."
+                modeButton.visibility = View.GONE
             }
 
             Tab.SPECIALIZED -> {
-                modeTitle.text =
-                    "Pesquisar todos"
+                modeTitle.text = "Pesquisar todos"
                 modeSubtitle.text =
                     "Ative para incluir toda a mídia especializada. Desative para usar somente as fontes marcadas abaixo."
-                modeButton.visibility =
-                    View.VISIBLE
+                modeButton.visibility = View.VISIBLE
             }
         }
 
         if (tab != Tab.VIDEOS) {
-            val enabled =
-                prefs.newsAllSources()
+            val enabled = prefs.newsAllSources()
 
-            modeButton.text =
+            modeButton.text = if (enabled) "ATIVADO" else "DESATIVADO"
+            modeButton.backgroundTintList = ColorStateList.valueOf(
                 if (enabled) {
-                    "ATIVADO"
+                    Color.rgb(4, 128, 112)
                 } else {
-                    "DESATIVADO"
-                }
-
-            modeButton.backgroundTintList =
-                ColorStateList.valueOf(
-                    if (enabled) {
-                        Color.rgb(
-                            4,
-                            128,
-                            112,
-                        )
-                    } else {
-                        Color.WHITE
-                    },
-                )
-
-            modeButton.setTextColor(
-                if (enabled) {
                     Color.WHITE
-                } else {
-                    MobileUi.MUTED
                 },
             )
+            modeButton.setTextColor(if (enabled) Color.WHITE else MobileUi.MUTED)
         }
 
-        val selectedVisible =
-            visible.count {
-                it.id in selected
-            }
-
+        val selectedVisible = visible.count { it.id in selected }
         info.text =
             "${visible.size} fonte(s) visível(is)   " +
                 "$selectedVisible selecionada(s) neste filtro"
@@ -821,12 +601,7 @@ class SourcesActivity : BaseActivity() {
                     MobileUi.MUTED,
                 ).apply {
                     gravity = Gravity.CENTER
-                    setPadding(
-                        dp(8),
-                        dp(24),
-                        dp(8),
-                        dp(24),
-                    )
+                    setPadding(dp(8), dp(24), dp(8), dp(24))
                 },
             )
             return
@@ -834,10 +609,7 @@ class SourcesActivity : BaseActivity() {
 
         visible.forEach { source ->
             listContainer.addView(
-                sourceCard(
-                    source,
-                    source.id in selected,
-                ),
+                sourceCard(source, source.id in selected),
                 MobileUi.match(dp(6)),
             )
         }
@@ -847,17 +619,11 @@ class SourcesActivity : BaseActivity() {
         source: SourceRow,
         checked: Boolean,
     ): View {
-        val card = MobileUi.card(
-            this,
-            10,
-        ).apply {
+        val card = MobileUi.card(this, 10).apply {
             isClickable = true
             isFocusable = true
             setOnClickListener {
-                toggleSource(
-                    source.id,
-                    !checked,
-                )
+                toggleSource(source.id, !checked)
             }
         }
 
@@ -868,11 +634,7 @@ class SourcesActivity : BaseActivity() {
 
         val check = MobileUi.text(
             this,
-            if (checked) {
-                "✓"
-            } else {
-                ""
-            },
+            if (checked) "✓" else "",
             15f,
             Color.WHITE,
             true,
@@ -880,27 +642,15 @@ class SourcesActivity : BaseActivity() {
             gravity = Gravity.CENTER
             background = MobileUi.rounded(
                 if (checked) {
-                    Color.rgb(
-                        3,
-                        123,
-                        132,
-                    )
+                    Color.rgb(3, 123, 132)
                 } else {
                     Color.WHITE
                 },
                 dp(6).toFloat(),
                 if (checked) {
-                    Color.rgb(
-                        3,
-                        123,
-                        132,
-                    )
+                    Color.rgb(3, 123, 132)
                 } else {
-                    Color.rgb(
-                        133,
-                        151,
-                        170,
-                    )
+                    Color.rgb(133, 151, 170)
                 },
                 dp(1),
             )
@@ -908,30 +658,20 @@ class SourcesActivity : BaseActivity() {
 
         row.addView(
             check,
-            LinearLayout.LayoutParams(
-                dp(28),
-                dp(28),
-            ).apply {
+            LinearLayout.LayoutParams(dp(28), dp(28)).apply {
                 marginEnd = dp(9)
             },
         )
 
-        val initials =
-            source.name
-                .split(" ")
-                .filter {
-                    it.isNotBlank()
-                }
-                .take(2)
-                .joinToString("") {
-                    it.first()
-                        .uppercaseChar()
-                        .toString()
-                }
-                .ifBlank {
-                    "F"
-                }
-                .take(2)
+        val initials = source.name
+            .split(" ")
+            .filter { it.isNotBlank() }
+            .take(2)
+            .joinToString("") {
+                it.first().uppercaseChar().toString()
+            }
+            .ifBlank { "F" }
+            .take(2)
 
         val badge = MobileUi.text(
             this,
@@ -949,10 +689,7 @@ class SourcesActivity : BaseActivity() {
 
         row.addView(
             badge,
-            LinearLayout.LayoutParams(
-                dp(48),
-                dp(40),
-            ).apply {
+            LinearLayout.LayoutParams(dp(48), dp(40)).apply {
                 marginEnd = dp(10)
             },
         )
@@ -975,16 +712,10 @@ class SourcesActivity : BaseActivity() {
                 this,
                 listOf(
                     source.group,
-                    source.region.ifBlank {
-                        "Nacional"
-                    },
-                    source.state.ifBlank {
-                        "BR"
-                    },
+                    source.region.ifBlank { "Nacional" },
+                    source.state.ifBlank { "BR" },
                 )
-                    .filter {
-                        it.isNotBlank()
-                    }
+                    .filter { it.isNotBlank() }
                     .joinToString(" • "),
                 9.5f,
                 MobileUi.MUTED,
@@ -1009,20 +740,11 @@ class SourcesActivity : BaseActivity() {
                 MobileUi.GREEN,
                 true,
             ).apply {
-                setPadding(
-                    dp(10),
-                    dp(6),
-                    dp(10),
-                    dp(6),
-                )
+                setPadding(dp(10), dp(6), dp(10), dp(6))
                 background = MobileUi.rounded(
                     MobileUi.GREEN_TINT,
                     dp(9).toFloat(),
-                    Color.rgb(
-                        193,
-                        235,
-                        216,
-                    ),
+                    Color.rgb(193, 235, 216),
                     dp(1),
                 )
             },
@@ -1032,161 +754,82 @@ class SourcesActivity : BaseActivity() {
         return card
     }
 
-    private fun toggleSource(
-        id: String,
-        checked: Boolean,
-    ) {
+    private fun toggleSource(id: String, checked: Boolean) {
         if (tab == Tab.VIDEOS) {
-            val ids =
-                prefs.selectedVideoIds(
-                    videoSources,
-                ).toMutableSet()
-
-            if (checked) {
-                ids += id
-            } else {
-                ids -= id
-            }
-
+            val ids = prefs.selectedVideoIds(videoSources).toMutableSet()
+            if (checked) ids += id else ids -= id
             prefs.setSelectedVideoIds(ids)
             refresh()
             return
         }
 
-        var ids =
-            prefs.selectedNewsIds()
-                .toMutableSet()
+        var ids = prefs.selectedNewsIds().toMutableSet()
 
         if (prefs.newsAllSources()) {
-            ids =
-                newsSources
-                    .map { it.id }
-                    .toMutableSet()
+            ids = newsSources.map { it.id }.toMutableSet()
             prefs.setNewsAllSources(false)
         }
 
-        if (checked) {
-            ids += id
-        } else {
-            ids -= id
-        }
+        if (checked) ids += id else ids -= id
 
         prefs.setSelectedNewsIds(ids)
         refresh()
     }
 
-    private fun setVisibleSelection(
-        checked: Boolean,
-    ) {
-        val visibleIds =
-            visibleRows()
-                .map { it.id }
-                .toSet()
+    private fun setVisibleSelection(checked: Boolean) {
+        val visibleIds = visibleRows().map { it.id }.toSet()
 
         if (tab == Tab.VIDEOS) {
-            val ids =
-                prefs.selectedVideoIds(
-                    videoSources,
-                ).toMutableSet()
-
-            if (checked) {
-                ids += visibleIds
-            } else {
-                ids -= visibleIds
-            }
-
+            val ids = prefs.selectedVideoIds(videoSources).toMutableSet()
+            if (checked) ids += visibleIds else ids -= visibleIds
             prefs.setSelectedVideoIds(ids)
             refresh()
             return
         }
 
-        var ids =
-            prefs.selectedNewsIds()
-                .toMutableSet()
+        var ids = prefs.selectedNewsIds().toMutableSet()
 
-        if (
-            prefs.newsAllSources() &&
-            !checked
-        ) {
-            ids =
-                newsSources
-                    .map { it.id }
-                    .toMutableSet()
+        if (prefs.newsAllSources() && !checked) {
+            ids = newsSources.map { it.id }.toMutableSet()
             prefs.setNewsAllSources(false)
-        } else if (
-            prefs.newsAllSources() &&
-            checked
-        ) {
+        } else if (prefs.newsAllSources() && checked) {
             refresh()
             return
         }
 
-        if (checked) {
-            ids += visibleIds
-        } else {
-            ids -= visibleIds
-        }
+        if (checked) ids += visibleIds else ids -= visibleIds
 
         prefs.setSelectedNewsIds(ids)
         refresh()
     }
 
-    private fun setAll(
-        checked: Boolean,
-    ) {
+    private fun setAll(checked: Boolean) {
         when (tab) {
             Tab.VIDEOS -> {
                 prefs.setSelectedVideoIds(
-                    if (checked) {
-                        videoSources
-                            .map { it.id }
-                            .toSet()
-                    } else {
-                        emptySet()
-                    },
+                    if (checked) videoSources.map { it.id }.toSet() else emptySet(),
                 )
             }
 
             Tab.NEWS -> {
-                prefs.setNewsAllSources(
-                    checked,
-                )
-                prefs.setSelectedNewsIds(
-                    emptySet(),
-                )
+                prefs.setNewsAllSources(checked)
+                prefs.setSelectedNewsIds(emptySet())
             }
 
             Tab.SPECIALIZED -> {
-                val specIds =
-                    specializedNews
-                        .map { it.id }
-                        .toSet()
-
-                var ids =
-                    prefs.selectedNewsIds()
-                        .toMutableSet()
+                val specIds = specializedNews.map { it.id }.toSet()
+                var ids = prefs.selectedNewsIds().toMutableSet()
 
                 if (prefs.newsAllSources()) {
                     if (checked) {
                         refresh()
                         return
                     }
-
-                    ids =
-                        newsSources
-                            .map { it.id }
-                            .toMutableSet()
-                    prefs.setNewsAllSources(
-                        false,
-                    )
+                    ids = newsSources.map { it.id }.toMutableSet()
+                    prefs.setNewsAllSources(false)
                 }
 
-                if (checked) {
-                    ids += specIds
-                } else {
-                    ids -= specIds
-                }
-
+                if (checked) ids += specIds else ids -= specIds
                 prefs.setSelectedNewsIds(ids)
             }
         }
