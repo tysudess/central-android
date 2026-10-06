@@ -770,8 +770,9 @@ object MobileScaffold {
                 orientation =
                     LinearLayout.VERTICAL
 
-                background =
-                    Color.TRANSPARENT
+                setBackgroundColor(
+                    Color.TRANSPARENT,
+                )
 
                 clipChildren =
                     false
@@ -863,8 +864,9 @@ object MobileScaffold {
                 isHorizontalFadingEdgeEnabled =
                     true
 
-                fadingEdgeLength =
-                    activity.dp(18)
+                setFadingEdgeLength(
+                    activity.dp(18),
+                )
 
                 contentDescription =
                     "Navegação das áreas da Central"
