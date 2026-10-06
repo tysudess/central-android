@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="central_blue">#2A84E5</color>
-    <color name="central_blue_dark">#1C67B9</color>
+    <color name="central_blue_dark">#1C69C1</color>
     <color name="central_bg">#F4F8FD</color>
     <color name="central_surface">#FFFFFF</color>
     <color name="central_text">#153B65</color>

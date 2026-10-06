@@ -3,10 +3,10 @@
     android:interpolator="@android:interpolator/fast_out_slow_in">
     <translate
         android:fromXDelta="0"
-        android:toXDelta="-1.5%p"
-        android:duration="180"/>
+        android:toXDelta="-1%p"
+        android:duration="170"/>
     <alpha
-        android:fromAlpha="1.0"
+        android:fromAlpha="1"
         android:toAlpha="0.995"
-        android:duration="150"/>
+        android:duration="145"/>
 </set>

@@ -1,18 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources xmlns:tools="http://schemas.android.com/tools">
+<resources>
 
     <style name="Theme.Central" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="colorPrimary">@color/central_blue</item>
         <item name="colorPrimaryVariant">@color/central_blue_dark</item>
-        <item name="colorSecondary">#1683F8</item>
+        <item name="colorSecondary">@color/central_blue</item>
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@color/white</item>
+        <item name="android:windowLightNavigationBar">true</item>
         <item name="android:windowBackground">@color/central_bg</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:colorAccent">@color/central_blue</item>
+        <item name="android:windowDisablePreview">true</item>
     </style>
 
     <style name="Theme.Central.CaptureArea" parent="Theme.MaterialComponents.DayNight.NoActionBar">
@@ -25,6 +27,7 @@
         <item name="android:windowDisablePreview">true</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
