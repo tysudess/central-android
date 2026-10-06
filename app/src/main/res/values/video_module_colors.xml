@@ -1,6 +1,6 @@
 <resources>
     <color name="navy">#0A2B63</color>
-    <color name="navy_dark">#F6F9FD</color>
+    <color name="navy_dark">#F3F8FD</color>
     <color name="blue">#147EF6</color>
     <color name="blue_dark">#0F66CB</color>
     <color name="blue_soft">#E5F1FF</color>
@@ -9,18 +9,18 @@
     <color name="accent_soft">#E5F1FF</color>
     <color name="purple">#8944EE</color>
     <color name="purple_soft">#F5EBFF</color>
-    <color name="background">#F6F9FD</color>
+    <color name="background">#F3F8FD</color>
     <color name="surface">#FFFFFF</color>
-    <color name="surface_subtle">#FAFCFF</color>
+    <color name="surface_subtle">#F8FBFF</color>
     <color name="surface_elevated">#FFFFFF</color>
-    <color name="border">#D8E4F3</color>
-    <color name="border_strong">#8FBEF6</color>
+    <color name="border">#D6E4F1</color>
+    <color name="border_strong">#9EC6EF</color>
     <color name="text_primary">#0A2B63</color>
-    <color name="text_secondary">#5B749E</color>
+    <color name="text_secondary">#5C7593</color>
     <color name="text_muted">#7B8CA6</color>
     <color name="success">#00975F</color>
     <color name="success_soft">#E8F9F0</color>
-    <color name="error">#E21065</color>
+    <color name="error">#D6416A</color>
     <color name="error_soft">#FFE8F1</color>
     <color name="warning">#F49E00</color>
     <color name="warning_soft">#FFF4D5</color>

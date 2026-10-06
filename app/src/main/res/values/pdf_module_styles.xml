@@ -1,11 +1,14 @@
 <resources>
     <style name="Theme.EditorPDF" parent="Theme.AppCompat.Light.NoActionBar">
-        <item name="android:fontFamily">sans</item>
+        <item name="android:fontFamily">sans-serif</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:navigationBarColor">#FFFFFF</item>
-        <item name="android:statusBarColor">#F6F9FD</item>
-        <item name="android:windowBackground">#F6F9FD</item>
+        <item name="android:statusBarColor">#F3F8FD</item>
+        <item name="android:windowBackground">#F3F8FD</item>
         <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:colorAccent">#147EF6</item>
         <item name="colorAccent">#147EF6</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowNoTitle">true</item>
     </style>
 </resources>
