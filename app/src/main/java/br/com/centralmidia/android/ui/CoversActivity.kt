@@ -11,9 +11,9 @@ import br.com.centralmidia.android.core.dp
 /**
  * Entrada do módulo Capas.
  *
- * O módulo continua usando a mesma tela e toda a lógica existente. Esta
- * classe apenas aplica um acabamento visual ao painel rolável de resultados,
- * evitando que o espaço restante fique solto no fundo da tela.
+ * Mantém toda a tela e a lógica original do módulo. O acabamento aplicado
+ * aqui limita o quadro branco ao conteúdo real da lista, evitando que o
+ * espaço restante do ScrollView apareça como um grande painel vazio.
  */
 class CoversActivity : ModernMainActivity() {
 
@@ -34,8 +34,17 @@ class CoversActivity : ModernMainActivity() {
     private fun applyResultsPanelStyle() {
         val root = findViewById<View>(android.R.id.content) ?: return
         val scroll = findFirstScrollView(root) ?: return
+        val panel = scroll.getChildAt(0) as? ViewGroup ?: return
 
-        scroll.setBackground(
+        // O ScrollView continua ocupando o espaço necessário para rolagem,
+        // mas fica transparente e sem contorno próprio.
+        scroll.background = null
+        scroll.elevation = 0f
+        scroll.setPadding(0, 0, 0, 0)
+        scroll.clipToPadding = false
+
+        // O quadro acompanha apenas a altura real da lista de capas.
+        panel.setBackground(
             MobileUi.rounded(
                 Color.WHITE,
                 this.dp(14).toFloat(),
@@ -43,15 +52,14 @@ class CoversActivity : ModernMainActivity() {
                 this.dp(1),
             ),
         )
-
-        scroll.setPadding(
+        panel.setPadding(
             this.dp(4),
             this.dp(4),
             this.dp(4),
             this.dp(8),
         )
-        scroll.clipToPadding = false
-        scroll.elevation = this.dp(1).toFloat()
+        panel.clipToPadding = false
+        panel.elevation = this.dp(1).toFloat()
     }
 
     private fun findFirstScrollView(view: View): ScrollView? {
