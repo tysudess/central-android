@@ -148,10 +148,6 @@ class MainActivity : BaseActivity() {
             MobileUi.match(dp(12)),
         )
         root.addView(
-            summaryCard(db),
-            MobileUi.match(dp(12)),
-        )
-        root.addView(
             latestResultsCard(),
             MobileUi.match(dp(12)),
         )

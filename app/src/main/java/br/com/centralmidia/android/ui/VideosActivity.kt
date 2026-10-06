@@ -83,7 +83,12 @@ class VideosActivity : BaseActivity() {
         root.addView(queryInput, MobileUi.match(dp(14)))
 
         val periodButtons = linkedMapOf<Period, MaterialButton>()
-        val periodScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
+        val periodScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            isHorizontalFadingEdgeEnabled = true
+            setFadingEdgeLength(dp(18))
+        }
         val periodRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
 
         fun addPeriod(period: Period, label: String) {
@@ -259,20 +264,36 @@ class VideosActivity : BaseActivity() {
         }
         box.addView(progress, MobileUi.match(dp(8)))
 
-        val stats = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val done = metric("100%", "Conclusão")
         foundValue = metric("0", "Encontrados")
         newValue = metric("0", "Novos")
         failureValue = metric("0", "Falhas")
         stepsValue = metric("0/0", "Etapas")
         timeValue = metric("00:00", "Tempo")
-        listOf(done, foundValue, newValue, failureValue, stepsValue, timeValue).forEach { view ->
-            stats.addView(
-                view,
-                LinearLayout.LayoutParams(0, dp(68), 1f).apply { marginEnd = dp(2) },
-            )
+
+        fun metricRow(vararg metric: TextView): LinearLayout =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                metric.forEachIndexed { index, view ->
+                    addView(
+                        view,
+                        LinearLayout.LayoutParams(
+                            0,
+                            dp(62),
+                            1f,
+                        ).apply {
+                            if (index > 0) marginStart = dp(3)
+                        },
+                    )
+                }
+            }
+
+        val statsGrid = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(metricRow(done, foundValue, newValue))
+            addView(metricRow(failureValue, stepsValue, timeValue), MobileUi.match(dp(3)))
         }
-        box.addView(stats, MobileUi.match(dp(8)))
+        box.addView(statsGrid, MobileUi.match(dp(8)))
         card.addView(box)
         return card
     }
@@ -469,7 +490,12 @@ class VideosActivity : BaseActivity() {
         row.addView(copy, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         box.addView(row)
 
-        val scroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
+        val scroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            isHorizontalFadingEdgeEnabled = true
+            setFadingEdgeLength(dp(16))
+        }
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         fun add(button: MaterialButton) {
             actions.addView(

@@ -122,6 +122,9 @@ class NewsActivity : BaseActivity() {
 
         val periodBar = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            isHorizontalFadingEdgeEnabled = true
+            setFadingEdgeLength(dp(18))
         }
         val periodRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -343,6 +346,8 @@ class NewsActivity : BaseActivity() {
         val resultFilters = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             overScrollMode = View.OVER_SCROLL_NEVER
+            isHorizontalFadingEdgeEnabled = true
+            setFadingEdgeLength(dp(14))
         }
 
         val resultFilterRow = LinearLayout(this).apply {
@@ -392,17 +397,14 @@ class NewsActivity : BaseActivity() {
 
         resultFilters.addView(resultFilterRow)
 
-        resultsHeader.addView(
-            resultFilters,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                dp(42),
-            ),
+        root.addView(
+            resultsHeader,
+            MobileUi.match(dp(7)),
         )
 
         root.addView(
-            resultsHeader,
-            MobileUi.match(dp(14)),
+            resultFilters,
+            MobileUi.match(dp(7)),
         )
         updateResultViewButtons()
 
@@ -585,10 +587,6 @@ class NewsActivity : BaseActivity() {
             MobileUi.match(dp(8)),
         )
 
-        val stats = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-        }
-
         val done = statValue(
             "100%",
             "Conclusão",
@@ -620,30 +618,36 @@ class NewsActivity : BaseActivity() {
             MobileUi.BLUE,
         )
 
-        listOf(
-            done,
-            foundValue,
-            newValue,
-            failureValue,
-            stepsValue,
-            timeValue,
-        ).forEachIndexed { index, view ->
-            stats.addView(
-                view,
-                LinearLayout.LayoutParams(
-                    0,
-                    dp(70),
-                    1f,
-                ).apply {
-                    if (index > 0) {
-                        marginStart = dp(2)
-                    }
-                },
+        fun metricRow(vararg metric: TextView): LinearLayout =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                metric.forEachIndexed { index, view ->
+                    addView(
+                        view,
+                        LinearLayout.LayoutParams(
+                            0,
+                            dp(64),
+                            1f,
+                        ).apply {
+                            if (index > 0) {
+                                marginStart = dp(3)
+                            }
+                        },
+                    )
+                }
+            }
+
+        val statsGrid = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(metricRow(done, foundValue, newValue))
+            addView(
+                metricRow(failureValue, stepsValue, timeValue),
+                MobileUi.match(dp(3)),
             )
         }
 
         box.addView(
-            stats,
+            statsGrid,
             MobileUi.match(dp(8)),
         )
 

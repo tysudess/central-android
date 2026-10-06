@@ -103,6 +103,9 @@ object NewsCards {
 
         val actionsScroll = HorizontalScrollView(activity).apply {
             isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            isHorizontalFadingEdgeEnabled = true
+            setFadingEdgeLength(activity.dp(16))
         }
         val actions = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
 

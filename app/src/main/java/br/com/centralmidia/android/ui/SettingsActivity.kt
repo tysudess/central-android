@@ -183,11 +183,11 @@ class SettingsActivity : BaseActivity() {
             ),
         )
 
-        general = SwitchMaterial(this).apply {
-            text = "Buscas automáticas"
-            textSize = 12.5f
-            setTextColor(MobileUi.NAVY)
-        }
+        general = MobileUi.switch(
+            this,
+            "Buscas automáticas",
+            MobileUi.BLUE,
+        )
         box.addView(
             general,
             MobileUi.match(dp(8)),
@@ -287,11 +287,11 @@ class SettingsActivity : BaseActivity() {
             ),
         )
 
-        val toggle = SwitchMaterial(this).apply {
-            text = "Automático"
-            textSize = 11.5f
-            setTextColor(MobileUi.NAVY)
-        }
+        val toggle = MobileUi.switch(
+            this,
+            "Automático",
+            accent,
+        )
         if (newsCard) {
             news = toggle
         } else {
@@ -406,11 +406,11 @@ class SettingsActivity : BaseActivity() {
             ),
         )
 
-        videos = SwitchMaterial(this).apply {
-            text = "Automático"
-            textSize = 11.5f
-            setTextColor(MobileUi.NAVY)
-        }
+        videos = MobileUi.switch(
+            this,
+            "Automático",
+            MobileUi.PURPLE,
+        )
         top.addView(videos)
         box.addView(top)
 
@@ -517,7 +517,7 @@ class SettingsActivity : BaseActivity() {
 
             background = MobileUi.rounded(
                 Color.WHITE,
-                dp(10).toFloat(),
+                dp(12).toFloat(),
                 MobileUi.BORDER,
                 dp(1),
             )

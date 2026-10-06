@@ -257,18 +257,39 @@ object MobileScaffold {
                 view is ViewGroup &&
                 view.childCount > 0
             ) {
-                val bottom =
+                val nav =
                     view.getChildAt(
                         view.childCount - 1,
                     )
 
-                bottom.setPadding(
+                nav.setPadding(
                     view.context.dp(7),
                     view.context.dp(4),
                     view.context.dp(7),
                     view.context.dp(5) +
                         bars.bottom,
                 )
+
+                // Keep the final content item scrollable above the dock.
+                // max() avoids accumulating padding when Android dispatches
+                // window-insets more than once.
+                if (view.childCount >= 2) {
+                    val content =
+                        view.getChildAt(
+                            view.childCount - 2,
+                        )
+                    val reserved =
+                        view.context.dp(78)
+                    content.setPadding(
+                        content.paddingLeft,
+                        content.paddingTop,
+                        content.paddingRight,
+                        maxOf(
+                            content.paddingBottom,
+                            reserved,
+                        ),
+                    )
+                }
             }
 
             insets
@@ -789,6 +810,10 @@ object MobileScaffold {
                 gravity =
                     Gravity.CENTER_HORIZONTAL
 
+                setBackgroundColor(
+                    Color.TRANSPARENT,
+                )
+
                 background =
                     MobileUi.navigationDockBackground(
                         activity,
@@ -807,7 +832,7 @@ object MobileScaffold {
                     activity.dp(6),
                     activity.dp(3),
                     activity.dp(6),
-                    activity.dp(4),
+                    activity.dp(5),
                 )
 
                 contentDescription =
@@ -838,7 +863,7 @@ object MobileScaffold {
             glowRow,
             LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                activity.dp(5),
+                activity.dp(6),
             ),
         )
 
@@ -1076,7 +1101,7 @@ object MobileScaffold {
                     } else {
                         MobileUi.NAVY
                     },
-                    19,
+                    20,
                 ).apply {
                     alpha =
                         if (selected) {
@@ -1108,7 +1133,7 @@ object MobileScaffold {
                 MobileUi.text(
                     activity,
                     item.label,
-                    9.2f,
+                    9.4f,
                     if (selected) {
                         item.accent
                     } else {
@@ -1134,7 +1159,7 @@ object MobileScaffold {
                 itemView,
                 LinearLayout.LayoutParams(
                     activity.dp(72),
-                    activity.dp(55),
+                    activity.dp(64),
                 ).apply {
                     marginStart =
                         activity.dp(2)
@@ -1172,7 +1197,7 @@ object MobileScaffold {
             scroll,
             LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                activity.dp(57),
+                activity.dp(66),
             ),
         )
 
@@ -1510,7 +1535,10 @@ object MobileUi {
                 BLUE,
                 BLUE_DEEP,
             ),
-        )
+        ).apply {
+            shape =
+                GradientDrawable.OVAL
+        }
 
     fun appBackground():
         GradientDrawable =
@@ -1722,17 +1750,17 @@ object MobileUi {
         ).apply {
             radius =
                 context.dp(
-                    18,
+                    16,
                 ).toFloat()
 
             cardElevation =
                 context.dp(
-                    2,
+                    1.5f,
                 ).toFloat()
 
             maxCardElevation =
                 context.dp(
-                    3,
+                    2.5f,
                 ).toFloat()
 
             setCardBackgroundColor(
@@ -1838,9 +1866,45 @@ object MobileUi {
                     context.dp(
                         14,
                     ).toFloat(),
-                    BORDER_FOCUS,
+                    BORDER,
                     context.dp(
                         1,
+                    ),
+                )
+        }
+
+    fun switch(
+        context: Context,
+        label: String,
+        accent: Int = BLUE,
+    ): com.google.android.material.switchmaterial.SwitchMaterial =
+        com.google.android.material.switchmaterial.SwitchMaterial(
+            context,
+        ).apply {
+            text = label
+            textSize = 11.5f
+            setTextColor(NAVY)
+            minimumHeight = context.dp(44)
+
+            val states =
+                arrayOf(
+                    intArrayOf(android.R.attr.state_checked),
+                    intArrayOf(),
+                )
+            thumbTintList =
+                ColorStateList(
+                    states,
+                    intArrayOf(
+                        accent,
+                        Color.rgb(245, 248, 251),
+                    ),
+                )
+            trackTintList =
+                ColorStateList(
+                    states,
+                    intArrayOf(
+                        mixWithWhite(accent, 0.54f),
+                        Color.rgb(211, 220, 229),
                     ),
                 )
         }
