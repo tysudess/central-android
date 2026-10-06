@@ -9,6 +9,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.HorizontalScrollView
@@ -33,251 +34,1208 @@ import com.google.android.material.card.MaterialCardView
 object MobileScaffold {
     enum class Tab { HOME, NEWS, VIDEOS, MORE }
 
-    fun page(activity: BaseActivity, title: String, subtitle: String, selected: Tab, showAutomation: Boolean = true): LinearLayout {
+    fun page(
+        activity: BaseActivity,
+        title: String,
+        subtitle: String,
+        selected: Tab,
+        showAutomation: Boolean = true,
+    ): LinearLayout {
         activity.window.statusBarColor = Color.TRANSPARENT
         activity.window.navigationBarColor = Color.TRANSPARENT
         WindowCompat.setDecorFitsSystemWindows(activity.window, false)
         WindowCompat.getInsetsController(activity.window, activity.window.decorView).apply {
             isAppearanceLightStatusBars = true
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) isAppearanceLightNavigationBars = true
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                isAppearanceLightNavigationBars = true
+            }
         }
-        val shell = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; background = MobileUi.appBackground() }
-        val scroll = ScrollView(activity).apply { isFillViewport = true; overScrollMode = View.OVER_SCROLL_NEVER; clipToPadding = false }
+
+        val shell = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            background = MobileUi.appBackground()
+        }
+
+        val scroll = ScrollView(activity).apply {
+            isFillViewport = true
+            overScrollMode = View.OVER_SCROLL_NEVER
+            clipToPadding = false
+        }
+
         val content = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(activity.dp(15), activity.dp(if (selected == Tab.HOME) 7 else 4), activity.dp(15), activity.dp(16))
+            setPadding(
+                activity.dp(15),
+                activity.dp(if (selected == Tab.HOME) 7 else 4),
+                activity.dp(15),
+                activity.dp(16),
+            )
         }
+
         content.addView(header(activity), MobileUi.match())
-        content.addView(titleBlock(activity, title, subtitle, selected == Tab.HOME, showAutomation), MobileUi.match(activity.dp(if (selected == Tab.HOME) 7 else 3)))
-        scroll.addView(content, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        shell.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-        shell.addView(bottomNav(activity, activity::class.java), MobileUi.match())
+        content.addView(
+            titleBlock(
+                activity,
+                title,
+                subtitle,
+                selected == Tab.HOME,
+                showAutomation,
+            ),
+            MobileUi.match(activity.dp(if (selected == Tab.HOME) 7 else 3)),
+        )
+
+        scroll.addView(
+            content,
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ),
+        )
+
+        shell.addView(
+            scroll,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                1f,
+            ),
+        )
+
+        shell.addView(
+            bottomNav(activity, activity::class.java),
+            MobileUi.match(),
+        )
+
         ViewCompat.setOnApplyWindowInsetsListener(shell) { _, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             shell.setPadding(0, bars.top, 0, 0)
             val bottom = shell.getChildAt(shell.childCount - 1)
-            bottom.setPadding(activity.dp(7), activity.dp(4), activity.dp(7), activity.dp(5) + bars.bottom)
+            bottom.setPadding(
+                activity.dp(7),
+                activity.dp(4),
+                activity.dp(7),
+                activity.dp(5) + bars.bottom,
+            )
             insets
         }
+
         activity.setContentView(shell)
         ViewCompat.requestApplyInsets(shell)
         return content
     }
 
     @JvmStatic
-    fun attachModule(activity: Activity, currentCentralClass: Class<*>) {
+    fun attachModule(
+        activity: Activity,
+        currentCentralClass: Class<*>,
+    ) {
         activity.window.statusBarColor = Color.TRANSPARENT
         activity.window.navigationBarColor = Color.TRANSPARENT
         WindowCompat.setDecorFitsSystemWindows(activity.window, false)
         WindowCompat.getInsetsController(activity.window, activity.window.decorView).apply {
             isAppearanceLightStatusBars = true
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) isAppearanceLightNavigationBars = true
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                isAppearanceLightNavigationBars = true
+            }
         }
+
         val frame = activity.findViewById<ViewGroup>(android.R.id.content) ?: return
-        if (frame.childCount == 1 && frame.getChildAt(0).tag == MODULE_SHELL_TAG) return
+        if (
+            frame.childCount == 1 &&
+            frame.getChildAt(0).tag == MODULE_SHELL_TAG
+        ) {
+            return
+        }
+
         val existing = frame.getChildAt(0) ?: return
         frame.removeView(existing)
-        val shell = LinearLayout(activity).apply { tag = MODULE_SHELL_TAG; orientation = LinearLayout.VERTICAL; background = MobileUi.appBackground() }
-        shell.addView(existing, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-        shell.addView(bottomNav(activity, currentCentralClass), MobileUi.match())
+
+        val shell = LinearLayout(activity).apply {
+            tag = MODULE_SHELL_TAG
+            orientation = LinearLayout.VERTICAL
+            background = MobileUi.appBackground()
+        }
+
+        shell.addView(
+            existing,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                1f,
+            ),
+        )
+
+        shell.addView(
+            bottomNav(activity, currentCentralClass),
+            MobileUi.match(),
+        )
+
         ViewCompat.setOnApplyWindowInsetsListener(shell) { _, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             shell.setPadding(0, bars.top, 0, 0)
             val bottom = shell.getChildAt(shell.childCount - 1)
-            bottom.setPadding(activity.dp(7), activity.dp(4), activity.dp(7), activity.dp(5) + bars.bottom)
+            bottom.setPadding(
+                activity.dp(7),
+                activity.dp(4),
+                activity.dp(7),
+                activity.dp(5) + bars.bottom,
+            )
             insets
         }
-        frame.addView(shell, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+        frame.addView(
+            shell,
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
+
         ViewCompat.requestApplyInsets(shell)
     }
 
     private fun header(activity: BaseActivity): View {
         val session = activity.auth.session
+
         val row = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(activity.dp(9), activity.dp(6), activity.dp(9), activity.dp(6))
-            background = MobileUi.rounded(Color.argb(245, 255, 255, 255), activity.dp(20).toFloat(), MobileUi.BORDER, activity.dp(1))
-            elevation = activity.dp(2).toFloat()
+            setPadding(
+                activity.dp(10),
+                activity.dp(7),
+                activity.dp(10),
+                activity.dp(7),
+            )
+            background = MobileUi.headerBackground(
+                activity,
+            )
+            elevation = activity.dp(1.5f).toFloat()
         }
-        val logo = ImageView(activity).apply { setImageResource(R.mipmap.ic_launcher); scaleType = ImageView.ScaleType.CENTER_INSIDE; contentDescription = "Central Inteligente de Mídia" }
-        row.addView(logo, LinearLayout.LayoutParams(activity.dp(40), activity.dp(40)))
-        row.addView(MobileUi.text(activity, "Central Inteligente\nde Mídia", 17f, MobileUi.NAVY, true), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = activity.dp(9) })
-        val initial = session?.user?.name?.trim()?.firstOrNull()?.uppercaseChar()?.toString() ?: session?.user?.username?.trim()?.firstOrNull()?.uppercaseChar()?.toString() ?: "U"
-        val avatar = MobileUi.text(activity, initial, 15.5f, Color.WHITE, true).apply {
+
+        val logo = ImageView(activity).apply {
+            setImageResource(R.mipmap.ic_launcher)
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            contentDescription = "Central Inteligente de Mídia"
+        }
+
+        row.addView(
+            logo,
+            LinearLayout.LayoutParams(
+                activity.dp(41),
+                activity.dp(41),
+            ),
+        )
+
+        val brand = MobileUi.text(
+            activity,
+            "Central Inteligente\nde Mídia",
+            17.2f,
+            MobileUi.NAVY,
+            true,
+        ).apply {
+            maxLines = 2
+        }
+
+        row.addView(
+            brand,
+            LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f,
+            ).apply {
+                marginStart = activity.dp(10)
+            },
+        )
+
+        val initial =
+            session?.user?.name
+                ?.trim()
+                ?.firstOrNull()
+                ?.uppercaseChar()
+                ?.toString()
+                ?: session?.user?.username
+                    ?.trim()
+                    ?.firstOrNull()
+                    ?.uppercaseChar()
+                    ?.toString()
+                ?: "U"
+
+        val avatar = MobileUi.text(
+            activity,
+            initial,
+            15.5f,
+            Color.WHITE,
+            true,
+        ).apply {
             gravity = Gravity.CENTER
             background = MobileUi.oval(MobileUi.BLUE)
             isClickable = true
             isFocusable = true
-            setOnClickListener { open(activity, AccountActivity::class.java, true) }
+            elevation = activity.dp(1).toFloat()
+            setOnClickListener {
+                open(
+                    activity,
+                    AccountActivity::class.java,
+                    true,
+                )
+            }
         }
-        row.addView(avatar, LinearLayout.LayoutParams(activity.dp(40), activity.dp(40)))
+
+        row.addView(
+            avatar,
+            LinearLayout.LayoutParams(
+                activity.dp(41),
+                activity.dp(41),
+            ),
+        )
+
         return row
     }
 
-    private fun titleBlock(activity: BaseActivity, title: String, subtitle: String, showHomeDetails: Boolean, showAutomation: Boolean): View {
-        val outer = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
-        outer.addView(MobileUi.text(activity, "CENTRAL DE INTELIGÊNCIA DE MÍDIA", 9.3f, MobileUi.BLUE, true))
-        val row = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        val copy = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
-        copy.addView(MobileUi.text(activity, title, if (showHomeDetails) 27f else 23f, MobileUi.NAVY, true))
-        if (showHomeDetails && subtitle.isNotBlank()) copy.addView(MobileUi.text(activity, subtitle, 12.8f, MobileUi.MUTED), MobileUi.match(activity.dp(2)))
-        row.addView(copy, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+    private fun titleBlock(
+        activity: BaseActivity,
+        title: String,
+        subtitle: String,
+        showHomeDetails: Boolean,
+        showAutomation: Boolean,
+    ): View {
+        val outer = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+
+        val eyebrow = MobileUi.text(
+            activity,
+            "CENTRAL DE INTELIGÊNCIA DE MÍDIA",
+            9.3f,
+            MobileUi.BLUE,
+            true,
+        ).apply {
+            letterSpacing = 0.035f
+        }
+
+        outer.addView(
+            eyebrow,
+            MobileUi.match(),
+        )
+
+        val row = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        val copy = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+
+        copy.addView(
+            MobileUi.text(
+                activity,
+                title,
+                if (showHomeDetails) 27f else 23f,
+                MobileUi.NAVY,
+                true,
+            ),
+        )
+
+        if (showHomeDetails && subtitle.isNotBlank()) {
+            copy.addView(
+                MobileUi.text(
+                    activity,
+                    subtitle,
+                    12.8f,
+                    MobileUi.MUTED,
+                ),
+                MobileUi.match(
+                    activity.dp(3),
+                ),
+            )
+        }
+
+        row.addView(
+            copy,
+            LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1f,
+            ),
+        )
+
         if (showHomeDetails) {
-            val chips = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.END }
-            chips.addView(MobileUi.statusChip(activity, "●  Conexão direta", MobileUi.GREEN))
-            if (showAutomation) {
-                val automation = MobileUi.statusChip(activity, "●  Automação pronta", MobileUi.GREEN)
-                chips.addView(automation, MobileUi.wrap(activity.dp(5)))
-                WorkManager.getInstance(activity).getWorkInfosByTagLiveData("central-monitoring").observe(activity) { infos ->
-                    val active = infos.any { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.RUNNING }
-                    automation.text = if (active) "●  Automação ativa" else "●  Automação pronta"
-                }
+            val chips = LinearLayout(activity).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.END
             }
+
+            chips.addView(
+                MobileUi.statusChip(
+                    activity,
+                    "●  Conexão direta",
+                    MobileUi.GREEN,
+                ),
+            )
+
+            if (showAutomation) {
+                val automation = MobileUi.statusChip(
+                    activity,
+                    "●  Automação pronta",
+                    MobileUi.GREEN,
+                )
+
+                chips.addView(
+                    automation,
+                    MobileUi.wrap(activity.dp(5)),
+                )
+
+                WorkManager
+                    .getInstance(activity)
+                    .getWorkInfosByTagLiveData(
+                        "central-monitoring",
+                    )
+                    .observe(activity) { infos ->
+                        val active = infos.any {
+                            it.state == WorkInfo.State.ENQUEUED ||
+                                it.state == WorkInfo.State.RUNNING
+                        }
+
+                        automation.text =
+                            if (active) {
+                                "●  Automação ativa"
+                            } else {
+                                "●  Automação pronta"
+                            }
+                    }
+            }
+
             row.addView(chips)
         }
-        outer.addView(row, MobileUi.match(activity.dp(2)))
+
+        outer.addView(
+            row,
+            MobileUi.match(
+                activity.dp(3),
+            ),
+        )
+
         return outer
     }
 
-    private data class NavItem(val label: String, val icon: Int, val permission: String? = null, val cls: Class<*>? = null, val accent: Int = MobileUi.BLUE, val action: (() -> Unit)? = null)
+    private data class NavItem(
+        val label: String,
+        val icon: Int,
+        val permission: String? = null,
+        val cls: Class<*>? = null,
+        val accent: Int = MobileUi.BLUE,
+        val action: (() -> Unit)? = null,
+    )
 
-    private fun bottomNav(activity: Activity, currentCentralClass: Class<*>): LinearLayout {
+    private fun bottomNav(
+        activity: Activity,
+        currentCentralClass: Class<*>,
+    ): LinearLayout {
         val session = AuthManager.get(activity).session
-        val allAccess = session?.user?.profile.equals("ADMIN", true) || session?.user?.profile.equals("OPERADOR", true)
-        fun allowed(permission: String?): Boolean = permission == null || allAccess || permission in session?.user?.permissions.orEmpty()
+        val allAccess =
+            session?.user?.profile.equals(
+                "ADMIN",
+                true,
+            ) ||
+                session?.user?.profile.equals(
+                    "OPERADOR",
+                    true,
+                )
+
+        fun allowed(permission: String?): Boolean =
+            permission == null ||
+                allAccess ||
+                permission in session?.user?.permissions.orEmpty()
+
         val allItems = listOf(
-            NavItem("Início", R.drawable.ic_home, cls = MainActivity::class.java),
-            NavItem("Notícias", R.drawable.ic_news, cls = NewsActivity::class.java),
-            NavItem("Vídeos", R.drawable.ic_video, cls = VideosActivity::class.java),
-            NavItem("Demandas", R.drawable.ic_demands, "demands", DemandsActivity::class.java, MobileUi.ORANGE),
-            NavItem("Fontes", R.drawable.ic_sources, "sources", SourcesActivity::class.java, MobileUi.GREEN),
-            NavItem("Histórico", R.drawable.ic_history, "history", HistoryActivity::class.java),
-            NavItem("Termos", R.drawable.ic_terms, "terms", TermsActivity::class.java, MobileUi.PURPLE),
-            NavItem("Extrator\nNotícias", R.drawable.ic_news_extract, "news_extractor", NewsExtractorActivity::class.java),
-            NavItem("Capas", R.drawable.ic_covers, "covers", CoversActivity::class.java),
-            NavItem("Editor\nPDF", R.drawable.ic_pdf, "pdf_editor", PdfEditorActivity::class.java, MobileUi.PURPLE),
-            NavItem("Extrator\nVídeos", R.drawable.ic_video_download, "extractor", VideoExtractorActivity::class.java, MobileUi.PURPLE),
-            NavItem("Editor\nVídeo", R.drawable.ic_video_edit, "video_editor", VideoEditorActivity::class.java),
-            NavItem("Gravador", R.drawable.ic_record, "video_editor", ScreenRecorderActivity::class.java, MobileUi.PINK),
-            NavItem("Config.", R.drawable.ic_settings_modern, "settings", SettingsActivity::class.java),
-            NavItem("Minha\nConta", R.drawable.ic_account, cls = AccountActivity::class.java, accent = MobileUi.GREEN),
-            NavItem("Parar", R.drawable.ic_delete, accent = MobileUi.PINK, action = {
-                MonitoringScheduler.cancel(activity)
-                WorkManager.getInstance(activity).cancelAllWorkByTag("central-monitoring")
-                activity.stopService(Intent(activity, ScreenRecordService::class.java))
-                Toast.makeText(activity, "Buscas, automações e gravações solicitadas para parar.", Toast.LENGTH_SHORT).show()
-            }),
+            NavItem(
+                "Início",
+                R.drawable.ic_home,
+                cls = MainActivity::class.java,
+            ),
+            NavItem(
+                "Notícias",
+                R.drawable.ic_news,
+                cls = NewsActivity::class.java,
+            ),
+            NavItem(
+                "Vídeos",
+                R.drawable.ic_video,
+                cls = VideosActivity::class.java,
+            ),
+            NavItem(
+                "Demandas",
+                R.drawable.ic_demands,
+                "demands",
+                DemandsActivity::class.java,
+                MobileUi.ORANGE,
+            ),
+            NavItem(
+                "Fontes",
+                R.drawable.ic_sources,
+                "sources",
+                SourcesActivity::class.java,
+                MobileUi.GREEN,
+            ),
+            NavItem(
+                "Histórico",
+                R.drawable.ic_history,
+                "history",
+                HistoryActivity::class.java,
+            ),
+            NavItem(
+                "Termos",
+                R.drawable.ic_terms,
+                "terms",
+                TermsActivity::class.java,
+                MobileUi.PURPLE,
+            ),
+            NavItem(
+                "Extrator\nNotícias",
+                R.drawable.ic_news_extract,
+                "news_extractor",
+                NewsExtractorActivity::class.java,
+            ),
+            NavItem(
+                "Capas",
+                R.drawable.ic_covers,
+                "covers",
+                CoversActivity::class.java,
+            ),
+            NavItem(
+                "Editor\nPDF",
+                R.drawable.ic_pdf,
+                "pdf_editor",
+                PdfEditorActivity::class.java,
+                MobileUi.PURPLE,
+            ),
+            NavItem(
+                "Extrator\nVídeos",
+                R.drawable.ic_video_download,
+                "extractor",
+                VideoExtractorActivity::class.java,
+                MobileUi.PURPLE,
+            ),
+            NavItem(
+                "Editor\nVídeo",
+                R.drawable.ic_video_edit,
+                "video_editor",
+                VideoEditorActivity::class.java,
+            ),
+            NavItem(
+                "Gravador",
+                R.drawable.ic_record,
+                "video_editor",
+                ScreenRecorderActivity::class.java,
+                MobileUi.PINK,
+            ),
+            NavItem(
+                "Config.",
+                R.drawable.ic_settings_modern,
+                "settings",
+                SettingsActivity::class.java,
+            ),
+            NavItem(
+                "Minha\nConta",
+                R.drawable.ic_account,
+                cls = AccountActivity::class.java,
+                accent = MobileUi.GREEN,
+            ),
+            NavItem(
+                "Parar",
+                R.drawable.ic_delete,
+                accent = MobileUi.PINK,
+                action = {
+                    MonitoringScheduler.cancel(activity)
+                    WorkManager
+                        .getInstance(activity)
+                        .cancelAllWorkByTag(
+                            "central-monitoring",
+                        )
+                    activity.stopService(
+                        Intent(
+                            activity,
+                            ScreenRecordService::class.java,
+                        ),
+                    )
+                    Toast.makeText(
+                        activity,
+                        "Buscas, automações e gravações solicitadas para parar.",
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                },
+            ),
         )
-        val items = allItems.filter { allowed(it.permission) }
-        val currentIndex = items.indexOfFirst { it.cls == currentCentralClass }
-        val wrapper = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; background = MobileUi.navigationBackground(); elevation = activity.dp(10).toFloat() }
-        wrapper.addView(View(activity).apply { setBackgroundColor(MobileUi.BORDER) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, activity.dp(1)))
-        val scroll = HorizontalScrollView(activity).apply { isHorizontalScrollBarEnabled = false; isFillViewport = false; overScrollMode = View.OVER_SCROLL_NEVER; isSmoothScrollingEnabled = true }
-        val row = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(activity.dp(2), activity.dp(3), activity.dp(2), activity.dp(3)) }
+
+        val items = allItems.filter {
+            allowed(it.permission)
+        }
+
+        val currentIndex = items.indexOfFirst {
+            it.cls == currentCentralClass
+        }
+
+        val wrapper = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            background = MobileUi.navigationBackground()
+            elevation = activity.dp(10).toFloat()
+        }
+
+        wrapper.addView(
+            View(activity).apply {
+                setBackgroundColor(
+                    MobileUi.BORDER_LIGHT,
+                )
+            },
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                activity.dp(1),
+            ),
+        )
+
+        val scroll = HorizontalScrollView(activity).apply {
+            isHorizontalScrollBarEnabled = false
+            isFillViewport = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            isSmoothScrollingEnabled = true
+            clipToPadding = false
+        }
+
+        val row = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(
+                activity.dp(3),
+                activity.dp(4),
+                activity.dp(3),
+                activity.dp(4),
+            )
+        }
+
         var selectedView: View? = null
+
         items.forEachIndexed { index, item ->
             val selected = item.cls == currentCentralClass
+
             val itemView = LinearLayout(activity).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
                 isClickable = true
                 isFocusable = true
-                contentDescription = item.label.replace("\n", " ")
-                setPadding(activity.dp(6), activity.dp(5), activity.dp(6), activity.dp(4))
-                val selectedTint = when (item.accent) {
-                    MobileUi.GREEN -> MobileUi.GREEN_TINT
-                    MobileUi.PURPLE -> MobileUi.PURPLE_TINT
-                    MobileUi.ORANGE -> MobileUi.ORANGE_TINT
-                    MobileUi.PINK -> MobileUi.PINK_TINT
-                    else -> MobileUi.BLUE_TINT
+                contentDescription =
+                    item.label.replace(
+                        "\n",
+                        " ",
+                    )
+
+                setPadding(
+                    activity.dp(6),
+                    activity.dp(5),
+                    activity.dp(6),
+                    activity.dp(4),
+                )
+
+                val selectedTint =
+                    when (item.accent) {
+                        MobileUi.GREEN -> MobileUi.GREEN_TINT
+                        MobileUi.PURPLE -> MobileUi.PURPLE_TINT
+                        MobileUi.ORANGE -> MobileUi.ORANGE_TINT
+                        MobileUi.PINK -> MobileUi.PINK_TINT
+                        else -> MobileUi.BLUE_TINT
+                    }
+
+                background =
+                    if (selected) {
+                        MobileUi.rounded(
+                            selectedTint,
+                            activity.dp(17).toFloat(),
+                            MobileUi.mixWithWhite(
+                                item.accent,
+                                0.56f,
+                            ),
+                            activity.dp(1),
+                        )
+                    } else {
+                        MobileUi.rounded(
+                            Color.TRANSPARENT,
+                            activity.dp(17).toFloat(),
+                        )
+                    }
+
+                elevation =
+                    if (selected) {
+                        activity.dp(1).toFloat()
+                    } else {
+                        0f
+                    }
+
+                setOnTouchListener { v, event ->
+                    when (event.actionMasked) {
+                        MotionEvent.ACTION_DOWN -> {
+                            v.animate()
+                                .scaleX(0.96f)
+                                .scaleY(0.96f)
+                                .setDuration(80)
+                                .start()
+                        }
+
+                        MotionEvent.ACTION_UP,
+                        MotionEvent.ACTION_CANCEL -> {
+                            v.animate()
+                                .scaleX(1f)
+                                .scaleY(1f)
+                                .setDuration(120)
+                                .start()
+                        }
+                    }
+                    false
                 }
-                background = if (selected) MobileUi.rounded(selectedTint, activity.dp(18).toFloat(), MobileUi.mixWithWhite(item.accent, 0.58f), activity.dp(1)) else MobileUi.rounded(Color.TRANSPARENT, activity.dp(18).toFloat())
-                elevation = if (selected) activity.dp(1.5f).toFloat() else 0f
-                setOnClickListener { item.action?.invoke() ?: item.cls?.let { cls -> if (cls != currentCentralClass) open(activity, cls, currentIndex < 0 || index >= currentIndex) } }
+
+                setOnClickListener {
+                    item.action
+                        ?.invoke()
+                        ?: item.cls?.let { cls ->
+                            if (cls != currentCentralClass) {
+                                open(
+                                    activity,
+                                    cls,
+                                    currentIndex < 0 ||
+                                        index >= currentIndex,
+                                )
+                            }
+                        }
+                }
             }
-            itemView.addView(MobileUi.icon(activity, item.icon, if (selected) item.accent else MobileUi.NAVY, 21))
-            itemView.addView(MobileUi.text(activity, item.label, 9.5f, if (selected) item.accent else MobileUi.MUTED, selected).apply { gravity = Gravity.CENTER; maxLines = 2; textAlignment = View.TEXT_ALIGNMENT_CENTER }, MobileUi.match(activity.dp(2)))
-            row.addView(itemView, LinearLayout.LayoutParams(activity.dp(78), activity.dp(59)).apply { marginStart = activity.dp(2); marginEnd = activity.dp(2) })
-            if (selected) selectedView = itemView
+
+            itemView.addView(
+                MobileUi.icon(
+                    activity,
+                    item.icon,
+                    if (selected) {
+                        item.accent
+                    } else {
+                        MobileUi.NAVY
+                    },
+                    21,
+                ),
+            )
+
+            itemView.addView(
+                MobileUi.text(
+                    activity,
+                    item.label,
+                    9.5f,
+                    if (selected) {
+                        item.accent
+                    } else {
+                        MobileUi.MUTED
+                    },
+                    selected,
+                ).apply {
+                    gravity = Gravity.CENTER
+                    maxLines = 2
+                    textAlignment = View.TEXT_ALIGNMENT_CENTER
+                },
+                MobileUi.match(activity.dp(2)),
+            )
+
+            row.addView(
+                itemView,
+                LinearLayout.LayoutParams(
+                    activity.dp(78),
+                    activity.dp(59),
+                ).apply {
+                    marginStart = activity.dp(2)
+                    marginEnd = activity.dp(2)
+                },
+            )
+
+            if (selected) {
+                selectedView = itemView
+            }
         }
-        scroll.addView(row, ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        wrapper.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, activity.dp(66)))
-        selectedView?.let { active -> scroll.post { val desired = (active.left - activity.resources.displayMetrics.widthPixels / 2 + active.width / 2).coerceAtLeast(0); scroll.smoothScrollTo(desired, 0) } }
+
+        scroll.addView(
+            row,
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ),
+        )
+
+        wrapper.addView(
+            scroll,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                activity.dp(67),
+            ),
+        )
+
+        selectedView?.let { active ->
+            scroll.post {
+                val desired = (
+                    active.left -
+                        activity.resources
+                            .displayMetrics
+                            .widthPixels /
+                        2 +
+                        active.width /
+                        2
+                    ).coerceAtLeast(0)
+
+                scroll.smoothScrollTo(
+                    desired,
+                    0,
+                )
+            }
+        }
+
         return wrapper
     }
 
-    private fun open(activity: Activity, cls: Class<*>, forward: Boolean) {
-        if (activity::class.java == cls) return
-        activity.startActivity(Intent(activity, cls).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
-        if (forward) activity.overridePendingTransition(R.anim.central_slide_in_right, R.anim.central_slide_out_left) else activity.overridePendingTransition(R.anim.central_slide_in_left, R.anim.central_slide_out_right)
-        if (activity !is BaseActivity) activity.finish()
+    private fun open(
+        activity: Activity,
+        cls: Class<*>,
+        forward: Boolean,
+    ) {
+        if (activity::class.java == cls) {
+            return
+        }
+
+        activity.startActivity(
+            Intent(
+                activity,
+                cls,
+            ).addFlags(
+                Intent.FLAG_ACTIVITY_REORDER_TO_FRONT,
+            ),
+        )
+
+        if (forward) {
+            activity.overridePendingTransition(
+                R.anim.central_slide_in_right,
+                R.anim.central_slide_out_left,
+            )
+        } else {
+            activity.overridePendingTransition(
+                R.anim.central_slide_in_left,
+                R.anim.central_slide_out_right,
+            )
+        }
+
+        if (activity !is BaseActivity) {
+            activity.finish()
+        }
     }
 
-    private const val MODULE_SHELL_TAG = "central-module-shell"
+    private const val MODULE_SHELL_TAG =
+        "central-module-shell"
 }
 
 object MobileUi {
-    val BG = Color.rgb(243, 248, 253)
+    val BG = Color.rgb(244, 248, 253)
     val SURFACE = Color.rgb(255, 255, 255)
-    val NAVY = Color.rgb(17, 57, 99)
-    val MUTED = Color.rgb(93, 119, 149)
-    val BLUE = Color.rgb(45, 134, 230)
+    val NAVY = Color.rgb(21, 59, 101)
+    val MUTED = Color.rgb(92, 117, 147)
+    val BLUE = Color.rgb(42, 132, 229)
+    val BLUE_DEEP = Color.rgb(28, 105, 193)
     val BLUE_TINT = Color.rgb(232, 243, 253)
-    val GREEN = Color.rgb(17, 145, 99)
+    val GREEN = Color.rgb(21, 145, 101)
     val GREEN_TINT = Color.rgb(232, 248, 240)
-    val PURPLE = Color.rgb(126, 83, 207)
-    val PURPLE_TINT = Color.rgb(243, 237, 253)
-    val ORANGE = Color.rgb(226, 145, 20)
-    val ORANGE_TINT = Color.rgb(255, 246, 224)
-    val PINK = Color.rgb(208, 63, 119)
-    val PINK_TINT = Color.rgb(252, 237, 243)
-    val BORDER = Color.rgb(213, 228, 242)
-    val BORDER_FOCUS = Color.rgb(151, 196, 236)
+    val PURPLE = Color.rgb(126, 82, 207)
+    val PURPLE_TINT = Color.rgb(244, 238, 253)
+    val ORANGE = Color.rgb(225, 145, 24)
+    val ORANGE_TINT = Color.rgb(255, 246, 226)
+    val PINK = Color.rgb(211, 65, 120)
+    val PINK_TINT = Color.rgb(252, 237, 244)
+    val BORDER = Color.rgb(210, 226, 241)
+    val BORDER_LIGHT = Color.rgb(227, 236, 246)
+    val BORDER_FOCUS = Color.rgb(145, 192, 237)
 
-    fun text(context: Context, value: String, size: Float, color: Int = NAVY, bold: Boolean = false): TextView = TextView(context).apply {
-        text = value; textSize = size; includeFontPadding = false; setTextColor(color)
-        if (size >= 10f) letterSpacing = 0.002f
-        if (bold) setTypeface(typeface, Typeface.BOLD)
+    fun text(
+        context: Context,
+        value: String,
+        size: Float,
+        color: Int = NAVY,
+        bold: Boolean = false,
+    ): TextView =
+        TextView(context).apply {
+            text = value
+            textSize = size
+            includeFontPadding = false
+            setTextColor(color)
+
+            if (size >= 10f) {
+                letterSpacing = 0.0015f
+            }
+
+            if (bold) {
+                setTypeface(
+                    typeface,
+                    Typeface.BOLD,
+                )
+            }
+        }
+
+    fun icon(
+        context: Context,
+        res: Int,
+        tint: Int,
+        sizeDp: Int = 22,
+    ): ImageView =
+        ImageView(context).apply {
+            setImageResource(res)
+            imageTintList =
+                ColorStateList.valueOf(
+                    tint,
+                )
+            scaleType =
+                ImageView.ScaleType.CENTER_INSIDE
+
+            layoutParams =
+                LinearLayout.LayoutParams(
+                    context.dp(sizeDp),
+                    context.dp(sizeDp),
+                )
+        }
+
+    fun rounded(
+        color: Int,
+        radius: Float,
+        strokeColor: Int? = null,
+        strokeWidth: Int = 1,
+    ): GradientDrawable =
+        GradientDrawable().apply {
+            shape =
+                GradientDrawable.RECTANGLE
+            setColor(color)
+            cornerRadius = radius
+
+            if (strokeColor != null) {
+                setStroke(
+                    strokeWidth,
+                    strokeColor,
+                )
+            }
+        }
+
+    fun oval(color: Int): GradientDrawable =
+        GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(color)
+        }
+
+    fun appBackground(): GradientDrawable =
+        GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            intArrayOf(
+                Color.rgb(250, 252, 255),
+                Color.rgb(245, 249, 254),
+                Color.rgb(239, 246, 252),
+            ),
+        )
+
+    fun navigationBackground(): GradientDrawable =
+        GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(
+                Color.WHITE,
+                Color.rgb(247, 250, 254),
+            ),
+        )
+
+    fun headerBackground(
+        context: Context,
+    ): GradientDrawable =
+        GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(
+                Color.argb(248, 255, 255, 255),
+                Color.argb(238, 248, 252, 255),
+            ),
+        ).apply {
+            cornerRadius =
+                context.dp(19).toFloat()
+            setStroke(
+                context.dp(1),
+                BORDER_LIGHT,
+            )
+        }
+
+    fun mixWithWhite(
+        color: Int,
+        whiteRatio: Float,
+    ): Int {
+        val ratio =
+            whiteRatio.coerceIn(
+                0f,
+                1f,
+            )
+
+        fun channel(value: Int): Int =
+            (
+                value * (1f - ratio) +
+                    255f * ratio
+                )
+                .toInt()
+                .coerceIn(
+                    0,
+                    255,
+                )
+
+        return Color.rgb(
+            channel(
+                Color.red(color),
+            ),
+            channel(
+                Color.green(color),
+            ),
+            channel(
+                Color.blue(color),
+            ),
+        )
     }
-    fun icon(context: Context, res: Int, tint: Int, sizeDp: Int = 22): ImageView = ImageView(context).apply {
-        setImageResource(res); imageTintList = ColorStateList.valueOf(tint); scaleType = ImageView.ScaleType.CENTER_INSIDE
-        layoutParams = LinearLayout.LayoutParams(context.dp(sizeDp), context.dp(sizeDp))
-    }
-    fun rounded(color: Int, radius: Float, strokeColor: Int? = null, strokeWidth: Int = 1): GradientDrawable = GradientDrawable().apply {
-        shape = GradientDrawable.RECTANGLE; setColor(color); cornerRadius = radius
-        if (strokeColor != null) setStroke(strokeWidth, strokeColor)
-    }
-    fun oval(color: Int): GradientDrawable = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(color) }
-    fun appBackground(): GradientDrawable = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.rgb(250, 252, 255), BG, Color.rgb(239, 246, 252)))
-    fun navigationBackground(): GradientDrawable = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.WHITE, Color.rgb(247, 251, 255)))
-    fun mixWithWhite(color: Int, whiteRatio: Float): Int {
-        val ratio = whiteRatio.coerceIn(0f, 1f)
-        fun channel(value: Int): Int = (value * (1f - ratio) + 255f * ratio).toInt().coerceIn(0, 255)
-        return Color.rgb(channel(Color.red(color)), channel(Color.green(color)), channel(Color.blue(color)))
-    }
-    fun card(context: Context, padding: Int = 14): MaterialCardView = MaterialCardView(context).apply {
-        radius = context.dp(21).toFloat(); cardElevation = context.dp(2).toFloat(); maxCardElevation = context.dp(3).toFloat()
-        setCardBackgroundColor(SURFACE); strokeWidth = context.dp(1); strokeColor = BORDER; preventCornerOverlap = false; useCompatPadding = false
-        setContentPadding(context.dp(padding), context.dp(padding), context.dp(padding), context.dp(padding))
-    }
-    fun input(context: Context, hint: String): android.widget.EditText = android.widget.EditText(context).apply {
-        this.hint = hint; textSize = 14f; setTextColor(NAVY); setHintTextColor(MUTED); setSingleLine(true)
-        setPadding(context.dp(14), context.dp(11), context.dp(14), context.dp(11)); background = rounded(SURFACE, context.dp(15).toFloat(), BORDER_FOCUS, context.dp(1))
-    }
-    fun button(context: Context, label: String, primary: Boolean = false, accent: Int = BLUE, iconRes: Int? = null, onClick: () -> Unit): MaterialButton = MaterialButton(context).apply {
-        text = label; isAllCaps = false; textSize = 12.7f; includeFontPadding = false; cornerRadius = context.dp(14); letterSpacing = 0.008f
-        insetTop = 0; insetBottom = 0; minimumHeight = 0; setPadding(context.dp(12), context.dp(8), context.dp(12), context.dp(8))
-        elevation = context.dp(if (primary) 2 else 0).toFloat(); rippleColor = ColorStateList.valueOf(mixWithWhite(accent, 0.72f))
-        if (primary) { setTypeface(typeface, Typeface.BOLD); backgroundTintList = ColorStateList.valueOf(accent); setTextColor(Color.WHITE); strokeWidth = 0; iconTint = ColorStateList.valueOf(Color.WHITE) }
-        else { backgroundTintList = ColorStateList.valueOf(SURFACE); setTextColor(accent); strokeColor = ColorStateList.valueOf(BORDER); strokeWidth = context.dp(1); iconTint = ColorStateList.valueOf(accent) }
-        if (iconRes != null) { setIconResource(iconRes); iconSize = context.dp(18); iconPadding = context.dp(7); iconGravity = MaterialButton.ICON_GRAVITY_TEXT_START }
-        setOnClickListener { onClick() }
-    }
-    fun statusChip(context: Context, label: String, accent: Int): TextView = text(context, label, 10.2f, accent, true).apply {
-        setPadding(context.dp(9), context.dp(6), context.dp(9), context.dp(6))
-        background = rounded(if (accent == GREEN) GREEN_TINT else BLUE_TINT, context.dp(13).toFloat(), if (accent == GREEN) Color.rgb(185, 229, 207) else Color.rgb(190, 218, 243), context.dp(1))
-    }
-    fun match(top: Int = 0): LinearLayout.LayoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = top }
-    fun wrap(top: Int = 0): LinearLayout.LayoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = top }
+
+    fun card(
+        context: Context,
+        padding: Int = 14,
+    ): MaterialCardView =
+        MaterialCardView(context).apply {
+            radius =
+                context.dp(20).toFloat()
+            cardElevation =
+                context.dp(2).toFloat()
+            maxCardElevation =
+                context.dp(3).toFloat()
+            setCardBackgroundColor(
+                SURFACE,
+            )
+            strokeWidth =
+                context.dp(1)
+            strokeColor =
+                BORDER
+            preventCornerOverlap =
+                false
+            useCompatPadding =
+                false
+
+            setContentPadding(
+                context.dp(padding),
+                context.dp(padding),
+                context.dp(padding),
+                context.dp(padding),
+            )
+        }
+
+    fun input(
+        context: Context,
+        hint: String,
+    ): android.widget.EditText =
+        android.widget.EditText(context).apply {
+            this.hint = hint
+            textSize = 14f
+            setTextColor(NAVY)
+            setHintTextColor(MUTED)
+            setSingleLine(true)
+
+            setPadding(
+                context.dp(14),
+                context.dp(11),
+                context.dp(14),
+                context.dp(11),
+            )
+
+            background =
+                rounded(
+                    SURFACE,
+                    context.dp(15).toFloat(),
+                    BORDER_FOCUS,
+                    context.dp(1),
+                )
+        }
+
+    fun button(
+        context: Context,
+        label: String,
+        primary: Boolean = false,
+        accent: Int = BLUE,
+        iconRes: Int? = null,
+        onClick: () -> Unit,
+    ): MaterialButton =
+        MaterialButton(context).apply {
+            text = label
+            isAllCaps = false
+            textSize = 12.6f
+            includeFontPadding = false
+            cornerRadius =
+                context.dp(14)
+            letterSpacing = 0.006f
+            insetTop = 0
+            insetBottom = 0
+            minimumHeight =
+                context.dp(44)
+
+            setPadding(
+                context.dp(13),
+                context.dp(9),
+                context.dp(13),
+                context.dp(9),
+            )
+
+            elevation =
+                context.dp(
+                    if (primary) {
+                        2
+                    } else {
+                        0
+                    },
+                ).toFloat()
+
+            rippleColor =
+                ColorStateList.valueOf(
+                    mixWithWhite(
+                        accent,
+                        0.70f,
+                    ),
+                )
+
+            if (primary) {
+                setTypeface(
+                    typeface,
+                    Typeface.BOLD,
+                )
+                backgroundTintList =
+                    ColorStateList.valueOf(
+                        accent,
+                    )
+                setTextColor(
+                    Color.WHITE,
+                )
+                strokeWidth = 0
+                iconTint =
+                    ColorStateList.valueOf(
+                        Color.WHITE,
+                    )
+            } else {
+                backgroundTintList =
+                    ColorStateList.valueOf(
+                        SURFACE,
+                    )
+                setTextColor(accent)
+                strokeColor =
+                    ColorStateList.valueOf(
+                        BORDER,
+                    )
+                strokeWidth =
+                    context.dp(1)
+                iconTint =
+                    ColorStateList.valueOf(
+                        accent,
+                    )
+            }
+
+            if (iconRes != null) {
+                setIconResource(
+                    iconRes,
+                )
+                iconSize =
+                    context.dp(18)
+                iconPadding =
+                    context.dp(7)
+                iconGravity =
+                    MaterialButton
+                        .ICON_GRAVITY_TEXT_START
+            }
+
+            setOnTouchListener { v, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        v.animate()
+                            .scaleX(0.985f)
+                            .scaleY(0.985f)
+                            .setDuration(70)
+                            .start()
+                    }
+
+                    MotionEvent.ACTION_UP,
+                    MotionEvent.ACTION_CANCEL -> {
+                        v.animate()
+                            .scaleX(1f)
+                            .scaleY(1f)
+                            .setDuration(120)
+                            .start()
+                    }
+                }
+                false
+            }
+
+            setOnClickListener {
+                onClick()
+            }
+        }
+
+    fun statusChip(
+        context: Context,
+        label: String,
+        accent: Int,
+    ): TextView =
+        text(
+            context,
+            label,
+            10.1f,
+            accent,
+            true,
+        ).apply {
+            setPadding(
+                context.dp(9),
+                context.dp(6),
+                context.dp(9),
+                context.dp(6),
+            )
+
+            background =
+                rounded(
+                    if (accent == GREEN) {
+                        GREEN_TINT
+                    } else {
+                        BLUE_TINT
+                    },
+                    context.dp(13).toFloat(),
+                    if (accent == GREEN) {
+                        Color.rgb(
+                            184,
+                            228,
+                            207,
+                        )
+                    } else {
+                        Color.rgb(
+                            190,
+                            217,
+                            242,
+                        )
+                    },
+                    context.dp(1),
+                )
+        }
+
+    fun match(
+        top: Int = 0,
+    ): LinearLayout.LayoutParams =
+        LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply {
+            topMargin = top
+        }
+
+    fun wrap(
+        top: Int = 0,
+    ): LinearLayout.LayoutParams =
+        LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply {
+            topMargin = top
+        }
 }

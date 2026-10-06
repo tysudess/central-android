@@ -11,8 +11,8 @@ android {
         applicationId = "br.com.centralmidia.android"
         minSdk = 24
         targetSdk = 35
-        versionCode = 16
-        versionName = "1.0.16"
+        versionCode = 17
+        versionName = "1.0.17"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
@@ -82,6 +82,4 @@ dependencies {
     implementation("androidx.media3:media3-transformer:$media3Version")
     implementation("androidx.media3:media3-effect:$media3Version")
     implementation("androidx.media3:media3-common:$media3Version")
-
-    testImplementation("junit:junit:4.13.2")
 }
