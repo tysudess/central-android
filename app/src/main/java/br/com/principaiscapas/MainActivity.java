@@ -86,51 +86,79 @@ public class MainActivity extends Activity {
     private View buildUi() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        final int rootPadH = dp(8);
-        final int rootPadTop = dp(6);
-        final int rootPadBottom = dp(6);
-        root.setPadding(rootPadH, rootPadTop, rootPadH, rootPadBottom);
-        root.setBackgroundColor(0xFF071625);
+        root.setPadding(dp(10), dp(6), dp(10), dp(12));
+        root.setBackgroundColor(0xFFF3F8FD);
 
-        // v0.7.5.8: topo extremamente compacto para liberar o máximo de área
-        // vertical possível para os jornais. As ações principais foram movidas
-        // para a barra inferior.
+        // Cabeçalho alinhado à identidade da Central: mesma base clara,
+        // ações específicas do módulo mantidas no topo e sem uma segunda
+        // barra de navegação duplicando a navegação principal do app.
         LinearLayout toolbar = new LinearLayout(this);
         toolbar.setOrientation(LinearLayout.HORIZONTAL);
         toolbar.setGravity(Gravity.CENTER_VERTICAL);
-        toolbar.setPadding(dp(10), dp(5), dp(10), dp(5));
-        toolbar.setBackground(gradientRounded(0xFF0C2F57, 0xFF071C31, 14));
+        toolbar.setPadding(dp(10), dp(8), dp(8), dp(8));
+        toolbar.setBackground(rounded(0xFFFFFFFF, 16, 1, 0xFFD6E4F1));
+        toolbar.setElevation(dp(1));
 
         ImageView appIcon = new ImageView(this);
         appIcon.setImageResource(R.mipmap.ic_launcher);
-        appIcon.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        toolbar.addView(appIcon, new LinearLayout.LayoutParams(dp(34), dp(34)));
+        appIcon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        toolbar.addView(appIcon, new LinearLayout.LayoutParams(dp(40), dp(40)));
+
+        LinearLayout titleBox = new LinearLayout(this);
+        titleBox.setOrientation(LinearLayout.VERTICAL);
+        titleBox.setPadding(dp(10), 0, dp(6), 0);
 
         TextView title = new TextView(this);
         title.setText("PRINCIPAIS CAPAS");
-        title.setTextSize(17);
-        title.setTextColor(Color.WHITE);
+        title.setTextSize(18);
+        title.setTextColor(0xFF153B65);
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        title.setPadding(dp(9), 0, 0, 0);
-        toolbar.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        title.setMaxLines(1);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        titleBox.addView(title);
 
-        root.addView(toolbar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44)));
+        TextView subtitle = new TextView(this);
+        subtitle.setText("Jornais e capas do dia");
+        subtitle.setTextSize(10.5f);
+        subtitle.setTextColor(0xFF5C7593);
+        titleBox.addView(subtitle);
 
-        // Data em uma única faixa compacta.
+        toolbar.addView(titleBox, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+
+        openPdfButton = secondaryButton("PDFs");
+        openPdfButton.setTextSize(10);
+        openPdfButton.setContentDescription("Abrir PDFs gerados");
+        openPdfButton.setOnClickListener(v -> openGeneratedPdf());
+        LinearLayout.LayoutParams pdfTopLp = new LinearLayout.LayoutParams(dp(58), dp(40));
+        pdfTopLp.setMarginStart(dp(4));
+        toolbar.addView(openPdfButton, pdfTopLp);
+
+        gmailButton = secondaryButton("⚙");
+        gmailButton.setTextSize(18);
+        gmailButton.setContentDescription("Configurar Gmail automático");
+        gmailButton.setOnClickListener(v -> showGmailBridgeDialog());
+        LinearLayout.LayoutParams gmailTopLp = new LinearLayout.LayoutParams(dp(42), dp(40));
+        gmailTopLp.setMarginStart(dp(4));
+        toolbar.addView(gmailButton, gmailTopLp);
+
+        root.addView(toolbar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(60)));
+
+        // Data: o toque fica concentrado em um único componente claramente
+        // identificável, sem usar uma faixa de navegação própria do módulo.
         LinearLayout dateCard = new LinearLayout(this);
         dateCard.setOrientation(LinearLayout.HORIZONTAL);
         dateCard.setGravity(Gravity.CENTER_VERTICAL);
-        dateCard.setPadding(dp(10), dp(3), dp(10), dp(3));
-        dateCard.setBackground(rounded(0xFF0C2034, 12, 1, 0xFF29445F));
-        LinearLayout.LayoutParams dateCardLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48));
-        dateCardLp.setMargins(0, dp(6), 0, dp(4));
+        dateCard.setPadding(dp(12), dp(6), dp(12), dp(6));
+        dateCard.setBackground(rounded(0xFFFFFFFF, 14, 1, 0xFFD6E4F1));
+        LinearLayout.LayoutParams dateCardLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64));
+        dateCardLp.setMargins(0, dp(8), 0, dp(6));
 
         TextView dateLabel = new TextView(this);
         dateLabel.setText("DATA");
-        dateLabel.setTextColor(0xFFAFC1D5);
-        dateLabel.setTextSize(10);
+        dateLabel.setTextColor(0xFF5C7593);
+        dateLabel.setTextSize(11);
         dateLabel.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        dateCard.addView(dateLabel, new LinearLayout.LayoutParams(dp(42), ViewGroup.LayoutParams.WRAP_CONTENT));
+        dateCard.addView(dateLabel, new LinearLayout.LayoutParams(dp(46), ViewGroup.LayoutParams.WRAP_CONTENT));
 
         LinearLayout dateTextBox = new LinearLayout(this);
         dateTextBox.setOrientation(LinearLayout.VERTICAL);
@@ -138,8 +166,8 @@ public class MainActivity extends Activity {
 
         dateButton = new Button(this);
         dateButton.setText(formatDisplayDate(selectedDate));
-        dateButton.setTextColor(Color.WHITE);
-        dateButton.setTextSize(20);
+        dateButton.setTextColor(0xFF153B65);
+        dateButton.setTextSize(18);
         dateButton.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         dateButton.setAllCaps(false);
         dateButton.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
@@ -151,25 +179,42 @@ public class MainActivity extends Activity {
         dateTextBox.addView(dateButton, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(30)));
 
         lastUpdateText = new TextView(this);
-        lastUpdateText.setText("Toque para alterar");
-        lastUpdateText.setTextColor(0xFF8FA9C3);
-        lastUpdateText.setTextSize(9);
-        lastUpdateText.setGravity(Gravity.START);
+        lastUpdateText.setText("Toque para alterar a data");
+        lastUpdateText.setTextColor(0xFF5C7593);
+        lastUpdateText.setTextSize(9.5f);
         dateTextBox.addView(lastUpdateText);
         dateCard.addView(dateTextBox, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1));
         root.addView(dateCard, dateCardLp);
+
+        // Ações do módulo ficam próximas do conteúdo, em vez de ocupar a
+        // barra de navegação global.
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setGravity(Gravity.CENTER_VERTICAL);
+
+        refreshButton = actionButton("↻  Atualizar capas", 0xFF3489E2);
+        refreshButton.setOnClickListener(v -> refreshAll());
+        actions.addView(refreshButton, new LinearLayout.LayoutParams(0, dp(48), 1f));
+
+        exportButton = actionButton("▣  Gerar PDF", 0xFF3489E2);
+        exportButton.setOnClickListener(v -> exportPdf());
+        LinearLayout.LayoutParams exportLp = new LinearLayout.LayoutParams(0, dp(48), 1f);
+        exportLp.setMarginStart(dp(8));
+        actions.addView(exportButton, exportLp);
+        root.addView(actions, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50)));
 
         progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progress.setVisibility(View.GONE);
         progress.setIndeterminate(true);
         if (Build.VERSION.SDK_INT >= 21) {
-            progress.setIndeterminateTintList(ColorStateList.valueOf(0xFF2D8CFF));
+            progress.setIndeterminateTintList(ColorStateList.valueOf(0xFF3489E2));
         }
         LinearLayout.LayoutParams progressLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3));
-        progressLp.setMargins(0, 0, 0, dp(2));
+        progressLp.setMargins(0, dp(3), 0, dp(3));
         root.addView(progress, progressLp);
 
-        // Cabeçalho da lista com seleção em um único botão, sem gastar outra linha.
+        // Cabeçalho da lista: seleção continua acessível, mas agora sem uma
+        // navegação interna concorrendo com a barra global da Central.
         LinearLayout sectionHeader = new LinearLayout(this);
         sectionHeader.setOrientation(LinearLayout.HORIZONTAL);
         sectionHeader.setGravity(Gravity.CENTER_VERTICAL);
@@ -177,65 +222,34 @@ public class MainActivity extends Activity {
 
         TextView sectionTitle = new TextView(this);
         sectionTitle.setText("▤  JORNAIS");
-        sectionTitle.setTextColor(0xFFB9CBE0);
+        sectionTitle.setTextColor(0xFF153B65);
         sectionTitle.setTextSize(12);
         sectionTitle.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         sectionHeader.addView(sectionTitle);
 
         selectedCountText = new TextView(this);
-        selectedCountText.setTextColor(0xFF53E879);
-        selectedCountText.setTextSize(10);
+        selectedCountText.setTextColor(0xFF0F8A70);
+        selectedCountText.setTextSize(10.5f);
         selectedCountText.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout.LayoutParams countLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
         countLp.setMargins(dp(8), 0, 0, 0);
         sectionHeader.addView(selectedCountText, countLp);
 
         Button selection = secondaryButton("SELEÇÃO");
-        selection.setTextSize(9);
+        selection.setTextSize(10);
         selection.setOnClickListener(v -> showSelectionDialog());
-        sectionHeader.addView(selection, new LinearLayout.LayoutParams(dp(78), dp(30)));
-        root.addView(sectionHeader, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(32)));
+        sectionHeader.addView(selection, new LinearLayout.LayoutParams(dp(82), dp(36)));
+        root.addView(sectionHeader, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(40)));
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(false);
         scroll.setClipToPadding(false);
         listContainer = new LinearLayout(this);
         listContainer.setOrientation(LinearLayout.VERTICAL);
-        listContainer.setPadding(0, 0, 0, dp(5));
+        listContainer.setPadding(0, dp(2), 0, dp(16));
         scroll.addView(listContainer);
         root.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
 
-        // Barra inferior preservada e ampliada com ATUALIZAR e GERAR PDF.
-        LinearLayout bottom = new LinearLayout(this);
-        bottom.setOrientation(LinearLayout.HORIZONTAL);
-        bottom.setPadding(dp(3), dp(3), dp(3), 0);
-        bottom.setBackground(rounded(0xFF0A1D30, 14, 1, 0xFF203B56));
-
-        refreshButton = bottomNavButton("↻\nATUALIZAR", false);
-        refreshButton.setTextColor(0xFF72B5FF);
-        refreshButton.setOnClickListener(v -> refreshAll());
-        bottom.addView(refreshButton, new LinearLayout.LayoutParams(0, dp(58), 1));
-
-        exportButton = bottomNavButton("▣\nGERAR PDF", false);
-        exportButton.setTextColor(0xFF59E67F);
-        exportButton.setOnClickListener(v -> exportPdf());
-        bottom.addView(exportButton, new LinearLayout.LayoutParams(0, dp(58), 1));
-
-        Button home = bottomNavButton("⌂\nINÍCIO", true);
-        home.setEnabled(false);
-        bottom.addView(home, new LinearLayout.LayoutParams(0, dp(58), 1));
-
-        openPdfButton = bottomNavButton("▤\nPDFs", false);
-        openPdfButton.setOnClickListener(v -> openGeneratedPdf());
-        bottom.addView(openPdfButton, new LinearLayout.LayoutParams(0, dp(58), 1));
-
-        gmailButton = bottomNavButton("⚙\nCONFIG.", false);
-        gmailButton.setOnClickListener(v -> showGmailBridgeDialog());
-        bottom.addView(gmailButton, new LinearLayout.LayoutParams(0, dp(58), 1));
-
-        LinearLayout.LayoutParams bottomLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        bottomLp.setMargins(0, dp(3), 0, 0);
-        root.addView(bottom, bottomLp);
         return root;
     }
 

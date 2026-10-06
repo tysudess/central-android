@@ -10,7 +10,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingBottom="28dp">
+        android:paddingBottom="84dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -19,9 +19,9 @@
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:paddingStart="14dp"
-            android:paddingTop="12dp"
-            android:paddingEnd="16dp"
-            android:paddingBottom="14dp">
+            android:paddingTop="8dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="10dp">
 
             <Button
                 android:id="@+id/buttonEditorBack"
@@ -33,10 +33,18 @@
                 android:text="←"
                 android:textSize="20sp" />
 
+            <ImageView
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="9dp"
+                android:contentDescription="Logo da Central Inteligente de Mídia"
+                android:scaleType="centerInside"
+                android:src="@mipmap/ic_launcher" />
+
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
+                android:layout_marginStart="9dp"
                 android:layout_weight="1"
                 android:orientation="vertical">
 
@@ -53,7 +61,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="3dp"
-                    android:text="Editor de timeline"
+                    android:text="Editor de Vídeo"
                     android:textColor="@color/text_primary"
                     android:textSize="22sp"
                     android:textStyle="bold" />
@@ -81,7 +89,7 @@
 
             <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="238dp"
+                android:layout_height="224dp"
                 android:background="@drawable/bg_preview">
 
                 <TextureView
@@ -171,11 +179,13 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
             android:layout_marginTop="10dp"
-            android:background="@color/navy_dark"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/bg_timeline_panel"
             android:orientation="vertical"
-            android:paddingTop="10dp"
-            android:paddingBottom="12dp">
+            android:paddingTop="8dp"
+            android:paddingBottom="10dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -190,7 +200,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="TIMELINE  •  toque para navegar  •  segure e arraste para reordenar"
-                    android:textColor="@color/text_secondary"
+                    android:textColor="@color/text_primary"
                     android:textSize="10sp"
                     android:textStyle="bold" />
 
@@ -255,7 +265,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="AJUSTE FINO DO CURSOR"
-                    android:textColor="@color/text_secondary"
+                    android:textColor="@color/text_primary"
                     android:textSize="10sp"
                     android:textStyle="bold" />
 
@@ -268,21 +278,31 @@
                     android:textStyle="bold" />
             </LinearLayout>
 
-            <LinearLayout
+            <HorizontalScrollView
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
+                android:layout_height="52dp"
                 android:layout_marginTop="5dp"
-                android:layout_marginEnd="12dp"
-                android:orientation="horizontal">
+                android:clipToPadding="false"
+                android:fillViewport="false"
+                android:overScrollMode="never"
+                android:scrollbars="none">
 
-                <Button android:id="@+id/editorBack1s" style="@style/AppTimeButton" android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1" android:text="−1s" />
-                <Button android:id="@+id/editorBack100ms" style="@style/AppTimeButton" android:layout_width="0dp" android:layout_height="44dp" android:layout_marginStart="5dp" android:layout_weight="1" android:text="−100ms" />
-                <Button android:id="@+id/editorBack10ms" style="@style/AppTimeButton" android:layout_width="0dp" android:layout_height="44dp" android:layout_marginStart="5dp" android:layout_weight="1" android:text="−10ms" />
-                <Button android:id="@+id/editorForward10ms" style="@style/AppTimeButton" android:layout_width="0dp" android:layout_height="44dp" android:layout_marginStart="5dp" android:layout_weight="1" android:text="+10ms" />
-                <Button android:id="@+id/editorForward100ms" style="@style/AppTimeButton" android:layout_width="0dp" android:layout_height="44dp" android:layout_marginStart="5dp" android:layout_weight="1" android:text="+100ms" />
-                <Button android:id="@+id/editorForward1s" style="@style/AppTimeButton" android:layout_width="0dp" android:layout_height="44dp" android:layout_marginStart="5dp" android:layout_weight="1" android:text="+1s" />
-            </LinearLayout>
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp">
+
+                    <Button android:id="@+id/editorBack1s" style="@style/AppTimeButton" android:layout_width="64dp" android:layout_height="44dp" android:text="−1s" />
+                    <Button android:id="@+id/editorBack100ms" style="@style/AppTimeButton" android:layout_width="72dp" android:layout_height="44dp" android:layout_marginStart="5dp" android:text="−100ms" />
+                    <Button android:id="@+id/editorBack10ms" style="@style/AppTimeButton" android:layout_width="64dp" android:layout_height="44dp" android:layout_marginStart="5dp" android:text="−10ms" />
+                    <Button android:id="@+id/editorForward10ms" style="@style/AppTimeButton" android:layout_width="64dp" android:layout_height="44dp" android:layout_marginStart="5dp" android:text="+10ms" />
+                    <Button android:id="@+id/editorForward100ms" style="@style/AppTimeButton" android:layout_width="72dp" android:layout_height="44dp" android:layout_marginStart="5dp" android:text="+100ms" />
+                    <Button android:id="@+id/editorForward1s" style="@style/AppTimeButton" android:layout_width="64dp" android:layout_height="44dp" android:layout_marginStart="5dp" android:text="+1s" />
+                </LinearLayout>
+            </HorizontalScrollView>
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -727,7 +747,7 @@
                 android:id="@+id/buttonEditorJoin"
                 style="@style/AppPrimaryButton"
                 android:layout_width="match_parent"
-                android:layout_height="58dp"
+                android:layout_height="52dp"
                 android:layout_marginTop="10dp"
                 android:text="Exportar vídeo final" />
 

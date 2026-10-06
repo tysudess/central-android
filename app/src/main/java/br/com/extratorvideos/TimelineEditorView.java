@@ -130,38 +130,41 @@ public class TimelineEditorView extends View {
         cornerRadius = dp(12f);
         playheadHitRadius = dp(24f);
 
-        backgroundPaint.setColor(Color.rgb(7, 11, 20));
-        rulerPaint.setColor(Color.rgb(49, 87, 126));
+        // A timeline adota a mesma linguagem clara do restante da Central,
+        // preservando os próprios clipes escuros para manter contraste com as
+        // miniaturas. O fundo não compete mais visualmente com os demais cards.
+        backgroundPaint.setColor(Color.rgb(248, 251, 255));
+        rulerPaint.setColor(Color.rgb(174, 201, 228));
         rulerPaint.setStrokeWidth(dp(1f));
-        rulerTextPaint.setColor(Color.rgb(114, 135, 159));
+        rulerTextPaint.setColor(Color.rgb(92, 117, 147));
         rulerTextPaint.setTextSize(sp(10f));
 
-        clipPaint.setColor(Color.rgb(17, 29, 46));
-        clipBorderPaint.setColor(Color.rgb(32, 53, 82));
+        clipPaint.setColor(Color.rgb(21, 42, 68));
+        clipBorderPaint.setColor(Color.rgb(146, 183, 219));
         clipBorderPaint.setStyle(Paint.Style.STROKE);
         clipBorderPaint.setStrokeWidth(dp(1.5f));
 
-        selectedBorderPaint.setColor(Color.rgb(255, 199, 102));
+        selectedBorderPaint.setColor(Color.rgb(52, 137, 226));
         selectedBorderPaint.setStyle(Paint.Style.STROKE);
         selectedBorderPaint.setStrokeWidth(dp(3f));
 
-        labelBgPaint.setColor(Color.argb(205, 8, 14, 24));
+        labelBgPaint.setColor(Color.argb(212, 11, 38, 67));
         labelPaint.setColor(Color.WHITE);
         labelPaint.setTextSize(sp(10f));
         labelPaint.setFakeBoldText(true);
 
-        separatorPaint.setColor(Color.rgb(95, 124, 255));
+        separatorPaint.setColor(Color.rgb(92, 162, 224));
         separatorPaint.setStrokeWidth(dp(2f));
 
-        playheadPaint.setColor(Color.rgb(53, 231, 215));
+        playheadPaint.setColor(Color.rgb(41, 199, 191));
         playheadPaint.setStrokeWidth(dp(2.5f));
-        playheadHeadPaint.setColor(Color.rgb(53, 231, 215));
+        playheadHeadPaint.setColor(Color.rgb(41, 199, 191));
 
-        dragOverlayPaint.setColor(Color.argb(72, 255, 199, 102));
+        dragOverlayPaint.setColor(Color.argb(54, 52, 137, 226));
 
-        cutMarkerPaint.setColor(Color.rgb(255, 93, 122));
+        cutMarkerPaint.setColor(Color.rgb(214, 65, 106));
         cutMarkerPaint.setStrokeWidth(dp(2.4f));
-        cutMarkerTextPaint.setColor(Color.rgb(255, 93, 122));
+        cutMarkerTextPaint.setColor(Color.rgb(214, 65, 106));
         cutMarkerTextPaint.setTextSize(sp(17f));
         cutMarkerTextPaint.setFakeBoldText(true);
 
