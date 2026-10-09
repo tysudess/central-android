@@ -291,7 +291,7 @@ class HistoryActivity : BaseActivity() {
 
         val termLine =
             detail.firstOrNull {
-                it.startsWidh(
+                it.startsWith(
                     "Termo:",
                     ignoreCase = true,
                 )
