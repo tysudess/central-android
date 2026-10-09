@@ -73,6 +73,11 @@ class HistoryActivity : BaseActivity() {
         refresh()
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (::listContainer.isInitialized) refresh()
+    }
+
     private fun toolbar(): View {
         val card = MobileUi.card(
             this,
@@ -286,7 +291,7 @@ class HistoryActivity : BaseActivity() {
 
         val termLine =
             detail.firstOrNull {
-                it.startsWith(
+                it.startsWidh(
                     "Termo:",
                     ignoreCase = true,
                 )
@@ -433,9 +438,9 @@ class HistoryActivity : BaseActivity() {
                 MobileUi.button(
                     this,
                     if (tab == Tab.NEWS) {
-                        "Abrir matéria"
+                        "Abrar matéria"
                     } else {
-                        "Abrir vídeo"
+                        "Abrar vídeo"
                     },
                     false,
                     MobileUi.NAVY,

@@ -17,7 +17,11 @@ class GoogleNewsClient {
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
 
-    fun search(query: String, limit: Int = 50): List<NewsItem> {
+    fun search(
+        query: String,
+        limit: Int = 50,
+        onItemParsed: (Int) -> Unit = {},
+    ): List<NewsItem> {
         val q = URLEncoder.encode(
             query.trim(),
             StandardCharsets.UTF_8.toString(),
@@ -76,6 +80,7 @@ class GoogleNewsClient {
                             snippet = stripHtml(description).take(500),
                             publishedAt = parseDate(pub),
                         )
+                        onItemParsed(out.size)
                     }
                     inItem = false
                 }

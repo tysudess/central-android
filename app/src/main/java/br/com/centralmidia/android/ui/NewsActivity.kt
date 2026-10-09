@@ -44,6 +44,7 @@ class NewsActivity : BaseActivity() {
     private lateinit var statusDescription: TextView
     private lateinit var progress: ProgressBar
     private lateinit var pctValue: TextView
+    private lateinit var completionValue: TextView
     private lateinit var foundValue: TextView
     private lateinit var newValue: TextView
     private lateinit var failureValue: TextView
@@ -79,6 +80,15 @@ class NewsActivity : BaseActivity() {
         val query: String,
         val term: String,
         val sourceLabel: String,
+    )
+
+    private data class SearchProgress(
+        val total: Int,
+        val completed: Int,
+        val found: Int,
+        val failures: Int,
+        val fraction: Float,
+        val current: String,
     )
 
     private data class SearchOutcome(
@@ -464,6 +474,7 @@ class NewsActivity : BaseActivity() {
         newValue.text = "${visible.count { it.isNew }}\nNovas"
         failureValue.text = "0\nFalhas"
         pctValue.text = "100%"
+        completionValue.text = "100%\nConclusão"
         progress.isIndeterminate = false
         progress.progress = 100
         statusTitle.text = "Últimos resultados salvos"
@@ -587,7 +598,7 @@ class NewsActivity : BaseActivity() {
             MobileUi.match(dp(8)),
         )
 
-        val done = statValue(
+        completionValue = statValue(
             "100%",
             "Conclusão",
             MobileUi.GREEN,
@@ -639,7 +650,7 @@ class NewsActivity : BaseActivity() {
 
         val statsGrid = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(metricRow(done, foundValue, newValue))
+            addView(metricRow(completionValue, foundValue, newValue))
             addView(
                 metricRow(failureValue, stepsValue, timeValue),
                 MobileUi.match(dp(3)),
@@ -938,9 +949,14 @@ class NewsActivity : BaseActivity() {
                     "${selectedSources.size} fonte(s) selecionada(s)"
                 }
 
-        progress.isIndeterminate = true
+        progress.isIndeterminate = false
+        progress.progress = 0
         pctValue.text = "0%"
+        completionValue.text = "0%\nConclusão"
+        foundValue.text = "0\nEncontradas"
+        newValue.text = "0\nNovas"
         failureValue.text = "0\nFalhas"
+        timeValue.text = "00:00\nTempo"
         stepsValue.text =
             "0/${tasks.size}\nEtapas"
 
@@ -957,6 +973,21 @@ class NewsActivity : BaseActivity() {
                     searchAll = searchAll,
                     fromMs = fromMs,
                     toMs = toMs,
+                    onProgress = { update ->
+                        runOnUiThread {
+                            val pct = if (update.total <= 0) 0 else {
+                                ((update.completed + update.fraction) * 100f / update.total).toInt()
+                            }
+                            val shownPct = pct.coerceIn(0, 100)
+                            progress.progress = shownPct
+                            pctValue.text = "${shownPct}%"
+                            completionValue.text = "${shownPct}%\nConclusão"
+                            foundValue.text = "${update.found}\nEncontradas"
+                            failureValue.text = "${update.failures}\nFalhas"
+                            stepsValue.text = "${update.completed}/${update.total}\nEtapas"
+                            statusDescription.text = update.current
+                        }
+                    },
                 )
             },
             { outcome ->
@@ -1051,6 +1082,7 @@ class NewsActivity : BaseActivity() {
                     } else {
                         "100%"
                     }
+                completionValue.text = "${progress.progress}%\nConclusão"
 
                 foundValue.text =
                     "${items.size}\nEncontradas"
@@ -1073,35 +1105,19 @@ class NewsActivity : BaseActivity() {
                     )
                     .apply()
 
-                items.forEach { item ->
-                    db.addHistoryUnique(
-                        type = "news",
-                        title = item.title,
-                        detail = buildString {
-                            append(
-                                item.source,
-                            )
-                            if (
-                                item.snippet.isNotBlank()
-                            ) {
-                                append("\n")
-                                append(
-                                    item.snippet,
-                                )
-                            }
-                            val tag =
-                                item.matchedDemand
-                                    .ifBlank {
-                                        item.matchedTerm
-                                    }
-                            if (tag.isNotBlank()) {
-                                append("\nTermo: ")
-                                append(tag)
-                            }
-                        },
-                        url = item.link,
-                    )
-                }
+                db.addHistory(
+                    type = "news",
+                    title = if (outcome.cancelled) "Busca de notícias interrompida" else "Busca de notícias concluída",
+                    detail = buildString {
+                        append("${items.size} notícia(s) encontrada(s) nesta execução.")
+                        append("\nTermos: ").append(terms.joinToString(", "))
+                        append("\nFontes: ")
+                        append(if (searchAll) "Todas (${allSources.size})" else "${selectedSources.size} selecionada(s)")
+                        append("\nFalhas: ").append(outcome.failures)
+                    },
+                )
+
+                items.forEach { item -> saveHistoryItem(item) }
 
                 renderFilteredResults()
             },
@@ -1114,6 +1130,7 @@ class NewsActivity : BaseActivity() {
                 statusDescription.text =
                     error.message
                         ?: "Não foi possível concluir a busca."
+                completionValue.text = "0%\nConclusão"
                 failureValue.text = "1\nFalhas"
                 toast(
                     error.message
@@ -1181,23 +1198,27 @@ class NewsActivity : BaseActivity() {
         searchAll: Boolean,
         fromMs: Long,
         toMs: Long,
+        onProgress: (SearchProgress) -> Unit,
     ): SearchOutcome {
         val collected =
             linkedMapOf<String, NewsItem>()
         var failures = 0
         var completed = 0
 
+        onProgress(SearchProgress(tasks.size, 0, 0, 0, 0f, "Preparando busca…"))
         for (task in tasks) {
             if (cancelRequested) break
+            onProgress(SearchProgress(tasks.size, completed, collected.size, failures, 0.02f, "Consultando ${task.sourceLabel} • ${task.term}"))
 
             val fetched = try {
-                client.search(
-                    task.query,
-                    50,
-                )
+                client.search(task.query, 50) { parsedCount ->
+                    val fraction = (0.02f + 0.93f * parsedCount / 50f).coerceAtMost(0.95f)
+                    onProgress(SearchProgress(tasks.size, completed, collected.size, failures, fraction, "Lendo resultados • ${task.term} (${parsedCount}/50)"))
+                }
             } catch (_: Throwable) {
                 failures++
                 completed++
+                onProgress(SearchProgress(tasks.size, completed, collected.size, failures, 0f, "Falha na consulta • ${task.sourceLabel}"))
                 continue
             }
 
@@ -1285,9 +1306,11 @@ class NewsActivity : BaseActivity() {
                             incoming,
                         )
                     }
+                saveHistoryItem(incoming)
             }
 
             completed++
+            onProgress(SearchProgress(tasks.size, completed, collected.size, failures, 0f, "Concluída: ${task.sourceLabel} • ${task.term}"))
         }
 
         val sorted =
@@ -1490,6 +1513,20 @@ class NewsActivity : BaseActivity() {
 
         empty.addView(box)
         resultContainer.addView(empty)
+    }
+
+    private fun saveHistoryItem(item: NewsItem) {
+        db.addHistoryUnique(
+            type = "news",
+            title = item.title,
+            detail = buildString {
+                append(item.source)
+                if (item.snippet.isNotBlank()) append("\n").append(item.snippet)
+                val tag = item.matchedDemand.ifBlank { item.matchedTerm }
+                if (tag.isNotBlank()) append("\nTermo: ").append(tag)
+            },
+            url = item.link,
+        )
     }
 
     private fun formatDate(
