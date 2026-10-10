@@ -20,6 +20,8 @@ import br.com.centralmidia.android.core.dp
  */
 class CoversActivity : ModernMainActivity() {
 
+    private var compactInsetsFixInstalled = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.decorView.post {
@@ -39,6 +41,9 @@ class CoversActivity : ModernMainActivity() {
         val shell = content.getChildAt(0) as? ViewGroup ?: return
         val moduleRoot = shell.getChildAt(0) as? LinearLayout ?: return
 
+        // A navegação global pode reaplicar insets e reservar 78 dp no fim
+        // desta tela. Mantém o padding compacto após qualquer redistribuição.
+        installCompactBottomInsetsFix(moduleRoot)
         compactTopAreaAndRestoreListHeight(moduleRoot)
 
         val scroll = findFirstScrollView(moduleRoot) ?: return
@@ -70,6 +75,30 @@ class CoversActivity : ModernMainActivity() {
         panel.elevation = this.dp(1).toFloat()
     }
 
+
+    /**
+     * O scaffold global reserva espaço adicional para a navegação inferior.
+     * Em Capas, a navegação já está fora do conteúdo do módulo. Este listener
+     * remove a reserva a cada evento de insets, inclusive durante atualizações.
+     */
+    private fun installCompactBottomInsetsFix(moduleRoot: LinearLayout) {
+        if (!compactInsetsFixInstalled) {
+            androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(moduleRoot) { view, insets ->
+                val compactBottom = this.dp(12)
+                if (view.paddingBottom != compactBottom) {
+                    view.setPadding(
+                        view.paddingLeft,
+                        view.paddingTop,
+                        view.paddingRight,
+                        compactBottom,
+                    )
+                }
+                insets
+            }
+            compactInsetsFixInstalled = true
+        }
+        androidx.core.view.ViewCompat.requestApplyInsets(moduleRoot)
+    }
 
     /**
      * O módulo Capas tem sua própria rolagem e já fica acima da navegação
