@@ -3,10 +3,19 @@ package br.com.centralmidia.android.ui
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.text.InputType
+import android.text.method.ArrowKeyMovementMethod
+import android.view.View
+import android.view.ViewGroup
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import br.com.centralmidia.android.R
 import br.com.centralmidia.android.core.AuthManager
+import br.com.centralmidia.android.core.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -34,6 +43,106 @@ open class BaseActivity : AppCompatActivity() {
         super.onCreate(
             savedInstanceState
         )
+    }
+
+    override fun onResume() {
+        super.onResume()
+
+        // O texto extraído deve manter a edição por toque longo e a seleção
+        // nativa do Android, sem afetar os campos das demais telas.
+        if (javaClass.simpleName == NEWS_EXTRACTOR_ACTIVITY) {
+            window.decorView.post {
+                enableNewsArticleTextSelection()
+            }
+        }
+    }
+
+    private fun enableNewsArticleTextSelection() {
+        val content = findViewById<ViewGroup>(android.R.id.content) ?: return
+        val editor = findArticleEditor(content) ?: return
+
+        // EditText precisa do movimento padrão de edição para exibir as alças
+        // de seleção, o menu Copiar/Recortar e aceitar Backspace.
+        editor.movementMethod = ArrowKeyMovementMethod.getInstance()
+        editor.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+        editor.isFocusable = true
+        editor.isFocusableInTouchMode = true
+        editor.isLongClickable = true
+
+        val parent = editor.parent as? LinearLayout ?: return
+        if (parent.findViewWithTag<View>(NEWS_SELECTION_DELETE_TAG) != null) return
+
+        val deleteSelectionButton = MobileUi.button(
+            this,
+            "Apagar seleção",
+            false,
+            MobileUi.PINK,
+            R.drawable.ic_delete,
+        ) {
+            val start = minOf(editor.selectionStart, editor.selectionEnd)
+            val end = maxOf(editor.selectionStart, editor.selectionEnd)
+
+            if (start < 0 || end <= start) {
+                toast("Toque e segure o texto para selecionar o trecho que deseja apagar.")
+                return@button
+            }
+
+            editor.text?.delete(start, end)
+            editor.setSelection(start.coerceAtMost(editor.length()))
+            editor.requestFocus()
+            toast("Trecho selecionado apagado.")
+        }.apply {
+            tag = NEWS_SELECTION_DELETE_TAG
+            contentDescription = "Apagar somente o trecho selecionado da matéria"
+        }
+
+        val editorIndex = parent.indexOfChild(editor)
+        parent.addView(
+            deleteSelectionButton,
+            editorIndex + 1,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(42),
+            ).apply {
+                topMargin = dp(8)
+            },
+        )
+
+        findInstructionText(content)?.text =
+            "Toque e segure o texto para selecionar um trecho. Arraste as alças e use Apagar seleção ou a tecla Backspace."
+    }
+
+    private fun findArticleEditor(view: View): EditText? {
+        if (view is EditText) {
+            val hint = view.hint?.toString().orEmpty()
+            if (hint.contains("conteúdo extraído aparecerá aqui", ignoreCase = true)) {
+                return view
+            }
+        }
+
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) {
+                val found = findArticleEditor(view.getChildAt(index))
+                if (found != null) return found
+            }
+        }
+
+        return null
+    }
+
+    private fun findInstructionText(view: View): TextView? {
+        if (view is TextView && view.text?.toString().orEmpty().startsWith("Deslize dentro do quadro")) {
+            return view
+        }
+
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) {
+                val found = findInstructionText(view.getChildAt(index))
+                if (found != null) return found
+            }
+        }
+
+        return null
     }
 
     internal fun toast(
@@ -99,5 +208,10 @@ open class BaseActivity : AppCompatActivity() {
                 )
             }
         }
+    }
+
+    private companion object {
+        const val NEWS_EXTRACTOR_ACTIVITY = "NewsExtractorActivity"
+        const val NEWS_SELECTION_DELETE_TAG = "central-news-selection-delete"
     }
 }
