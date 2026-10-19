@@ -7,7 +7,6 @@ import java.net.URI
 import java.net.URLEncoder
 import java.text.Normalizer
 import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 
 class VideoSearchClient {
@@ -56,16 +55,10 @@ class VideoSearchClient {
 
         for (job in jobs) {
             if (cancelled()) break
-            onProgress(
-                Progress(
-                    completed,
-                    jobs.size,
-                    collected.size,
-                    errors,
-                    job.source.name,
-                    job.query.ifBlank { "varredura da fonte" },
-                ),
-            )
+            onProgress(Progress(
+                completed, jobs.size, collected.size, errors,
+                job.source.name, job.query.ifBlank { "varredura da fonte" },
+            ))
 
             val candidates = runCatching {
                 if (job.scanSource) collectSource(job.source)
@@ -76,32 +69,18 @@ class VideoSearchClient {
             }
 
             if (cancelled()) break
-
             for (candidate in candidates) {
-                val enriched = match(
-                    candidate,
-                    job.source,
-                    terms,
-                    demands,
-                    fromMs,
-                    toMs,
-                ) ?: continue
+                val enriched = match(candidate, job.source, terms, demands, fromMs, toMs) ?: continue
                 val key = canonical(enriched.link)
                 val previous = collected[key]
                 collected[key] = if (previous == null) enriched else merge(previous, enriched)
             }
 
             completed++
-            onProgress(
-                Progress(
-                    completed,
-                    jobs.size,
-                    collected.size,
-                    errors,
-                    job.source.name,
-                    job.query.ifBlank { "varredura da fonte" },
-                ),
-            )
+            onProgress(Progress(
+                completed, jobs.size, collected.size, errors,
+                job.source.name, job.query.ifBlank { "varredura da fonte" },
+            ))
         }
 
         return Outcome(
@@ -125,16 +104,28 @@ class VideoSearchClient {
         demands: List<Triple<Long, String, String>>,
     ): List<Job> = buildList {
         sources.forEach { source ->
+            val queries = linkedSetOf<String>()
+            terms.filter { it.isNotBlank() }.forEach { queries += it }
+            demands.filter { sourceMatchesDemand(source, it.second) }
+                .map { it.third.trim() }
+                .filter { it.isNotBlank() }
+                .forEach { queries += it }
+
+            // Portais com modo de varredura também devem receber consultas por termo.
+            // Antes, alguns eram varridos pela página inicial e só depois filtrados localmente.
+            val portalSupportsTermSearch =
+                "globoplay" in source.id.lowercase(Locale.ROOT) ||
+                    source.id.startsWith("video-r7-") ||
+                    source.id.startsWith("video-band") ||
+                    source.id == "video-sbt-news" ||
+                    source.id == "video-cnn-brasil"
+
             if (isSourceScanMode(source)) {
                 add(Job(source, "", true))
+                if (portalSupportsTermSearch && source.searchUrlTemplate.isNotBlank()) {
+                    queries.forEach { add(Job(source, it, false)) }
+                }
             } else {
-                val queries = linkedSetOf<String>()
-                terms.filter { it.isNotBlank() }.forEach { queries += it }
-                demands
-                    .filter { sourceMatchesDemand(source, it.second) }
-                    .map { it.third.trim() }
-                    .filter { it.isNotBlank() }
-                    .forEach { queries += it }
                 queries.forEach { add(Job(source, it, false)) }
             }
         }
@@ -156,7 +147,15 @@ class VideoSearchClient {
             if (youtube.isNotEmpty()) return youtube
         }
 
+        val globoplaySource =
+            "globoplay" in source.id.lowercase(Locale.ROOT) ||
+                "globoplay.globo.com" in source.landingUrl.lowercase(Locale.ROOT) ||
+                "globoplay.globo.com" in source.searchUrlTemplate.lowercase(Locale.ROOT)
         val urls = linkedSetOf<String>()
+        // Algumas fontes regionais usam landingUrl apontando para um vídeo fixo/antigo.
+        if (globoplaySource && source.searchUrlTemplate.isNotBlank()) {
+            urls += buildSearchUrl(source, "")
+        }
         if (source.landingUrl.isNotBlank()) urls += source.landingUrl
         if (source.youtubeHandle.isNotBlank()) {
             val handle = source.youtubeHandle.trim()
@@ -168,12 +167,28 @@ class VideoSearchClient {
         }
 
         val out = linkedMapOf<String, VideoItem>()
+        val attemptedUrls = linkedSetOf<String>()
+        var lastFailure: Throwable? = null
         urls.forEach { url ->
-            val doc = fetch(url)
-            parseDocument(doc, source, url, 44).forEach { item ->
-                out.putIfAbsent(canonical(item.link), item)
+            attemptedUrls += url
+            runCatching {
+                parseDocument(fetch(url), source, url, 44).forEach { item ->
+                    out.putIfAbsent(canonical(item.link), item)
+                }
+            }.onFailure { lastFailure = it }
+        }
+        // Se a página inicial não expõe itens, tenta a busca cadastrada para a fonte.
+        if (out.isEmpty() && source.searchUrlTemplate.isNotBlank() && source.searchPrefix.isNotBlank()) {
+            val fallbackUrl = buildSearchUrl(source, "")
+            if (fallbackUrl !in attemptedUrls) {
+                runCatching {
+                    parseDocument(fetch(fallbackUrl), source, fallbackUrl, 44).forEach { item ->
+                        out.putIfAbsent(canonical(item.link), item)
+                    }
+                }.onFailure { lastFailure = it }
             }
         }
+        if (out.isEmpty()) lastFailure?.let { throw it }
         return out.values.toList()
     }
 
@@ -207,7 +222,7 @@ class VideoSearchClient {
                 title = title,
                 sourceId = source.id,
                 sourceName = source.name,
-                publishedAt = parseDate(published) ?: System.currentTimeMillis(),
+                publishedAt = parseDate(published) ?: 0L,
                 link = link,
                 summary = entry.selectFirst("media|description")?.text().orEmpty(),
             )
@@ -215,9 +230,7 @@ class VideoSearchClient {
     }
 
     private fun collectForQuery(source: VideoSource, query: String): List<VideoItem> {
-        if (source.searchUrlTemplate.isBlank()) {
-            return collectSource(source)
-        }
+        if (source.searchUrlTemplate.isBlank()) return collectSource(source)
         val url = buildSearchUrl(source, query)
         return parseDocument(fetch(url), source, url, 18)
     }
@@ -250,19 +263,15 @@ class VideoSearchClient {
         limit: Int,
     ): List<VideoItem> {
         val out = linkedMapOf<String, VideoItem>()
-
         doc.select("a[href]").forEach { anchor ->
             if (out.size >= limit) return@forEach
             val link = absolute(baseUrl, anchor.attr("href"))
             if (!isSpecificVideoUrl(source, link)) return@forEach
-
             val title = titleOf(anchor)
             if (!usefulTitle(title)) return@forEach
-
             val container = meaningfulContainer(anchor)
             val summary = container?.text()?.trim().orEmpty().take(700)
             val published = publishedAt(container ?: anchor)
-
             out.putIfAbsent(
                 canonical(link),
                 VideoItem(
@@ -275,7 +284,6 @@ class VideoSearchClient {
                 ),
             )
         }
-
         return out.values.toList()
     }
 
@@ -327,8 +335,8 @@ class VideoSearchClient {
             val parsed = parseDate(joined)
             if (parsed != null) return parsed
         }
-
-        return System.currentTimeMillis()
+        // Não inventa que o vídeo foi publicado agora quando a página não informa data.
+        return 0L
     }
 
     private fun parseDate(raw: String): Long? {
@@ -336,7 +344,6 @@ class VideoSearchClient {
         val normalizedIso = value
             .replace(Regex("Z$"), "+0000")
             .replace(Regex("([+-]\\d{2}):(\\d{2})$"), "$1$2")
-
         val patterns = listOf(
             "yyyy-MM-dd'T'HH:mm:ss.SSSZ" to Locale.US,
             "yyyy-MM-dd'T'HH:mm:ssZ" to Locale.US,
@@ -460,13 +467,64 @@ class VideoSearchClient {
     }
 
     private fun isSpecificVideoUrl(source: VideoSource, url: String): Boolean {
-        if (!url.startsWith("http")) return false
-        val lower = url.lowercase(Locale.ROOT)
-        if ("youtube.com/watch" in lower || "youtu.be/" in lower || "/shorts/" in lower || "/live/" in lower) return true
-        if ("globoplay" in lower) return Regex("/v/\\d+").containsMatchIn(lower)
-        if ("/busca" in lower || "/search" in lower) return false
-        if (source.linkHints.any { hint -> hint.isNotBlank() && lower.contains(hint.lowercase(Locale.ROOT)) }) return true
-        return listOf("/video/", "/videos/", "/assistir/", "/jornalismo/").any { it in lower }
+        val uri = runCatching { URI(url) }.getOrNull() ?: return false
+        val scheme = uri.scheme?.lowercase(Locale.ROOT).orEmpty()
+        if (scheme != "http" && scheme != "https") return false
+        val host = uri.host?.lowercase(Locale.ROOT).orEmpty()
+        if (host.isBlank()) return false
+
+        if (host == "youtu.be" || host == "youtube.com" || host.endsWith(".youtube.com")) {
+            return youtubeVideoId(uri).length >= 6
+        }
+
+        val path = uri.path.orEmpty()
+        val normalizedPath = path.lowercase(Locale.ROOT).trimEnd('/').ifBlank { "/" }
+        if (
+            normalizedPath in setOf("/videos", "/video", "/ao-vivo", "/busca", "/search", "/categorias/jornalismo") ||
+            "/busca" in normalizedPath || "/search" in normalizedPath
+        ) return false
+
+        val globoplaySource =
+            "globoplay" in source.id.lowercase(Locale.ROOT) ||
+                "globoplay.globo.com" in source.landingUrl.lowercase(Locale.ROOT) ||
+                "globoplay.globo.com" in source.searchUrlTemplate.lowercase(Locale.ROOT)
+        if (globoplaySource) return Regex("/v/[0-9]+/?$", RegexOption.IGNORE_CASE).containsMatchIn(path)
+
+        return when {
+            source.id == "video-r7-record" ->
+                hasSpecificSuffix(path, "/videos/") || hasSpecificSuffix(path, "/video/")
+            source.id.startsWith("video-r7-") -> source.linkHints.any { hasSpecificSuffix(path, it) }
+            source.id == "video-sbt-news" -> hasSpecificSuffix(path, "/videos/")
+            source.id == "video-cnn-brasil" ->
+                hasSpecificSuffix(path, "/videos/") || hasSpecificSuffix(path, "/video/")
+            source.id.startsWith("video-band") -> source.linkHints.any { hasSpecificSuffix(path, it) }
+            else -> source.linkHints.any { hasSpecificSuffix(path, it) }
+        }
+    }
+
+    private fun hasSpecificSuffix(path: String, marker: String): Boolean {
+        val lowerPath = path.lowercase(Locale.ROOT)
+        val index = lowerPath.indexOf(marker.lowercase(Locale.ROOT))
+        if (index < 0) return false
+        val suffix = path.substring(index + marker.length).trim('/')
+        if (suffix.length < 4) return false
+        val normalized = normalize(suffix)
+        return normalized.isNotBlank() && normalized !in setOf(
+            "videos", "video", "ao vivo", "todos os videos", "ultimos videos",
+        )
+    }
+
+    private fun youtubeVideoId(uri: URI): String {
+        val host = uri.host?.lowercase(Locale.ROOT).orEmpty()
+        val path = uri.path.orEmpty()
+        return when {
+            host == "youtu.be" -> path.trim('/').substringBefore('/')
+            path.equals("/watch", ignoreCase = true) ->
+                uri.rawQuery.orEmpty().split('&').firstOrNull { it.startsWith("v=") }?.substringAfter('=').orEmpty()
+            path.startsWith("/shorts/", ignoreCase = true) -> path.substringAfter("/shorts/").substringBefore('/')
+            path.startsWith("/live/", ignoreCase = true) -> path.substringAfter("/live/").substringBefore('/')
+            else -> ""
+        }
     }
 
     private fun absolute(base: String, raw: String): String {
@@ -477,6 +535,12 @@ class VideoSearchClient {
 
     private fun canonical(url: String): String = runCatching {
         val uri = URI(url)
-        URI(uri.scheme, uri.authority, uri.path, null, null).toString().trimEnd('/').lowercase(Locale.ROOT)
+        val host = uri.host?.lowercase(Locale.ROOT).orEmpty()
+        if (host == "youtu.be" || host == "youtube.com" || host.endsWith(".youtube.com")) {
+            val id = youtubeVideoId(uri)
+            if (id.isNotBlank()) return@runCatching "https://www.youtube.com/watch?v=$id"
+        }
+        URI(uri.scheme, uri.authority, uri.path, null, null)
+            .toString().trimEnd('/').lowercase(Locale.ROOT)
     }.getOrDefault(url.trimEnd('/').lowercase(Locale.ROOT))
 }
