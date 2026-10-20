@@ -1,6 +1,5 @@
 package br.com.centralmidia.android.automation
 
-import android.app.Service
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.os.Build
@@ -49,33 +48,69 @@ class MonitoringWorker(
             return ListenableWorker.Result.success()
         }
 
+        val kind = inputData.getString("kind").orEmpty()
+
         return try {
-            when (
-                inputData.getString(
-                    "kind",
-                )
-                    .orEmpty()
-            ) {
-                "demands" ->
-                    runDemands(
-                        config,
-                    )
+            // Notícias e demandas também podem fazer várias consultas em série.
+            // Promover essas tarefas a foreground enquanto estão realmente em
+            // execução reduz a chance de o Android interrompê-las em segundo plano.
+            // Vídeos já fazem a promoção depois de confirmar que há um horário
+            // vencido a processar.
+            when (kind) {
+                "demands" -> {
+                    if (config.demands) {
+                        setForeground(foregroundInfo("demands"))
+                    }
+                    runDemands(config)
+                }
 
-                "videos" ->
-                    runVideos(
-                        config,
-                    )
+                "videos" -> runVideos(config)
 
-                else ->
-                    runNews(
-                        config,
-                    )
+                else -> {
+                    if (config.news) {
+                        setForeground(foregroundInfo("news"))
+                    }
+                    runNews(config)
+                }
             }
         } catch (
             error: Exception,
         ) {
             ListenableWorker.Result.retry()
         }
+    }
+
+    private fun foregroundInfo(kind: String): ForegroundInfo {
+        val (notificationId, title, description) = when (kind) {
+            "demands" -> Triple(
+                DEMANDS_PROGRESS_NOTIFICATION_ID,
+                "Central • monitorando demandas",
+                "Busca automática de demandas em andamento. Pode apagar a tela.",
+            )
+
+            else -> Triple(
+                NEWS_PROGRESS_NOTIFICATION_ID,
+                "Central • buscando notícias",
+                "Busca automática de notícias em andamento. Pode apagar a tela.",
+            )
+        }
+
+        val serviceType =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            } else {
+                0
+            }
+
+        return ForegroundInfo(
+            notificationId,
+            NotificationHelper.buildSearchProgress(
+                applicationContext,
+                title,
+                description,
+            ),
+            serviceType,
+        )
     }
 
     private fun runNews(
@@ -400,6 +435,10 @@ class MonitoringWorker(
                 subject,
             ) in db.demands()
         ) {
+            if (isStopped) {
+                return ListenableWorker.Result.retry()
+            }
+
             val first =
                 client.search(
                     subject,
@@ -511,16 +550,6 @@ class MonitoringWorker(
         // A busca de vídeo pode varrer muitas fontes. Como trabalho longo do
         // WorkManager, promovemos o Worker a foreground para que continue
         // mesmo com a tela apagada e sem depender da Activity aberta.
-        val serviceType =
-            if (
-                Build.VERSION.SDK_INT >=
-                Build.VERSION_CODES.Q
-            ) {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-            } else {
-                0
-            }
-
         setForeground(
             ForegroundInfo(
                 PROGRESS_NOTIFICATION_ID,
@@ -529,7 +558,7 @@ class MonitoringWorker(
                     "Central • buscando vídeos",
                     "Busca automática das $slot em andamento. Pode apagar a tela.",
                 ),
-                serviceType,
+                dataSyncServiceType(),
             ),
         )
 
@@ -739,105 +768,51 @@ class MonitoringWorker(
         )
     }
 
-    /**
-     * WorkManager não é um despertador de segundo exato. Se o Android estiver
-     * em Doze ele pode atrasar a execução. Por isso escolhemos o horário mais
-     * recente do dia que já venceu e ainda não foi concluído; assim a busca não
-     * é perdida apenas porque a tela ficou apagada.
-     */
+    /** WorkManager não é exato: o Android pode atrasar as tarefas durante o Doze. */
     private fun dueVideoSlot(
         config:
             AutomationPreferences.Config,
     ): Pair<String, String>? {
-        val now =
-            Calendar.getInstance()
-
+        val now = Calendar.getInstance()
         val nowMinutes =
-            now.get(
-                Calendar.HOUR_OF_DAY,
-            ) *
-                60 +
-                now.get(
-                    Calendar.MINUTE,
-                )
+            now.get(Calendar.HOUR_OF_DAY) * 60 +
+                now.get(Calendar.MINUTE)
 
         val due =
             config.videoTimes
-                .mapNotNull {
-                        raw,
-                    ->
-                    val parts =
-                        raw.split(
-                            ":",
-                        )
-
-                    if (
-                        parts.size !=
-                        2
-                    ) {
+                .mapNotNull { raw ->
+                    val parts = raw.split(":")
+                    if (parts.size != 2) {
                         null
                     } else {
-                        val hour =
-                            parts[
-                                0
-                            ]
-                                .toIntOrNull()
-
-                        val minute =
-                            parts[
-                                1
-                            ]
-                                .toIntOrNull()
-
-                        if (
-                            hour ==
-                            null ||
-                            minute ==
-                            null
-                        ) {
+                        val hour = parts[0].toIntOrNull()
+                        val minute = parts[1].toIntOrNull()
+                        if (hour == null || minute == null) {
                             null
                         } else {
-                            Triple(
-                                hour *
-                                    60 +
-                                    minute,
-                                hour,
-                                minute,
-                            )
+                            Triple(hour * 60 + minute, hour, minute)
                         }
                     }
                 }
-                .filter {
-                    it.first <=
-                        nowMinutes
-                }
-                .maxByOrNull {
-                    it.first
-                }
+                .filter { it.first <= nowMinutes }
+                .maxByOrNull { it.first }
                 ?: return null
 
-        val day =
-            SimpleDateFormat(
-                "yyyy-MM-dd",
-                Locale.US,
-            )
-                .format(
-                    Date(),
-                )
-
-        val slot =
-            "%02d:%02d"
-                .format(
-                    due.second,
-                    due.third,
-                )
-
-        return day to
-            slot
+        val day = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        val slot = "%02d:%02d".format(due.second, due.third)
+        return day to slot
     }
 
+    private fun dataSyncServiceType(): Int =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+        } else {
+            0
+        }
+
     companion object {
-        private const val PROGRESS_NOTIFICATION_ID =
-            22_000
+        private const val PROGRESS_NOTIFICATION_ID = 22_000
+        private const val NEWS_PROGRESS_NOTIFICATION_ID = 22_001
+        private const val DEMANDS_PROGRESS_NOTIFICATION_ID = 22_002
     }
 }
