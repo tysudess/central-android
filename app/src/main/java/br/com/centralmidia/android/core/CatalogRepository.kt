@@ -35,9 +35,38 @@ object CatalogRepository {
             )
         }
 
-        // O workflow continua sincronizando o catálogo oficial do desktop.
-        // Esta fonte é acrescentada somente no Android, sem alterar Windows/Ubuntu.
-        // Se ela entrar futuramente no catálogo desktop, a checagem evita duplicidade.
+        // Garante que os veículos nacionais essenciais estejam disponíveis no Android,
+        // mesmo quando ainda não constam no catálogo sincronizado do desktop.
+        // A checagem evita duplicar fontes já sincronizadas.
+        val nationalUol = NewsSource(
+            id = "nacional-uol",
+            name = "UOL",
+            region = "Nacional",
+            state = "BR",
+            group = "Jornais nacionais",
+            aliases = listOf(
+                "UOL Notícias",
+                "UOL Noticias",
+                "Universo Online",
+                "uol.com.br",
+                "noticias.uol.com.br",
+            ),
+        )
+
+        val revistaVeja = NewsSource(
+            id = "nacional-revista-veja",
+            name = "Revista Veja",
+            region = "Nacional",
+            state = "BR",
+            group = "Jornais nacionais",
+            aliases = listOf(
+                "Veja",
+                "VEJA.com",
+                "Revista VEJA",
+                "veja.abril.com.br",
+            ),
+        )
+
         val tribunaDaBahia = NewsSource(
             id = "ba-tribuna-da-bahia",
             name = "Tribuna da Bahia",
@@ -52,16 +81,32 @@ object CatalogRepository {
             ),
         )
 
-        return if (
-            synced.any {
-                it.id.equals(tribunaDaBahia.id, ignoreCase = true) ||
-                    it.name.equals(tribunaDaBahia.name, ignoreCase = true)
+        val requiredSources = listOf(nationalUol, revistaVeja, tribunaDaBahia)
+        val result = synced.toMutableList()
+
+        for (required in requiredSources) {
+            val index = result.indexOfFirst { existing ->
+                existing.id.equals(required.id, ignoreCase = true) ||
+                    existing.name.equals(required.name, ignoreCase = true) ||
+                    required.aliases.any { alias ->
+                        existing.name.equals(alias, ignoreCase = true)
+                    }
             }
-        ) {
-            synced
-        } else {
-            synced + tribunaDaBahia
+
+            if (index < 0) {
+                result += required
+            } else {
+                val existing = result[index]
+                result[index] = existing.copy(
+                    region = required.region,
+                    state = required.state,
+                    group = required.group,
+                    aliases = (existing.aliases + required.aliases).distinct(),
+                )
+            }
         }
+
+        return result
     }
 
     fun videos(context: Context): List<VideoSource> {
