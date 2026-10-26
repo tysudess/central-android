@@ -21,7 +21,6 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.EditText
-import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.TextView
 import br.com.centralmidia.android.R
@@ -187,6 +186,20 @@ class NewsExtractorActivity : BaseActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val incoming = intent.getStringExtra("url").orEmpty().trim()
+        if (incoming.isNotBlank() && ::urlInput.isInitialized) {
+            urlInput.setText(incoming)
+            status.text = if (resolver.isGoogleNews(incoming)) {
+                "Link recebido. O endereço direto do veículo será resolvido ao extrair."
+            } else {
+                "Link recebido da aba Notícias. Toque em Extrair matéria."
+            }
+        }
+    }
+
     override fun onDestroy() {
         if (::web.isInitialized) {
             runCatching {
@@ -231,16 +244,29 @@ class NewsExtractorActivity : BaseActivity() {
             this,
             "https://veiculo.com.br/noticia/materia-completa",
         )
-
-        box.addView(
-            urlInput,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(50),
-            ).apply {
-                topMargin = dp(9)
+        val linkRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        linkRow.addView(urlInput, LinearLayout.LayoutParams(0, dp(50), 1f).apply {
+            topMargin = dp(9)
+            marginEnd = dp(7)
+        })
+        linkRow.addView(
+            MobileUi.button(this, "Colar link", false, MobileUi.NAVY, R.drawable.ic_copy) {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                val pasted = clipboard?.primaryClip?.takeIf { it.itemCount > 0 }
+                    ?.getItemAt(0)?.coerceToText(this)?.toString()?.trim().orEmpty()
+                if (pasted.isBlank()) toast("A área de transferência está vazia.")
+                else {
+                    urlInput.setText(pasted)
+                    urlInput.setSelection(urlInput.text.length)
+                    status.text = "Link colado. Toque em Extrair matéria."
+                }
             },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(50)).apply { topMargin = dp(9) },
         )
+        box.addView(linkRow, MobileUi.match())
 
         box.addView(
             MobileUi.button(
@@ -270,85 +296,25 @@ class NewsExtractorActivity : BaseActivity() {
             MobileUi.match(dp(6)),
         )
 
-        val scroll = HorizontalScrollView(this).apply {
-            isHorizontalScrollBarEnabled = false
+        val actionGrid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        fun actionRow(first: View, second: View? = null) {
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            row.addView(first, LinearLayout.LayoutParams(0, dp(42), 1f).apply {
+                if (second != null) marginEnd = dp(6)
+            })
+            if (second != null) row.addView(second, LinearLayout.LayoutParams(0, dp(42), 1f))
+            actionGrid.addView(row, MobileUi.match(if (actionGrid.childCount > 0) dp(6) else 0))
         }
-
-        val actions = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-        }
-
-        actions.addView(
-            MobileUi.button(
-                this,
-                "Limpar",
-                false,
-                MobileUi.PINK,
-                R.drawable.ic_delete,
-            ) {
-                clearAll()
-            },
-            actionLp(),
+        actionRow(
+            MobileUi.button(this, "Limpar", false, MobileUi.PINK, R.drawable.ic_delete) { clearAll() },
+            MobileUi.button(this, "Abrir matéria", false, MobileUi.NAVY, R.drawable.ic_open) { openCurrentArticle() },
         )
-
-        actions.addView(
-            MobileUi.button(
-                this,
-                "Abrir matéria",
-                false,
-                MobileUi.NAVY,
-                R.drawable.ic_open,
-            ) {
-                openCurrentArticle()
-            },
-            actionLp(),
+        actionRow(
+            MobileUi.button(this, "Copiar matéria", false, MobileUi.NAVY, R.drawable.ic_copy) { copyText() },
+            MobileUi.button(this, "Salvar TXT", false, MobileUi.BLUE, R.drawable.ic_news) { saveText() },
         )
-
-        actions.addView(
-            MobileUi.button(
-                this,
-                "Copiar matéria",
-                false,
-                MobileUi.NAVY,
-                R.drawable.ic_copy,
-            ) {
-                copyText()
-            },
-            actionLp(),
-        )
-
-        actions.addView(
-            MobileUi.button(
-                this,
-                "Salvar TXT",
-                false,
-                MobileUi.BLUE,
-                R.drawable.ic_news,
-            ) {
-                saveText()
-            },
-            actionLp(),
-        )
-
-        actions.addView(
-            MobileUi.button(
-                this,
-                "Compartilhar",
-                false,
-                MobileUi.GREEN,
-                R.drawable.ic_share,
-            ) {
-                shareText()
-            },
-            actionLp(),
-        )
-
-        scroll.addView(actions)
-
-        box.addView(
-            scroll,
-            MobileUi.match(dp(9)),
-        )
+        actionRow(MobileUi.button(this, "Compartilhar", false, MobileUi.GREEN, R.drawable.ic_share) { shareText() })
+        box.addView(actionGrid, MobileUi.match(dp(9)))
 
         card.addView(box)
         return card

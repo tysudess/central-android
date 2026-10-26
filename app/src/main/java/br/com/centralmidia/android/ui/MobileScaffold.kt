@@ -1221,26 +1221,15 @@ object MobileScaffold {
             },
         )
 
-        selectedView?.let {
-                active,
-            ->
+        selectedView?.let { active ->
+            // Preserve a posição atual. Só mova quando o item escolhido estiver fora da área visível.
             scroll.post {
-                val desired =
-                    (
-                        active.left -
-                            scroll.width /
-                            2 +
-                            active.width /
-                            2
-                        )
-                        .coerceAtLeast(
-                            0,
-                        )
-
-                scroll.smoothScrollTo(
-                    desired,
-                    0,
-                )
+                val viewportLeft = scroll.scrollX
+                val viewportRight = viewportLeft + scroll.width
+                when {
+                    active.left < viewportLeft -> scroll.smoothScrollTo((active.left - activity.dp(8)).coerceAtLeast(0), 0)
+                    active.right > viewportRight -> scroll.smoothScrollTo((active.right - scroll.width + activity.dp(8)).coerceAtLeast(0), 0)
+                }
             }
         }
 
@@ -1264,21 +1253,12 @@ object MobileScaffold {
                 activity,
                 cls,
             ).addFlags(
-                Intent.FLAG_ACTIVITY_REORDER_TO_FRONT,
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP,
             ),
         )
 
-        if (forward) {
-            activity.overridePendingTransition(
-                R.anim.central_slide_in_right,
-                R.anim.central_slide_out_left,
-            )
-        } else {
-            activity.overridePendingTransition(
-                R.anim.central_slide_in_left,
-                R.anim.central_slide_out_right,
-            )
-        }
+        // Troca de área sem efeito de deslizamento entre telas.
+        activity.overridePendingTransition(0, 0)
     }
 
     private const val MODULE_SHELL_TAG =
