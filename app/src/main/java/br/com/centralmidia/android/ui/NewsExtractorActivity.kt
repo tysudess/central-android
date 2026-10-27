@@ -674,7 +674,275 @@ class NewsExtractorActivity : BaseActivity() {
         )
     }
 
+    /**
+     * Replica no Android a estratégia específica usada pelo motor Windows para o Valor:
+     * tenta a URL publicada e a rota /google/amp/, compara os corpos e, quando
+     * o corpo parece curto, examina também o HTML entregue publicamente pelo site.
+     */
     private fun extractWithHttp(
+        url: String,
+    ): ExtractedArticle {
+        if (!isValorUrl(url)) {
+            return extractWithHttpSingle(url)
+        }
+
+        val routes = linkedSetOf(url.trim())
+        valorAlternativeUrl(url)?.let { routes.add(it) }
+        var best: ExtractedArticle? = null
+        val failures = mutableListOf<String>()
+
+        for (route in routes) {
+            var routeArticle: ExtractedArticle? = null
+
+            try {
+                routeArticle = extractWithHttpSingle(route).copy(url = url)
+                best = chooseBetterValorArticle(best, routeArticle)
+            } catch (error: Exception) {
+                failures += "$route: ${error.message.orEmpty()}"
+            }
+
+            if (best == null || valorBodyLooksShort(best.text)) {
+                try {
+                    val html = downloadValorHtml(route)
+                    val candidate = extractValorArticleFromHtml(
+                        html = html,
+                        finalUrl = route,
+                        originalUrl = url,
+                        reference = routeArticle ?: best,
+                    )
+                    best = chooseBetterValorArticle(best, candidate)
+                } catch (error: Exception) {
+                    failures += "$route [HTML]: ${error.message.orEmpty()}"
+                }
+            }
+        }
+
+        val result = best?.takeIf { it.text.isNotBlank() }
+            ?: throw IllegalStateException(
+                "Não foi possível extrair a matéria do Valor pelas rotas públicas disponíveis." +
+                    if (failures.isEmpty()) "" else " ${failures.joinToString(" | ")}",
+            )
+
+        return normalizeArticle(result.copy(url = url))
+    }
+
+    private fun isValorUrl(url: String): Boolean =
+        runCatching {
+            val host = URI(url).host.orEmpty().lowercase()
+            host == "valor.globo.com" || host.endsWith(".valor.globo.com")
+        }.getOrDefault(false)
+
+    /** Cria a rota alternativa idêntica à do motor Windows: /google/amp/. */
+    private fun valorAlternativeUrl(url: String): String? = runCatching {
+        val uri = URI(url)
+        val host = uri.host.orEmpty().lowercase()
+        if (host != "valor.globo.com" && !host.endsWith(".valor.globo.com")) {
+            return@runCatching null
+        }
+
+        val rawPath = uri.rawPath.orEmpty().ifBlank { "/" }
+        val alternatePath = if (rawPath.startsWith("/google/amp/")) {
+            rawPath.removePrefix("/google/amp")
+        } else {
+            "/google/amp" + if (rawPath.startsWith("/")) rawPath else "/$rawPath"
+        }
+        val pathIndex = url.indexOf(rawPath)
+        if (pathIndex < 0) return@runCatching null
+        url.substring(0, pathIndex) + alternatePath + url.substring(pathIndex + rawPath.length)
+    }.getOrNull()?.takeIf { it.isNotBlank() && it != url }
+
+    private fun valorBodyLooksShort(text: String): Boolean {
+        val clean = text.trim()
+        val blocks = clean.split(Regex("""\n\s*\n+""")).filter { it.isNotBlank() }
+        return clean.length < VALOR_MIN_BODY_CHARS || blocks.size < VALOR_MIN_BODY_BLOCKS
+    }
+
+    private fun chooseBetterValorArticle(
+        current: ExtractedArticle?,
+        candidate: ExtractedArticle?,
+    ): ExtractedArticle? {
+        if (current == null) return candidate
+        if (candidate == null) return current
+        return if (candidate.text.trim().length > current.text.trim().length) candidate else current
+    }
+
+    /** Download do HTML público: mesmo User-Agent, idioma e fallback de duas tentativas do Windows. */
+    private fun downloadValorHtml(url: String): String {
+        var lastError: Exception? = null
+        for (attempt in 1..2) {
+            try {
+                val request = Request.Builder()
+                    .url(url)
+                    .header(
+                        "User-Agent",
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/149.0.0.0 Safari/537.36",
+                    )
+                    .header("Accept-Language", "pt-BR,pt;q=0.9,en;q=0.8")
+                    .header("Accept", "text/html,application/xhtml+xml")
+                    .header("Connection", "close")
+                    .build()
+
+                return http.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        error("HTTP ${response.code} ao acessar o Valor.")
+                    }
+                    response.body?.string().orEmpty().also {
+                        if (it.isBlank()) error("O Valor retornou HTML vazio.")
+                    }
+                }
+            } catch (error: Exception) {
+                lastError = error
+                if (attempt == 2) break
+            }
+        }
+        throw lastError ?: IllegalStateException("Não foi possível baixar o HTML público do Valor.")
+    }
+
+    /** Extrai o maior corpo visível do HTML, com os mesmos filtros de conteúdo do motor Windows. */
+    private fun extractValorArticleFromHtml(
+        html: String,
+        finalUrl: String,
+        originalUrl: String,
+        reference: ExtractedArticle?,
+    ): ExtractedArticle? {
+        val doc = Jsoup.parse(html, finalUrl)
+        val canonicalUrl = doc.selectFirst("link[rel=canonical]")
+            ?.absUrl("href")
+            .orEmpty()
+            .trim()
+            .ifBlank { finalUrl }
+            .substringBefore("#")
+        val structured = extractStructuredArticle(doc, canonicalUrl)
+
+        fun metaValue(selector: String): String =
+            doc.selectFirst(selector)?.attr("content").orEmpty().trim()
+
+        val title = reference?.title.orEmpty().ifBlank { structured?.title.orEmpty() }
+            .ifBlank { metaValue("meta[property=og:title]") }
+            .ifBlank { doc.selectFirst("h1")?.text().orEmpty() }
+            .ifBlank { doc.title() }
+        val source = reference?.source.orEmpty().ifBlank { structured?.source.orEmpty() }
+            .ifBlank { metaValue("meta[property=og:site_name]") }
+            .ifBlank { "Valor Econômico" }
+        val date = reference?.date.orEmpty().ifBlank { structured?.date.orEmpty() }
+            .ifBlank { metaValue("meta[property=article:published_time]") }
+            .ifBlank { metaValue("meta[name=date]") }
+            .ifBlank { doc.selectFirst("time[datetime]")?.attr("datetime").orEmpty() }
+        val author = reference?.author.orEmpty().ifBlank { structured?.author.orEmpty() }
+            .ifBlank { metaValue("meta[name=author]") }
+            .ifBlank { metaValue("meta[property=article:author]") }
+        val subtitle = reference?.subtitle.orEmpty().ifBlank { structured?.subtitle.orEmpty() }
+            .ifBlank { metaValue("meta[property=og:description]") }
+            .ifBlank { metaValue("meta[name=description]") }
+
+        val metadata = ExtractedArticle(
+            title = title,
+            source = source,
+            date = date,
+            author = author,
+            subtitle = subtitle,
+            text = "",
+            url = originalUrl,
+        )
+        val visibleBody = extractVisibleValorBody(doc, metadata)
+        val structuredBody = structured?.text.orEmpty().trim()
+        val existingBody = reference?.text.orEmpty().trim()
+        val body = listOf(visibleBody, structuredBody, existingBody)
+            .filter { it.isNotBlank() }
+            .maxByOrNull { it.length }
+            .orEmpty()
+
+        if (body.isBlank()) return null
+        return normalizeArticle(metadata.copy(text = body, url = originalUrl))
+    }
+
+    private fun extractVisibleValorBody(
+        doc: org.jsoup.nodes.Document,
+        metadata: ExtractedArticle,
+    ): String {
+        val selectors = listOf(
+            "[itemprop=articleBody]",
+            ".mc-article-body",
+            ".content-text",
+            "[class*=article-body]",
+            "[class*=article-content]",
+            "article",
+            "main",
+        )
+        val candidates = linkedSetOf<org.jsoup.nodes.Element>()
+        selectors.forEach { selector ->
+            doc.select(selector).forEach { element ->
+                if (!isValorHiddenOrRestricted(element)) candidates.add(element)
+            }
+        }
+
+        val container = candidates.maxByOrNull { valorContainerScore(it) } ?: return ""
+        val excluded = setOf(
+            metadata.title,
+            metadata.subtitle,
+            metadata.author,
+            metadata.date,
+        ).filter { it.isNotBlank() }.map { it.trim().lowercase() }.toSet()
+        val output = mutableListOf<String>()
+
+        container.select("p, h2, h3, blockquote").forEach { element ->
+            if (isValorHiddenOrRestricted(element)) return@forEach
+            val text = normalizeText(element.text()).trim()
+            if (text.isBlank() || text.lowercase() in excluded || isValorJunk(text)) return@forEach
+
+            val tag = element.normalName()
+            if (valorLinkDensity(element) > 0.70 && text.length < 340) return@forEach
+            if ((tag == "p" || tag == "blockquote") && text.length < 45) return@forEach
+            if ((tag == "h2" || tag == "h3") && text.length < 10) return@forEach
+            if (output.lastOrNull() != text) output += text
+        }
+        return output.joinToString("\n\n").trim()
+    }
+
+    private fun valorContainerScore(element: org.jsoup.nodes.Element): Int {
+        var score = 0
+        element.select("p, blockquote").forEach { paragraph ->
+            if (isValorHiddenOrRestricted(paragraph)) return@forEach
+            val textLength = paragraph.text().trim().length
+            if (textLength >= 60) score += textLength.coerceAtMost(1500)
+        }
+        return score
+    }
+
+    private fun isValorHiddenOrRestricted(element: org.jsoup.nodes.Element): Boolean {
+        var current: org.jsoup.nodes.Element? = element
+        val restricted = Regex(
+            """(?:^|[\s_-])(paywall|signwall|subscription|subscriber|subscribe|premium-wall|login-wall|content-blocked|assinatura|assine)(?:[\s_-]|$)""",
+            RegexOption.IGNORE_CASE,
+        )
+        while (current != null) {
+            if (current.hasAttr("hidden") || current.attr("aria-hidden").equals("true", ignoreCase = true)) {
+                return true
+            }
+            val style = current.attr("style").lowercase().replace(Regex("""\s+"""), "")
+            if ("display:none" in style || "visibility:hidden" in style) return true
+            val marker = "${current.id()} ${current.classNames().joinToString(" ")}".lowercase()
+            if (restricted.containsMatchIn(marker)) return true
+            current = current.parent()
+        }
+        return false
+    }
+
+    private fun isValorJunk(value: String): Boolean {
+        val text = value.trim()
+        return text.matches(Regex("^(publicidade|anúncio|anuncio|compartilhar|salvar|ouvir|mais lidas|mais lidos|só para assinantes|matéria exclusiva para assinantes)$", RegexOption.IGNORE_CASE)) ||
+            text.matches(Regex("""^(leia|veja|confira)\s+(tamb[eé]m|mais)\b.*""", RegexOption.IGNORE_CASE)) ||
+            text.matches(Regex("""^(assine|j[aá] é assinante|fa[cç]a login)\b.*""", RegexOption.IGNORE_CASE))
+    }
+
+    private fun valorLinkDensity(element: org.jsoup.nodes.Element): Double {
+        val total = element.text().trim().length
+        if (total == 0) return 0.0
+        val linked = element.select("a").sumOf { it.text().trim().length }
+        return linked.toDouble() / total.toDouble()
+    }
+
+    private fun extractWithHttpSingle(
         url: String,
     ): ExtractedArticle {
         val request = Request.Builder()
@@ -2269,6 +2537,12 @@ class NewsExtractorActivity : BaseActivity() {
 
         private const val MIN_PARAGRAPH =
             30
+
+        private const val VALOR_MIN_BODY_CHARS =
+            1_200
+
+        private const val VALOR_MIN_BODY_BLOCKS =
+            3
 
         private const val DESKTOP_UA =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
