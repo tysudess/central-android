@@ -3,6 +3,7 @@ package br.com.centralmidia.android.core
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import org.json.JSONObject
 import java.net.URI
 import java.net.URLEncoder
 import java.text.Normalizer
@@ -69,8 +70,38 @@ class VideoSearchClient {
             }
 
             if (cancelled()) break
-            for (candidate in candidates) {
-                val enriched = match(candidate, job.source, terms, demands, fromMs, toMs) ?: continue
+
+            // O Windows enriquece os links candidatos abrindo a própria página do vídeo.
+            // Sem isso, muitos portais entregam apenas título/link: a data fica 0 e o
+            // resumo não contém a tag, então o filtro Android descartava o resultado.
+            var resolvedInJob = 0
+            val resolveLimit = if (job.scanSource) MAX_SCAN_RESOLVE_PER_JOB else MAX_RESOLVED_PER_QUERY
+            for ((candidateIndex, candidate) in candidates.withIndex()) {
+                if (cancelled()) break
+                if ((candidateIndex + 1) % 4 == 0) {
+                    onProgress(Progress(
+                        completed, jobs.size, collected.size, errors,
+                        job.source.name, "Verificando dados dos vídeos (${candidateIndex + 1}/${candidates.size})",
+                    ))
+                }
+
+                val shallowBody = "${candidate.title} ${candidate.summary}"
+                val shallowTermMatch = terms.any { phraseMatches(shallowBody, it) }
+                val shallowDemandMatch = demands.any { demand ->
+                    sourceMatchesDemand(job.source, demand.second) && phraseMatches(shallowBody, demand.third)
+                }
+                val requiresPageResolution = candidate.publishedAt <= 0L ||
+                    (!shallowTermMatch && !shallowDemandMatch) || candidate.summary.length < MIN_USEFUL_SUMMARY
+
+                var prepared = candidate
+                if (requiresPageResolution && resolvedInJob < resolveLimit && isSpecificVideoUrl(job.source, candidate.link)) {
+                    resolvedInJob++
+                    prepared = runCatching {
+                        resolveDirectVideoPage(job.source, candidate)
+                    }.getOrElse { candidate }
+                }
+
+                val enriched = match(prepared, job.source, terms, demands, fromMs, toMs) ?: continue
                 val key = canonical(enriched.link)
                 val previous = collected[key]
                 collected[key] = if (previous == null) enriched else merge(previous, enriched)
@@ -198,41 +229,186 @@ class VideoSearchClient {
         val pageUrl = "https://www.youtube.com/$normalized/videos"
         val page = fetch(pageUrl)
         val html = page.outerHtml()
+        val capturedAt = System.currentTimeMillis()
+
+        // Igual ao Windows: a aba /videos costuma trazer até 30-40 itens; o feed
+        // sozinho normalmente expõe só os 15 mais recentes. As duas fontes são unidas.
+        val tabItems = parseYouTubeVideosTab(source, html, capturedAt)
         val channelId = sequenceOf(
-            Regex("\"channelId\":\"(UC[A-Za-z0-9_-]{20,})\"").find(html)?.groupValues?.getOrNull(1),
+            Regex("\"channelId\"\\s*:\\s*\"(UC[A-Za-z0-9_-]{20,})\"").find(html)?.groupValues?.getOrNull(1),
+            Regex("\"externalId\"\\s*:\\s*\"(UC[A-Za-z0-9_-]{20,})\"").find(html)?.groupValues?.getOrNull(1),
+            Regex("\"browseId\"\\s*:\\s*\"(UC[A-Za-z0-9_-]{20,})\"").find(html)?.groupValues?.getOrNull(1),
             page.selectFirst("meta[itemprop=channelId]")?.attr("content"),
         ).firstOrNull { !it.isNullOrBlank() }.orEmpty()
 
-        if (channelId.isBlank()) return parseDocument(page, source, pageUrl, 44)
+        val feedItems = if (channelId.isBlank()) {
+            emptyList()
+        } else {
+            runCatching {
+                val feedUrl = "https://www.youtube.com/feeds/videos.xml?channel_id=$channelId"
+                val xml = Jsoup.connect(feedUrl)
+                    .userAgent(BROWSER_UA)
+                    .header("Accept-Language", "pt-BR,pt;q=0.9,en;q=0.7")
+                    .timeout(18_000)
+                    .followRedirects(true)
+                    .ignoreHttpErrors(true)
+                    .maxBodySize(MAX_HTML_BODY_BYTES)
+                    .parser(org.jsoup.parser.Parser.xmlParser())
+                    .get()
 
-        val feedUrl = "https://www.youtube.com/feeds/videos.xml?channel_id=$channelId"
-        val xml = Jsoup.connect(feedUrl)
-            .userAgent("Mozilla/5.0 CentralAndroid/1.0")
-            .timeout(18_000)
-            .ignoreHttpErrors(true)
-            .parser(org.jsoup.parser.Parser.xmlParser())
-            .get()
+                xml.select("entry").mapNotNull { entry ->
+                    val title = entry.selectFirst("title")?.text()?.trim().orEmpty()
+                    val link = entry.selectFirst("link[href]")?.attr("href")?.trim().orEmpty()
+                    val published = entry.selectFirst("published")?.text()?.trim().orEmpty()
+                    if (!usefulTitle(title) || !isYouTubeVideoLink(link)) return@mapNotNull null
+                    val description = entry.selectFirst("description, media|description")?.text()?.trim().orEmpty()
+                    VideoItem(
+                        title = title,
+                        sourceId = source.id,
+                        sourceName = source.name,
+                        publishedAt = parseDate(published) ?: 0L,
+                        link = canonical(link),
+                        summary = listOf(description, "Canal oficial • ${source.group}")
+                            .filter { it.isNotBlank() }.distinct().joinToString(" • ").take(1000),
+                    )
+                }
+            }.getOrDefault(emptyList())
+        }
 
-        return xml.select("entry").mapNotNull { entry ->
-            val title = entry.selectFirst("title")?.text()?.trim().orEmpty()
-            val link = entry.selectFirst("link[href]")?.attr("href")?.trim().orEmpty()
-            val published = entry.selectFirst("published")?.text()?.trim().orEmpty()
-            if (!usefulTitle(title) || link.isBlank()) return@mapNotNull null
-            VideoItem(
-                title = title,
-                sourceId = source.id,
-                sourceName = source.name,
-                publishedAt = parseDate(published) ?: 0L,
-                link = link,
-                summary = entry.selectFirst("media|description")?.text().orEmpty(),
-            )
-        }.take(40)
+        // Feed tem data absoluta, portanto prevalece sobre a data relativa do HTML.
+        val merged = linkedMapOf<String, VideoItem>()
+        (feedItems + tabItems).forEach { item ->
+            val key = canonical(item.link)
+            val previous = merged[key]
+            if (previous == null || (previous.publishedAt <= 0L && item.publishedAt > 0L)) {
+                merged[key] = item
+            }
+        }
+
+        // Alguns canais não expõem channelId ou feed. Mantém o fallback HTML comum.
+        if (merged.isEmpty()) {
+            parseDocument(page, source, pageUrl, MAX_YOUTUBE_ITEMS_PER_SCAN).forEach { item ->
+                merged.putIfAbsent(canonical(item.link), item)
+            }
+        }
+        return merged.values.take(MAX_YOUTUBE_ITEMS_PER_SCAN)
     }
+
+    /** Lê o JSON público videoRenderer da aba YouTube, como parse_videos_tab no Windows. */
+    private fun parseYouTubeVideosTab(
+        source: VideoSource,
+        html: String,
+        capturedAt: Long,
+    ): List<VideoItem> {
+        if (html.isBlank()) return emptyList()
+        val marker = Regex("\"videoRenderer\"\\s*:\\s*\\{")
+        val found = linkedMapOf<String, VideoItem>()
+        var cursor = 0
+
+        while (cursor < html.length && found.size < MAX_YOUTUBE_ITEMS_PER_SCAN) {
+            val match = marker.find(html, cursor) ?: break
+            val openBrace = match.range.last
+            cursor = openBrace + 1
+            val json = balancedJsonObject(html, openBrace) ?: continue
+            val obj = runCatching { JSONObject(json) }.getOrNull() ?: continue
+            val videoId = obj.optString("videoId").trim()
+            if (videoId.length < 6) continue
+
+            val title = jsonText(obj.optJSONObject("title"))
+            if (!usefulTitle(title)) continue
+            val publishedText = jsonText(obj.optJSONObject("publishedTimeText"))
+            val description = jsonText(obj.optJSONObject("descriptionSnippet"))
+            val link = "https://www.youtube.com/watch?v=$videoId"
+            val summary = listOf(description, "Canal oficial • ${source.group} • Aba Vídeos")
+                .filter { it.isNotBlank() }.distinct().joinToString(" • ").take(1000)
+
+            found.putIfAbsent(
+                canonical(link),
+                VideoItem(
+                    title = title.take(220),
+                    sourceId = source.id,
+                    sourceName = source.name,
+                    publishedAt = parseRelativeTimestamp(publishedText, capturedAt),
+                    link = link,
+                    summary = summary,
+                ),
+            )
+        }
+        return found.values.toList()
+    }
+
+    /** Obtém o fim de um objeto JSON respeitando strings e escapes. */
+    private fun balancedJsonObject(text: String, start: Int): String? {
+        if (start !in text.indices || text[start] != '{') return null
+        var depth = 0
+        var inString = false
+        var escaped = false
+        for (index in start until text.length) {
+            val ch = text[index]
+            if (inString) {
+                if (escaped) escaped = false
+                else if (ch == '\\') escaped = true
+                else if (ch == '"') inString = false
+                continue
+            }
+            when (ch) {
+                '"' -> inString = true
+                '{' -> depth++
+                '}' -> {
+                    depth--
+                    if (depth == 0) return text.substring(start, index + 1)
+                }
+            }
+        }
+        return null
+    }
+
+    private fun jsonText(value: JSONObject?): String {
+        if (value == null) return ""
+        value.optString("simpleText").takeIf { it.isNotBlank() }?.let { return it.trim() }
+        val runs = value.optJSONArray("runs")
+        if (runs != null) {
+            val joined = buildString {
+                for (index in 0 until runs.length()) {
+                    append(runs.optJSONObject(index)?.optString("text").orEmpty())
+                }
+            }.trim()
+            if (joined.isNotBlank()) return joined
+        }
+        return value.optJSONObject("accessibility")
+            ?.optJSONObject("accessibilityData")
+            ?.optString("label")
+            .orEmpty()
+            .trim()
+    }
+
+    private fun parseRelativeTimestamp(raw: String, capturedAt: Long): Long {
+        val text = normalize(raw)
+        val amount = Regex("(?<!\\d)(\\d+)(?!\\d)").find(text)?.groupValues?.getOrNull(1)?.toLongOrNull()
+            ?: return 0L
+        val multiplier = when {
+            "segundo" in text || "second" in text -> 1_000L
+            "minuto" in text || "minute" in text -> 60_000L
+            "hora" in text || "hour" in text -> 60L * 60_000L
+            "dia" in text || "day" in text -> 24L * 60L * 60_000L
+            "semana" in text || "week" in text -> 7L * 24L * 60L * 60_000L
+            "mes" in text || "month" in text -> 30L * 24L * 60L * 60_000L
+            "ano" in text || "year" in text -> 365L * 24L * 60L * 60_000L
+            else -> return 0L
+        }
+        return (capturedAt - amount * multiplier).coerceAtLeast(1L)
+    }
+
+    private fun isYouTubeVideoLink(link: String): Boolean = runCatching {
+        val uri = URI(link)
+        val host = uri.host.orEmpty().lowercase(Locale.ROOT)
+        host == "youtu.be" || host == "youtube.com" || host.endsWith(".youtube.com")
+    }.getOrDefault(false) && youtubeVideoId(URI(link)).length >= 6
 
     private fun collectForQuery(source: VideoSource, query: String): List<VideoItem> {
         if (source.searchUrlTemplate.isBlank()) return collectSource(source)
         val url = buildSearchUrl(source, query)
-        return parseDocument(fetch(url), source, url, 18)
+        return parseDocument(fetch(url), source, url, 40)
     }
 
     private fun buildSearchUrl(source: VideoSource, raw: String): String {
@@ -248,12 +424,13 @@ class VideoSearchClient {
     }
 
     private fun fetch(url: String): Document = Jsoup.connect(url)
-        .userAgent("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124 Mobile Safari/537.36")
+        .userAgent(BROWSER_UA)
+        .header("Accept-Language", "pt-BR,pt;q=0.9,en;q=0.7")
         .referrer("https://www.google.com/")
         .timeout(18_000)
         .followRedirects(true)
         .ignoreHttpErrors(true)
-        .maxBodySize(4_000_000)
+        .maxBodySize(MAX_HTML_BODY_BYTES)
         .get()
 
     private fun parseDocument(
@@ -364,6 +541,100 @@ class VideoSearchClient {
         return null
     }
 
+    /**
+     * Equivalente ao DirectVideoPageResolver do Windows. A listagem do portal
+     * geralmente não contém a data real nem a descrição completa; a página
+     * individual enriquece esses campos antes de filtrar o período e as tags.
+     */
+    private fun resolveDirectVideoPage(source: VideoSource, candidate: VideoItem): VideoItem {
+        if (!isSpecificVideoUrl(source, candidate.link)) return candidate
+        val doc = fetch(candidate.link)
+        val finalPageUrl = doc.location().ifBlank { candidate.link }
+        val canonicalCandidate = listOf(
+            doc.selectFirst("link[rel=canonical]")?.absUrl("href").orEmpty(),
+            doc.selectFirst("meta[property=og:url]")?.attr("content").orEmpty(),
+            finalPageUrl,
+        ).firstOrNull { isSpecificVideoUrl(source, it) && it.startsWith("http", ignoreCase = true) }
+            .orEmpty().ifBlank { candidate.link }
+
+        fun meta(vararg selectors: String): List<String> = selectors.mapNotNull { selector ->
+            doc.selectFirst(selector)?.let { element ->
+                (element.attr("content").ifBlank { element.attr("datetime") }
+                    .ifBlank { element.text() }).trim().takeIf { it.isNotBlank() }
+            }
+        }
+
+        val title = (meta(
+            "meta[property=og:title]", "meta[name=twitter:title]", "meta[itemprop=name]",
+        ) + listOfNotNull(doc.selectFirst("h1")?.text(), candidate.title, doc.title()))
+            .firstOrNull { usefulTitle(it) }
+            ?.trim()
+            ?.take(220)
+            .orEmpty()
+            .ifBlank { candidate.title }
+
+        val summaries = linkedSetOf<String>()
+        summaries += meta(
+            "meta[property=og:description]", "meta[name=twitter:description]",
+            "meta[name=description]", "meta[itemprop=description]",
+            "meta[property=og:video:tag]",
+        )
+        summaries += candidate.summary.trim()
+
+        // Portais frequentemente colocam a descrição completa somente dentro de
+        // VideoObject/JSON-LD ou do JSON inicial da página.
+        val embeddedTextPattern = Regex(
+            """["'](?:description|seoDescription|summary|caption|articleBody|headline|alternativeHeadline)["']\s*:\s*["']((?:\\.|[^"'\\]){2,1800})["']""",
+            RegexOption.IGNORE_CASE,
+        )
+        doc.select("script[type=application/ld+json], script").take(80).forEach { script ->
+            val raw = script.data().ifBlank { script.html() }
+            embeddedTextPattern.findAll(raw).take(12).forEach { match ->
+                val value = match.groupValues.getOrNull(1).orEmpty()
+                    .replace("\\n", " ")
+                    .replace("\\u0026", "&")
+                    .replace("\\/", "/")
+                    .replace("\\\"", "\"")
+                    .replace(Regex("\\s+"), " ")
+                    .trim()
+                if (value.length >= 20 && usefulTitle(value)) summaries += value
+            }
+        }
+
+        val publishedValues = mutableListOf<String>()
+        publishedValues += meta(
+            "meta[property=article:published_time]", "meta[property=og:published_time]",
+            "meta[name=date]", "meta[name=publish-date]", "meta[name=parsely-pub-date]",
+            "meta[itemprop=datePublished]", "meta[itemprop=uploadDate]",
+            "time[datetime]", "[itemprop=datePublished]", "[itemprop=uploadDate]",
+        )
+        doc.select("script[type=application/ld+json], script").take(80).forEach { script ->
+            val raw = script.data().ifBlank { script.html() }
+            Regex(
+                """["'](?:datePublished|uploadDate|dateCreated|publishedAt|publicationDate|publishedDate)["']\s*:\s*["']([^"'\\]{4,80})["']""",
+                RegexOption.IGNORE_CASE,
+            ).findAll(raw).take(8).forEach { publishedValues += it.groupValues[1] }
+        }
+        val capturedAt = System.currentTimeMillis()
+        val published = publishedValues.firstNotNullOfOrNull { raw ->
+            parseDate(raw) ?: parseRelativeTimestamp(raw, capturedAt).takeIf { it > 0L }
+        } ?: candidate.publishedAt
+
+        val summary = summaries.map { it.trim() }
+            .filter { it.length >= 12 }
+            .distinct()
+            .joinToString(" • ")
+            .take(MAX_ENRICHED_SUMMARY_LENGTH)
+            .ifBlank { candidate.summary }
+
+        return candidate.copy(
+            title = title,
+            publishedAt = published,
+            link = canonical(canonicalCandidate),
+            summary = summary,
+        )
+    }
+
     private fun match(
         item: VideoItem,
         source: VideoSource,
@@ -391,6 +662,9 @@ class VideoSearchClient {
             .filter { it.isNotBlank() }
             .distinct()
         return incoming.copy(
+            title = if (incoming.title.length >= previous.title.length) incoming.title else previous.title,
+            publishedAt = incoming.publishedAt.takeIf { it > 0L } ?: previous.publishedAt,
+            summary = if (incoming.summary.length >= previous.summary.length) incoming.summary else previous.summary,
             matchedTerm = terms.joinToString(", "),
             matchedDemand = incoming.matchedDemand.ifBlank { previous.matchedDemand },
         )
@@ -543,4 +817,14 @@ class VideoSearchClient {
         URI(uri.scheme, uri.authority, uri.path, null, null)
             .toString().trimEnd('/').lowercase(Locale.ROOT)
     }.getOrDefault(url.trimEnd('/').lowercase(Locale.ROOT))
+
+    companion object {
+        private const val MAX_YOUTUBE_ITEMS_PER_SCAN = 40
+        private const val MAX_SCAN_RESOLVE_PER_JOB = 40
+        private const val MAX_RESOLVED_PER_QUERY = 8
+        private const val MIN_USEFUL_SUMMARY = 50
+        private const val MAX_ENRICHED_SUMMARY_LENGTH = 1800
+        private const val MAX_HTML_BODY_BYTES = 8_000_000
+        private const val BROWSER_UA = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Mobile Safari/537.36"
+    }
 }

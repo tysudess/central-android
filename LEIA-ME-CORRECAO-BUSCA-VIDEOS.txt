@@ -1,0 +1,32 @@
+CORREÇÃO DA BUSCA DE VÍDEOS — CENTRAL ANDROID
+
+Arquivo substituído:
+app/src/main/java/br/com/centralmidia/android/core/VideoSearchClient.kt
+
+Problemas identificados na comparação Windows x Android:
+1. O Android usava somente o feed Atom do YouTube, que normalmente retorna uma lista menor,
+   em vez de unir o feed à aba pública /videos (o Windows combina os dois e deduplica).
+2. O Android filtrava período e tags antes de enriquecer o candidato pela própria página do vídeo.
+   Vários sites fornecem data/resumo apenas na página individual; o item ficava com data=0 e era descartado.
+3. A busca por termo no Android limitava o parsing da página a 18 links, inferior à coleta do Windows.
+4. Ao juntar duplicatas, o Android podia substituir uma data conhecida ou resumo maior por dados vazios/curtos.
+
+Correções:
+- Parser para objetos JSON videoRenderer da aba /videos do YouTube, até 40 candidatos.
+- União do feed Atom e da aba /videos, preferindo datas absolutas do feed.
+- Enriquecimento do candidato com a página individual: URL canônica, título, metadados de data,
+  descrição e campos públicos de JSON-LD/JSON embutido.
+- Resolução limitada por etapa (8 candidatos por consulta e até 40 por varredura) para equilibrar
+  completude e tempo de rede, e atualização de progresso durante o enriquecimento.
+- Limite de parsing por consulta aumentado para 40 links e merge que preserva data válida/resumo maior.
+- User-Agent e limite do corpo HTTP aproximados ao coletor Windows.
+
+Aplicação:
+Extraia o ZIP na raiz do repositório Android, preservando o caminho, e substitua o arquivo indicado.
+O ZIP NÃO altera o repositório GitHub nem workflows.
+
+Validação realizada nesta entrega:
+- ZIP verificado.
+- O arquivo Kotlin compilou contra stubs locais das APIs Jsoup/JSON usadas, para detectar erros de sintaxe
+  e tipos básicos. Isso NÃO substitui o build completo Gradle do aplicativo Android, que não foi executado.
+- É necessário gerar o APK e comparar novamente a mesma janela/tag no Windows e no Android.
