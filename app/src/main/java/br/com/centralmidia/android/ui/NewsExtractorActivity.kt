@@ -127,8 +127,10 @@ class NewsExtractorActivity : BaseActivity() {
                         return
                     }
 
-                    webFallbackRunning = false
-                    evaluateWebExtraction()
+                    // Aguarda a hidratação do DOM, como o motor persistente Windows.
+                    view?.postDelayed({
+                        if (webFallbackRunning) evaluateWebExtraction()
+                    }, WEB_EXTRACTION_SETTLE_MS)
                 }
 
                 override fun onReceivedError(
@@ -1256,37 +1258,61 @@ class NewsExtractorActivity : BaseActivity() {
 
               // O Valor e outros portais podem montar o corpo em um contêiner
               // próprio, sem usar <article> como elemento principal.
-              var root =
-                document.querySelector('[itemprop="articleBody"]') ||
-                document.querySelector('.article-content, .content-text, .materia-conteudo, .article-body, .post-content') ||
-                document.querySelector('[class*="article-body"], [class*="article-content"], [class*="materia-conteudo"]') ||
-                document.querySelector('article') ||
-                document.querySelector('main') ||
-                document.body;
-
-              var paragraphs = [];
-              if (root) {
-                var nodes = root.querySelectorAll('p, [itemprop="articleBody"] p, .article-content p, .content-text p, .materia-conteudo p, .article-body p');
-                for (var i = 0; i < nodes.length; i++) {
-                  var value =
-                    (nodes[i].innerText || nodes[i].textContent || '').trim();
-                  if (value.length >= 30 && paragraphs.indexOf(value) < 0) {
-                    paragraphs.push(value);
-                  }
+              // Motor Android inspirado no pipeline Windows: procura primeiro
+              // os contêineres editoriais específicos e compara a quantidade real
+              // de parágrafos úteis para não confundir resumo com matéria completa.
+              var roots = document.querySelectorAll([
+                '[itemprop="articleBody"]',
+                '[data-testid*="article-body" i]',
+                '[data-testid*="article-content" i]',
+                '[class*="content-text" i]',
+                '[class*="article-body" i]',
+                '[class*="article-content" i]',
+                '[class*="materia-conteudo" i]',
+                '[class*="materia-corpo" i]',
+                'article', 'main'
+              ].join(','));
+              var root = null;
+              var bestRootText = '';
+              for (var r = 0; r < roots.length; r++) {
+                var candidateText = (roots[r].innerText || roots[r].textContent || '').trim();
+                if (candidateText.length > bestRootText.length && candidateText.length < 60000) {
+                  root = roots[r];
+                  bestRootText = candidateText;
                 }
               }
+              if (!root) root = document.querySelector('article') || document.querySelector('main') || document.body;
 
+              function isJunk(el, value) {
+                var t = String(value || '').replace(/\s+/g, ' ').trim();
+                if (!t || /^(publicidade|continua após a publicidade|leia também|veja também|mais lidas|compartilhe|só para assinantes|assine valor)$/i.test(t)) return true;
+                if (el.closest('nav,footer,aside,[class*="related" i],[class*="recommend" i],[class*="share" i],[class*="social" i],[class*="newsletter" i],[class*="comment" i]')) return true;
+                return false;
+              }
+              function collectParagraphs(container) {
+                var out = [];
+                if (!container) return out;
+                var nodes = container.querySelectorAll('p, blockquote, [itemprop="articleBody"] p');
+                for (var i = 0; i < nodes.length; i++) {
+                  var el = nodes[i];
+                  var value = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+                  if (value.length >= 25 && !isJunk(el, value) && out.indexOf(value) < 0) out.push(value);
+                }
+                return out;
+              }
+              var paragraphs = collectParagraphs(root);
+              for (var rr = 0; rr < roots.length; rr++) {
+                var alternative = collectParagraphs(roots[rr]);
+                if (alternative.join('\n\n').length > paragraphs.join('\n\n').length && alternative.join('\n\n').length < 50000) paragraphs = alternative;
+              }
               var body = paragraphs.join('\n\n');
-
-              if (body.length < 120 && root) {
-                body = (root.innerText || root.textContent || '').trim();
-              }
-
+              if (body.length < 120 && root) body = bestRootText;
               body = body.replace(/\n{3,}/g, '\n\n').trim();
-
-              if (body.length < 120 && structured && structured.articleBody) {
-                body = String(structured.articleBody || '').trim();
+              if (structured && structured.articleBody) {
+                var structuredBody = String(structured.articleBody || '').replace(/\s+/g, ' ').trim();
+                if (structuredBody.length > body.length) body = structuredBody;
               }
+              var subscriberOnly = /só para assinantes|conteúdo exclusivo para assinantes|assine o valor/i.test(document.body ? document.body.innerText : '');
 
               var author =
                 (structured ? nameOf(structured.author) : '') ||
@@ -1335,7 +1361,8 @@ class NewsExtractorActivity : BaseActivity() {
                 author: author.trim(),
                 subtitle: subtitle.trim(),
                 text: body,
-                url: canonicalUrl
+                url: canonicalUrl,
+                subscriberOnly: subscriberOnly
               });
             })()
         """.trimIndent()
@@ -1400,17 +1427,18 @@ class NewsExtractorActivity : BaseActivity() {
                                 },
                     )
 
-                if (
-                    extracted.text.isBlank()
-                ) {
+                if (extracted.text.isBlank() || extracted.text.length < MIN_DIRECT_TEXT) {
+                    val restricted = obj.optBoolean("subscriberOnly", false)
                     error(
-                        "Texto principal não identificado.",
+                        if (restricted) {
+                            "O Valor entregou apenas a prévia e sinalizou conteúdo para assinantes. Abra a matéria com sua sessão autorizada e tente novamente."
+                        } else {
+                            "O texto principal ainda parece incompleto. Abra a matéria no navegador e tente extrair novamente."
+                        }
                     )
                 }
-
-                applyResult(
-                    extracted,
-                )
+                webFallbackRunning = false
+                applyResult(extracted)
             }.onFailure {
                 status.text =
                     "A página abriu, mas o texto principal não pôde ser identificado."
