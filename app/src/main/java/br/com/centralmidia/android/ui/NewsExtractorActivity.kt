@@ -653,14 +653,23 @@ class NewsExtractorActivity : BaseActivity() {
                     direct,
                 )
 
+                val bodyIsLikelyComplete =
+                    if (isValorUrl(direct)) {
+                        !valorBodyLooksShort(result.text)
+                    } else {
+                        !genericBodyLooksShort(result.text)
+                    }
+
                 if (
-                    result.text.length >=
-                    MIN_DIRECT_TEXT
+                    result.text.length >= MIN_DIRECT_TEXT &&
+                    bodyIsLikelyComplete
                 ) {
                     applyResult(
                         result,
                     )
                 } else {
+                    // O HTTP pode ter recebido apenas resumo ou um DOM parcial.
+                    // O WebView interno ganha uma chance de hidratar o corpo completo.
                     startWebFallback(
                         direct,
                     )
@@ -683,7 +692,7 @@ class NewsExtractorActivity : BaseActivity() {
         url: String,
     ): ExtractedArticle {
         if (!isValorUrl(url)) {
-            return extractWithHttpSingle(url)
+            return extractWithHttpGeneric(url)
         }
 
         val routes = linkedSetOf(url.trim())
@@ -724,6 +733,77 @@ class NewsExtractorActivity : BaseActivity() {
             )
 
         return normalizeArticle(result.copy(url = url))
+    }
+
+    /**
+     * Fallback geral para portais especializados e sites com CMS diferentes.
+     * Primeiro lê a URL original; se o corpo parecer um resumo, tenta apenas
+     * rotas AMP comuns e conserva o maior texto realmente encontrado.
+     */
+    private fun extractWithHttpGeneric(
+        url: String,
+    ): ExtractedArticle {
+        val original = url.trim()
+        val routes = linkedSetOf(original)
+        genericAlternativeArticleUrls(original).forEach { routes.add(it) }
+        var best: ExtractedArticle? = null
+        val failures = mutableListOf<String>()
+
+        for (route in routes) {
+            if (best != null && !genericBodyLooksShort(best.text)) break
+            try {
+                val candidate = extractWithHttpSingle(route).copy(url = original)
+                if (best == null || candidate.text.trim().length > best.text.trim().length) {
+                    best = candidate
+                }
+            } catch (error: Exception) {
+                failures += "$route: ${error.message.orEmpty()}"
+            }
+        }
+
+        return best?.takeIf { it.text.isNotBlank() }?.let {
+            normalizeArticle(it.copy(url = original))
+        } ?: throw IllegalStateException(
+            "Não foi possível identificar o corpo da matéria no HTML recebido." +
+                if (failures.isEmpty()) "" else " ${failures.joinToString(" | ")}",
+        )
+    }
+
+    /** Gera alternativas comuns sem alterar host, caminho original ou parâmetros existentes. */
+    private fun genericAlternativeArticleUrls(url: String): List<String> {
+        val output = linkedSetOf<String>()
+        val withoutFragment = url.substringBefore('#')
+        val uri = runCatching { URI(withoutFragment) }.getOrNull() ?: return emptyList()
+        val path = uri.rawPath.orEmpty()
+        val lowerPath = path.lowercase()
+
+        if (
+            path.isNotBlank() &&
+            !lowerPath.endsWith("/amp") &&
+            !lowerPath.endsWith("/amp/") &&
+            !lowerPath.endsWith(".amp")
+        ) {
+            val pathIndex = withoutFragment.indexOf(path)
+            if (pathIndex >= 0) {
+                val alternativePath = path.trimEnd('/') + "/amp/"
+                output += withoutFragment.substring(0, pathIndex) +
+                    alternativePath +
+                    withoutFragment.substring(pathIndex + path.length)
+            }
+        }
+
+        if (!Regex("(?:[?&])amp(?:=|&|$)", RegexOption.IGNORE_CASE).containsMatchIn(withoutFragment)) {
+            val separator = if ('?' in withoutFragment) "&" else "?"
+            output += "$withoutFragment${separator}amp=1"
+        }
+
+        return output.filter { it.isNotBlank() && it != withoutFragment }
+    }
+
+    private fun genericBodyLooksShort(text: String): Boolean {
+        val cleaned = text.trim()
+        val blocks = cleaned.split(Regex("\\n\\s*\\n+")).count { it.isNotBlank() }
+        return cleaned.length < GENERIC_MIN_BODY_CHARS || blocks < GENERIC_MIN_BODY_BLOCKS
     }
 
     private fun isValorUrl(url: String): Boolean =
@@ -1168,83 +1248,175 @@ class NewsExtractorActivity : BaseActivity() {
                                 .orEmpty()
                         }
 
-                // Alguns veículos, incluindo páginas do Valor, usam contêineres
-                // específicos para o corpo em vez de um <article> semântico.
-                // Priorizar esses contêineres evita extrair apenas a navegação,
-                // recomendações ou a chamada de assinatura.
-                val article =
-                    doc.selectFirst(
-                        "[itemprop=articleBody], .article-content, .content-text, " +
-                            ".materia-conteudo, .article-body, .post-content, " +
-                            "[class*=article-body], [class*=article-content], " +
-                            "[class*=materia-conteudo]",
-                    )
-                        ?: doc.selectFirst(
-                            "article",
-                        )
-                        ?: doc.selectFirst(
-                            "main",
-                        )
-                        ?: doc.body()
-
-                val paragraphs =
-                    article
-                        ?.select(
-                            "p, [itemprop=articleBody] p, .article-content p, " +
-                                ".content-text p, .materia-conteudo p, " +
-                                ".article-body p, [class*=article-body] p, " +
-                                "[class*=article-content] p",
-                        )
-                        ?.map {
-                            it.text()
-                                .trim()
-                        }
-                        ?.filter {
-                            it.length >=
-                                MIN_PARAGRAPH
-                        }
-                        ?.distinct()
-                        .orEmpty()
-
-                val paragraphText =
-                    paragraphs.joinToString(
-                        "\n\n",
-                    )
-
-                val text =
-                    when {
-                        paragraphText.length >=
-                            MIN_DIRECT_TEXT &&
-                            paragraphs.size >=
-                            2 ->
-                            paragraphText
-
-                        structured?.text.orEmpty().length >=
-                            MIN_DIRECT_TEXT ->
-                            structured?.text.orEmpty()
-
-                        else ->
-                            article
-                                ?.text()
-                                .orEmpty()
-                                .trim()
-                    }
+                val editorialMetadata = ExtractedArticle(
+                    title = title,
+                    source = source,
+                    date = date,
+                    author = author,
+                    subtitle = subtitle,
+                    text = "",
+                    url = canonicalUrl,
+                )
+                val visibleText = extractBestEditorialBody(
+                    doc = doc,
+                    metadata = editorialMetadata,
+                )
+                val structuredText = structured?.text.orEmpty().trim()
+                val text = listOf(visibleText, structuredText)
+                    .filter { it.isNotBlank() }
+                    .maxByOrNull { it.length }
+                    .orEmpty()
 
                 return normalizeArticle(
-                    ExtractedArticle(
-                        title = title,
-                        source = source,
-                        date = date,
-                        author = author,
-                        subtitle = subtitle,
-                        text = normalizeText(
-                            text,
-                        ),
+                    editorialMetadata.copy(
+                        text = normalizeText(text),
                         url = canonicalUrl,
                     ),
                 )
             }
     }
+
+    /**
+     * Descobre o corpo do artigo por pontuação, em vez de escolher o primeiro
+     * seletor que existir. Isso cobre WordPress, Elementor e temas de portais
+     * regionais/especializados que não usam somente <article> ou main.
+     */
+    private fun extractBestEditorialBody(
+        doc: org.jsoup.nodes.Document,
+        metadata: ExtractedArticle,
+    ): String {
+        val selectors = listOf(
+            "[itemprop=articleBody]",
+            "[data-testid*=article-body]",
+            "[data-testid*=article-content]",
+            ".entry-content",
+            ".td-post-content",
+            ".wp-block-post-content",
+            ".elementor-widget-theme-post-content",
+            ".post-content",
+            ".post-body",
+            ".post__content",
+            ".article-content",
+            ".article-body",
+            ".article__content",
+            ".article__body",
+            ".article-text",
+            ".article__text",
+            ".story-content",
+            ".story-body",
+            ".content-single",
+            ".single-content",
+            ".the-content",
+            ".content-text",
+            ".texto-materia",
+            ".materia-conteudo",
+            ".materia__texto",
+            ".conteudo-materia",
+            ".conteudo-noticia",
+            "[class*=entry-content]",
+            "[class*=td-post-content]",
+            "[class*=post-content]",
+            "[class*=post-body]",
+            "[class*=article-body]",
+            "[class*=article-content]",
+            "[class*=content-text]",
+            "[id*=article-body]",
+            "[id*=article-content]",
+            "article",
+            "main",
+        )
+        val candidates = linkedSetOf<org.jsoup.nodes.Element>()
+        for (selector in selectors) {
+            runCatching { doc.select(selector).forEach { candidates.add(it) } }
+        }
+
+        val excludedMetadata = setOf(
+            metadata.title,
+            metadata.subtitle,
+            metadata.author,
+            metadata.date,
+        ).filter { it.isNotBlank() }.map { comparableArticleText(it) }.toSet()
+
+        fun bodyFor(container: org.jsoup.nodes.Element): String {
+            if (isEditorialJunkElement(container)) return ""
+            val paragraphs = mutableListOf<String>()
+            val seen = hashSetOf<String>()
+            container.select("p, blockquote, h2, h3, li").forEach { element ->
+                if (isEditorialJunkElement(element)) return@forEach
+                val text = normalizeText(element.text()).trim()
+                if (text.isBlank()) return@forEach
+                val tag = element.normalName()
+                val minimum = if (tag == "li") 12 else if (tag == "h2" || tag == "h3") 10 else 25
+                if (text.length < minimum) return@forEach
+                val comparable = comparableArticleText(text)
+                if (comparable in excludedMetadata || !seen.add(comparable)) return@forEach
+                val linked = element.select("a").sumOf { it.text().trim().length }
+                if (text.isNotEmpty() && linked.toDouble() / text.length.toDouble() > 0.72 && text.length < 340) {
+                    return@forEach
+                }
+                if (isEditorialJunkText(text)) return@forEach
+                paragraphs += text
+            }
+            return paragraphs.joinToString("\n\n").trim()
+        }
+
+        var bestBody = ""
+        var bestScore = Int.MIN_VALUE
+        for (container in candidates) {
+            val body = bodyFor(container)
+            if (body.isBlank()) continue
+            val marker = "${container.id()} ${container.classNames().joinToString(" ")}".lowercase()
+            val specificity = when {
+                "articlebody" in marker || "article-body" in marker || "entry-content" in marker ||
+                    "td-post-content" in marker || "post-content" in marker || "article-content" in marker -> 2_400
+                container.normalName() == "article" -> 1_600
+                container.normalName() == "main" -> 800
+                else -> 0
+            }
+            val score = body.length + specificity
+            if (score > bestScore) {
+                bestScore = score
+                bestBody = body
+            }
+        }
+
+        if (bestBody.isNotBlank()) return bestBody
+        // Último recurso: parágrafos do body, já sem navegação, anúncios laterais e rodapé.
+        val body = doc.body() ?: return ""
+        return bodyFor(body)
+    }
+
+    private fun isEditorialJunkElement(element: org.jsoup.nodes.Element): Boolean {
+        val junkElementNames = setOf("nav", "footer", "aside", "form", "header")
+        val junkMarker = Regex(
+            """(?:related|recommend|most[-_ ]?read|mais[-_ ]?lidas|newsletter|comment|social|share|breadcrumb|advert|advertisement|publicidade|sidebar|menu-principal|post-navigation|related-posts|recommended)""",
+            RegexOption.IGNORE_CASE,
+        )
+        var current: org.jsoup.nodes.Element? = element
+        while (current != null) {
+            if (current.normalName() in junkElementNames) return true
+            val marker = "${current.id()} ${current.classNames().joinToString(" ")}".lowercase()
+            if (junkMarker.containsMatchIn(marker)) return true
+            current = current.parent()
+        }
+        return false
+    }
+
+    private fun isEditorialJunkText(value: String): Boolean {
+        val text = value.trim()
+        return text.matches(
+            Regex(
+                """^(publicidade|an[uú]ncio|continua (ap[oó]s|depois da) publicidade|leia tamb[eé]m|veja tamb[eé]m|mais lidas|mais not[ií]cias|compartilhar|compartilhe|s[oó] para assinantes|assine|receba nossas not[ií]cias|siga-nos|acompanhe nossas redes sociais)\b.*$""",
+                RegexOption.IGNORE_CASE,
+            ),
+        )
+    }
+
+    private fun comparableArticleText(value: String): String =
+        value.lowercase()
+            .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
 
     private fun extractStructuredArticle(
         doc: org.jsoup.nodes.Document,
@@ -1533,11 +1705,27 @@ class NewsExtractorActivity : BaseActivity() {
                 '[itemprop="articleBody"]',
                 '[data-testid*="article-body" i]',
                 '[data-testid*="article-content" i]',
-                '[class*="content-text" i]',
+                '[class*="entry-content" i]',
+                '[class*="td-post-content" i]',
+                '[class*="wp-block-post-content" i]',
+                '[class*="elementor-widget-theme-post-content" i]',
+                '[class*="post-content" i]',
+                '[class*="post-body" i]',
                 '[class*="article-body" i]',
                 '[class*="article-content" i]',
+                '[class*="article__content" i]',
+                '[class*="story-content" i]',
+                '[class*="story-body" i]',
+                '[class*="content-single" i]',
+                '[class*="single-content" i]',
+                '[class*="content-text" i]',
+                '[class*="texto-materia" i]',
                 '[class*="materia-conteudo" i]',
                 '[class*="materia-corpo" i]',
+                '[class*="conteudo-materia" i]',
+                '[class*="conteudo-noticia" i]',
+                '[id*="article-body" i]',
+                '[id*="article-content" i]',
                 'article', 'main'
               ].join(','));
               var root = null;
@@ -1554,17 +1742,18 @@ class NewsExtractorActivity : BaseActivity() {
               function isJunk(el, value) {
                 var t = String(value || '').replace(/\s+/g, ' ').trim();
                 if (!t || /^(publicidade|continua após a publicidade|leia também|veja também|mais lidas|compartilhe|só para assinantes|assine valor)$/i.test(t)) return true;
-                if (el.closest('nav,footer,aside,[class*="related" i],[class*="recommend" i],[class*="share" i],[class*="social" i],[class*="newsletter" i],[class*="comment" i]')) return true;
+                if (el.closest('nav,footer,aside,form,[class*="related" i],[id*="related" i],[class*="recommend" i],[class*="most-read" i],[class*="mais-lidas" i],[class*="share" i],[class*="social" i],[class*="newsletter" i],[class*="comment" i],[class*="breadcrumb" i],[class*="advert" i],[class*="publicidade" i],[class*="sidebar" i]')) return true;
                 return false;
               }
               function collectParagraphs(container) {
                 var out = [];
                 if (!container) return out;
-                var nodes = container.querySelectorAll('p, blockquote, [itemprop="articleBody"] p');
+                var nodes = container.querySelectorAll('p, blockquote, h2, h3, li, [itemprop="articleBody"] p');
                 for (var i = 0; i < nodes.length; i++) {
                   var el = nodes[i];
                   var value = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-                  if (value.length >= 25 && !isJunk(el, value) && out.indexOf(value) < 0) out.push(value);
+                  var minimum = /^(H2|H3)$/.test(el.tagName) ? 10 : (el.tagName === 'LI' ? 12 : 25);
+                  if (value.length >= minimum && !isJunk(el, value) && out.indexOf(value) < 0) out.push(value);
                 }
                 return out;
               }
@@ -2537,6 +2726,12 @@ class NewsExtractorActivity : BaseActivity() {
 
         private const val MIN_PARAGRAPH =
             30
+
+        private const val GENERIC_MIN_BODY_CHARS =
+            850
+
+        private const val GENERIC_MIN_BODY_BLOCKS =
+            3
 
         private const val VALOR_MIN_BODY_CHARS =
             1_200
