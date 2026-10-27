@@ -14,6 +14,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import br.com.centralmidia.android.R
+import br.com.centralmidia.android.automation.CentralBackgroundService
 import br.com.centralmidia.android.core.AuthManager
 import br.com.centralmidia.android.core.dp
 import kotlinx.coroutines.Dispatchers
@@ -43,6 +44,14 @@ open class BaseActivity : AppCompatActivity() {
         super.onCreate(
             savedInstanceState
         )
+
+        // Mantém um serviço em primeiro plano enquanto a Central está aberta.
+        // Isso permite que as tarefas já iniciadas continuem enquanto a tela
+        // fica apagada. A notificação oferece uma ação explícita para parar.
+        when (javaClass.simpleName) {
+            "MainActivity" -> CentralBackgroundService.start(this)
+            "LoginActivity" -> CentralBackgroundService.stop(this)
+        }
     }
 
     override fun onResume() {
