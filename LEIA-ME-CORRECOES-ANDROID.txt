@@ -1,0 +1,42 @@
+CENTRAL INTELIGENTE DE MÍDIA ANDROID — PACOTE DE CORREÇÕES LOCAIS
+
+Base consultada diretamente no GitHub antes da edição:
+- tysudess/central-android main: 24787ba1efd0a02144f8250af07cc0d68b7c2552
+- tysudess/noticias-python main: f07ddd6673e3efd0d20acffda61ac19d3957d17b
+
+Este ZIP contém somente arquivos modificados, com caminhos relativos à raiz do repositório central-android.
+Nenhuma alteração foi enviada ao GitHub.
+
+ARQUIVOS PARA SUBSTITUIR
+1. app/src/main/java/br/com/centralmidia/android/ui/MobileScaffold.kt
+   - Dock de navegação em azul-noturno com contorno sutil e ícones maiores.
+   - Melhor contraste dos rótulos inativos e realce da área selecionada.
+   - Indicador colorido curto sob o nome da aba atual, sem faixa decorativa fixa no topo.
+   - Mantidos 16 destinos, regras de permissão, callbacks/ações, feedback tátil e rolagem horizontal.
+
+2. app/src/main/java/br/com/centralmidia/android/core/VideoSearchClient.kt
+   - Preserva o coletor atual do main (YouTube /videos + Atom, enriquecimento de páginas e canonicalização).
+   - Amplia de 8 para até 24 a resolução de páginas por consulta, mantendo limite de 40 por varredura.
+   - Adiciona diagnóstico por fonte/consulta: candidatos, tentativas e falhas de resolução, datas ausentes, fora do período, falta de termo/demanda, correspondências, duplicatas e erro de coleta.
+   - O retorno Outcome agora inclui diagnostics; o callback existente de progresso também expõe candidatos, resoluções, datas ausentes e correspondências.
+   - Não atribui data atual quando a fonte não informa data, e resultados sem data continuam fora do intervalo temporal. Isso evita inventar datas, mas pode deixar de fora vídeos cuja data não esteja disponível no HTML/feed.
+
+ANÁLISE DAS OUTRAS ÁREAS
+- Segundo plano: os arquivos do ZIP anterior (`BaseActivity.kt`, `CentralBackgroundService.kt` e `AndroidManifest.xml`) foram conferidos contra o main atual e já estão presentes. O projeto usa WorkManager para tarefas periódicas e um serviço em primeiro plano com notificação para o modo ativo. Não foram incluídos novamente, para evitar substituições sem diferença.
+- Extrator de matérias: `NewsExtractorActivity.kt` do main atual já contém rotas genéricas/Valor, comparação entre corpos visíveis e metadados estruturados e sinalização de conteúdo restrito. Foi preservado; não foi reaplicado pacote antigo sem diferença comprovada.
+- Workflow: nenhuma alteração necessária para os arquivos deste pacote.
+
+VALIDAÇÃO EXECUTADA NESTE AMBIENTE
+- Verificado o balanceamento de delimitadores em ambos os arquivos Kotlin.
+- Conferidos 16 NavItem no MobileScaffold.kt e mantida a lista de destinos.
+- Conferido que os arquivos têm os caminhos relativos corretos.
+- Verificação do ZIP com `unzip -t`: passou, sem entradas corrompidas.
+- `VideoSearchClient.kt` compilou isoladamente com `kotlinc` contra stubs mínimos das APIs Jsoup/JSON (sintaxe e tipos básicos); os stubs não testam o comportamento real de rede/parser.
+- Não foi possível executar Gradle: este ambiente não possui `gradle` nem `gradlew`, nem SDK Android configurado. Portanto não afirmamos que o APK compila.
+- Não foi possível executar a busca contra fontes reais nem confirmar os 23 vídeos; isso precisa ser validado no APK, usando exatamente a mesma janela, tags e fontes do Windows.
+
+PRÓXIMOS TESTES RECOMENDADOS
+1. Build Gradle / workflow Android sem alteração do workflow.
+2. Comparação da busca em período idêntico ao Windows, acompanhando os diagnósticos por fonte/consulta.
+3. Teste visual da barra em larguras pequenas e grandes, incluindo “Parar”, “Minha Conta” e áreas com acesso restrito.
+4. Teste real com tela apagada e notificação do serviço, observando restrições de bateria/Doze do fabricante.

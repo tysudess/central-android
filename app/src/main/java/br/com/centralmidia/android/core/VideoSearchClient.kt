@@ -32,12 +32,54 @@ class VideoSearchClient {
         val currentQuery: String,
     )
 
+    data class SourceDiagnostic(
+        val sourceId: String,
+        val sourceName: String,
+        val query: String,
+        val candidates: Int,
+        val resolvedAttempts: Int,
+        val resolveFailures: Int,
+        val unknownDates: Int,
+        val outOfRange: Int,
+        val termMisses: Int,
+        val demandMisses: Int,
+        val matched: Int,
+        val duplicates: Int,
+        val collectionError: String = "",
+    ) {
+        fun summary(): String = buildString {
+            append(sourceName)
+            append(" [")
+            append(query.ifBlank { "varredura" })
+            append("]: candidatos=")
+            append(candidates)
+            append(", páginas resolvidas=")
+            append(resolvedAttempts - resolveFailures)
+            append("/")
+            append(resolvedAttempts)
+            append(", datas ausentes=")
+            append(unknownDates)
+            append(", fora do período=")
+            append(outOfRange)
+            append(", sem termo=")
+            append(termMisses)
+            append(", sem demanda=")
+            append(demandMisses)
+            append(", correspondências=")
+            append(matched)
+            append(", duplicatas=")
+            append(duplicates)
+            if (collectionError.isNotBlank()) append(", erro=").append(collectionError)
+        }
+    }
+
     data class Outcome(
         val items: List<VideoItem>,
         val errors: Int,
         val completed: Int,
         val total: Int,
         val cancelled: Boolean,
+        val diagnostics: List<SourceDiagnostic> = emptyList(),
     )
 
     fun search(
@@ -51,6 +93,7 @@ class VideoSearchClient {
     ): Outcome {
         val collected = linkedMapOf<String, VideoItem>()
         val jobs = buildJobs(sources, terms, demands)
+        val diagnostics = mutableListOf<SourceDiagnostic>()
         var completed = 0
         var errors = 0
 
@@ -61,15 +104,27 @@ class VideoSearchClient {
                 job.source.name, job.query.ifBlank { "varredura da fonte" },
             ))
 
+            var collectionError = ""
             val candidates = runCatching {
                 if (job.scanSource) collectSource(job.source)
                 else collectForQuery(job.source, job.query)
-            }.getOrElse {
+            }.getOrElse { error ->
                 errors++
+                collectionError = error.javaClass.simpleName + ": " +
+                    (error.message ?: "falha sem mensagem").take(180)
                 emptyList()
             }
 
             if (cancelled()) break
+
+            var resolvedAttempts = 0
+            var resolveFailures = 0
+            var unknownDates = 0
+            var outOfRange = 0
+            var termMisses = 0
+            var demandMisses = 0
+            var matchedInJob = 0
+            var duplicates = 0
 
             // O Windows enriquece os links candidatos abrindo a própria página do vídeo.
             // Sem isso, muitos portais entregam apenas título/link: a data fica 0 e o
@@ -96,21 +151,63 @@ class VideoSearchClient {
                 var prepared = candidate
                 if (requiresPageResolution && resolvedInJob < resolveLimit && isSpecificVideoUrl(job.source, candidate.link)) {
                     resolvedInJob++
+                    resolvedAttempts++
                     prepared = runCatching {
                         resolveDirectVideoPage(job.source, candidate)
-                    }.getOrElse { candidate }
+                    }.getOrElse {
+                        resolveFailures++
+                        candidate
+                    }
                 }
+
+                if (prepared.publishedAt <= 0L) unknownDates++
+                if (prepared.publishedAt < fromMs || prepared.publishedAt > toMs) {
+                    outOfRange++
+                    continue
+                }
+
+                val body = "${prepared.title} ${prepared.summary}"
+                val termMatches = terms.filter { it.isNotBlank() && phraseMatches(body, it) }.distinct()
+                val demandMatches = demands.filter { demand ->
+                    sourceMatchesDemand(job.source, demand.second) && phraseMatches(body, demand.third)
+                }
+                if (termMatches.isEmpty()) termMisses++
+                if (demands.isNotEmpty() && demandMatches.isEmpty()) demandMisses++
 
                 val enriched = match(prepared, job.source, terms, demands, fromMs, toMs) ?: continue
                 val key = canonical(enriched.link)
                 val previous = collected[key]
-                collected[key] = if (previous == null) enriched else merge(previous, enriched)
+                if (previous == null) {
+                    collected[key] = enriched
+                    matchedInJob++
+                } else {
+                    duplicates++
+                    collected[key] = merge(previous, enriched)
+                }
             }
+
+            diagnostics += SourceDiagnostic(
+                sourceId = job.source.id,
+                sourceName = job.source.name,
+                query = job.query.ifBlank { "varredura da fonte" },
+                candidates = candidates.size,
+                resolvedAttempts = resolvedAttempts,
+                resolveFailures = resolveFailures,
+                unknownDates = unknownDates,
+                outOfRange = outOfRange,
+                termMisses = termMisses,
+                demandMisses = demandMisses,
+                matched = matchedInJob,
+                duplicates = duplicates,
+                collectionError = collectionError,
+            )
 
             completed++
             onProgress(Progress(
                 completed, jobs.size, collected.size, errors,
-                job.source.name, job.query.ifBlank { "varredura da fonte" },
+                job.source.name,
+                "${job.query.ifBlank { "varredura da fonte" }} • ${candidates.size} candidatos, " +
+                    "$resolvedAttempts resoluções, $unknownDates sem data, $matchedInJob correspondências",
             ))
         }
 
@@ -120,6 +217,7 @@ class VideoSearchClient {
             completed = completed,
             total = jobs.size,
             cancelled = cancelled(),
+            diagnostics = diagnostics,
         )
     }
 
@@ -821,7 +919,7 @@ class VideoSearchClient {
     companion object {
         private const val MAX_YOUTUBE_ITEMS_PER_SCAN = 40
         private const val MAX_SCAN_RESOLVE_PER_JOB = 40
-        private const val MAX_RESOLVED_PER_QUERY = 8
+        private const val MAX_RESOLVED_PER_QUERY = 24
         private const val MIN_USEFUL_SUMMARY = 50
         private const val MAX_ENRICHED_SUMMARY_LENGTH = 1800
         private const val MAX_HTML_BODY_BYTES = 8_000_000

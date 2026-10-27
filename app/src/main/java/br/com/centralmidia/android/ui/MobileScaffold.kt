@@ -781,10 +781,10 @@ object MobileScaffold {
             }
 
         /*
-         * O dock agora é uma "ilha" flutuante:
-         * - espaço do app aparece ao redor;
-         * - sombra fica limitada ao próprio dock;
-         * - o usuário percebe a navegação como uma peça única do produto.
+         * Dock premium em azul-noturno:
+         * - ilha flutuante com contorno luminoso discreto;
+         * - ícones maiores, superfícies translúcidas e destaque em degradê;
+         * - contraste reforçado para leitura e identificação da aba ativa.
          */
         val wrapper =
             LinearLayout(activity).apply {
@@ -829,43 +829,18 @@ object MobileScaffold {
                     false
 
                 setPadding(
-                    activity.dp(6),
-                    activity.dp(3),
-                    activity.dp(6),
-                    activity.dp(5),
+                    activity.dp(7),
+                    activity.dp(4),
+                    activity.dp(7),
+                    activity.dp(7),
                 )
 
                 contentDescription =
                     "Barra inferior da Central"
             }
 
-        val glowRow =
-            LinearLayout(activity).apply {
-                orientation =
-                    LinearLayout.HORIZONTAL
-
-                gravity =
-                    Gravity.CENTER
-            }
-
-        glowRow.addView(
-            View(activity).apply {
-                background =
-                    MobileUi.navigationIndicator()
-            },
-            LinearLayout.LayoutParams(
-                activity.dp(58),
-                activity.dp(3),
-            ),
-        )
-
-        dock.addView(
-            glowRow,
-            LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                activity.dp(6),
-            ),
-        )
+        // O dock não reserva uma faixa decorativa fixa no topo: o indicador
+        // colorido acompanha a aba ativa dentro do próprio item.
 
         val scroll =
             HorizontalScrollView(
@@ -915,7 +890,7 @@ object MobileScaffold {
                     .displayMetrics
                     .widthPixels /
                     2 -
-                    activity.dp(36)
+                    activity.dp(39)
                 )
                 .coerceAtLeast(
                     activity.dp(8),
@@ -958,19 +933,18 @@ object MobileScaffold {
                         true
 
                     contentDescription =
-                        item.label.replace(
-                            "\n",
-                            " ",
-                        )
+                        item.label.replace("\n", " ") +
+                            if (selected) ", selecionada" else ""
 
+                    isSelected = selected
                     minimumWidth =
-                        activity.dp(72)
+                        activity.dp(78)
 
                     setPadding(
                         activity.dp(5),
                         activity.dp(4),
                         activity.dp(5),
-                        activity.dp(3),
+                        activity.dp(4),
                     )
 
                     val selectedTint =
@@ -981,18 +955,15 @@ object MobileScaffold {
                     background =
                         if (selected) {
                             MobileUi.rounded(
-                                selectedTint,
-                                activity.dp(15).toFloat(),
-                                MobileUi.mixWithWhite(
-                                    item.accent,
-                                    0.62f,
-                                ),
+                                Color.argb(34, 255, 255, 255),
+                                activity.dp(17).toFloat(),
+                                Color.argb(110, 255, 255, 255),
                                 activity.dp(1),
                             )
                         } else {
                             MobileUi.rounded(
                                 Color.TRANSPARENT,
-                                activity.dp(15).toFloat(),
+                                activity.dp(17).toFloat(),
                             )
                         }
 
@@ -1019,7 +990,7 @@ object MobileScaffold {
                                         0.965f,
                                     )
                                     .setDuration(
-                                        65,
+                                        80,
                                     )
                                     .start()
                             }
@@ -1035,7 +1006,7 @@ object MobileScaffold {
                                         1f,
                                     )
                                     .setDuration(
-                                        120,
+                                        145,
                                     )
                                     .start()
                             }
@@ -1077,19 +1048,26 @@ object MobileScaffold {
 
                     background =
                         if (selected) {
-                            MobileUi.rounded(
-                                MobileUi.mixWithWhite(
+                            GradientDrawable(
+                                GradientDrawable.Orientation.TL_BR,
+                                intArrayOf(
                                     item.accent,
-                                    0.78f,
+                                    MobileUi.mixWithWhite(item.accent, 0.12f),
                                 ),
-                                activity.dp(9).toFloat(),
-                            )
+                            ).apply {
+                                cornerRadius = activity.dp(13).toFloat()
+                                setStroke(activity.dp(1), Color.argb(90, 255, 255, 255))
+                            }
                         } else {
                             MobileUi.rounded(
-                                Color.TRANSPARENT,
-                                activity.dp(9).toFloat(),
+                                Color.argb(22, 255, 255, 255),
+                                activity.dp(13).toFloat(),
+                                Color.argb(28, 255, 255, 255),
+                                activity.dp(1),
                             )
                         }
+
+                    elevation = if (selected) activity.dp(4).toFloat() else 0f
                 }
 
             val iconView =
@@ -1097,17 +1075,17 @@ object MobileScaffold {
                     activity,
                     item.icon,
                     if (selected) {
-                        item.accent
+                        Color.WHITE
                     } else {
-                        MobileUi.NAVY
+                        Color.rgb(205, 222, 243)
                     },
-                    20,
+                    24,
                 ).apply {
                     alpha =
                         if (selected) {
                             1f
                         } else {
-                            0.68f
+                            0.92f
                         }
 
                     contentDescription =
@@ -1124,8 +1102,8 @@ object MobileScaffold {
             itemView.addView(
                 iconBox,
                 LinearLayout.LayoutParams(
-                    activity.dp(29),
-                    activity.dp(29),
+                    activity.dp(37),
+                    activity.dp(37),
                 ),
             )
 
@@ -1133,33 +1111,41 @@ object MobileScaffold {
                 MobileUi.text(
                     activity,
                     item.label,
-                    9.4f,
-                    if (selected) {
-                        item.accent
-                    } else {
-                        MobileUi.MUTED
-                    },
+                    10.1f,
+                    if (selected) Color.WHITE else Color.rgb(190, 207, 230),
                     selected,
                 ).apply {
-                    gravity =
-                        Gravity.CENTER
-
-                    maxLines =
-                        2
-
-                    textAlignment =
-                        View.TEXT_ALIGNMENT_CENTER
+                    gravity = Gravity.CENTER
+                    maxLines = 2
+                    textAlignment = View.TEXT_ALIGNMENT_CENTER
                 },
-                MobileUi.match(
-                    activity.dp(2),
-                ),
+                MobileUi.match(activity.dp(2)),
             )
+
+            // Uma linha curta colorida sinaliza a aba ativa sem aumentar a altura do dock.
+            if (selected) {
+                itemView.addView(
+                    View(activity).apply {
+                        background = MobileUi.rounded(
+                            item.accent,
+                            activity.dp(3).toFloat(),
+                        )
+                        alpha = 0.98f
+                    },
+                    LinearLayout.LayoutParams(
+                        activity.dp(22),
+                        activity.dp(3),
+                    ).apply {
+                        topMargin = activity.dp(3)
+                    },
+                )
+            }
 
             row.addView(
                 itemView,
                 LinearLayout.LayoutParams(
-                    activity.dp(72),
-                    activity.dp(64),
+                    activity.dp(78),
+                    activity.dp(74),
                 ).apply {
                     marginStart =
                         activity.dp(2)
@@ -1197,7 +1183,7 @@ object MobileScaffold {
             scroll,
             LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                activity.dp(66),
+                activity.dp(80),
             ),
         )
 
@@ -1547,36 +1533,17 @@ object MobileUi {
         context: Context,
     ): GradientDrawable =
         GradientDrawable(
-            GradientDrawable.Orientation.TOP_BOTTOM,
+            GradientDrawable.Orientation.TL_BR,
             intArrayOf(
-                Color.argb(
-                    252,
-                    255,
-                    255,
-                    255,
-                ),
-                Color.argb(
-                    246,
-                    247,
-                    251,
-                    255,
-                ),
+                Color.rgb(12, 27, 49),
+                Color.rgb(20, 43, 72),
+                Color.rgb(16, 36, 63),
             ),
         ).apply {
-            cornerRadius =
-                context.dp(
-                    22,
-                ).toFloat()
-
+            cornerRadius = context.dp(25).toFloat()
             setStroke(
-                context.dp(
-                    1,
-                ),
-                Color.rgb(
-                    217,
-                    229,
-                    241,
-                ),
+                context.dp(1),
+                Color.argb(115, 116, 167, 226),
             )
         }
 
@@ -1602,21 +1569,12 @@ object MobileUi {
         GradientDrawable(
             GradientDrawable.Orientation.LEFT_RIGHT,
             intArrayOf(
-                Color.rgb(
-                    117,
-                    181,
-                    242,
-                ),
-                BLUE,
-                Color.rgb(
-                    117,
-                    181,
-                    242,
-                ),
+                Color.rgb(83, 190, 255),
+                Color.rgb(61, 145, 255),
+                Color.rgb(126, 115, 255),
             ),
         ).apply {
-            cornerRadius =
-                8f
+            cornerRadius = 8f
         }
 
     fun headerBackground(
