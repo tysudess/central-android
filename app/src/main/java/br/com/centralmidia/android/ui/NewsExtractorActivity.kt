@@ -898,10 +898,20 @@ class NewsExtractorActivity : BaseActivity() {
                                 .orEmpty()
                         }
 
+                // Alguns veículos, incluindo páginas do Valor, usam contêineres
+                // específicos para o corpo em vez de um <article> semântico.
+                // Priorizar esses contêineres evita extrair apenas a navegação,
+                // recomendações ou a chamada de assinatura.
                 val article =
                     doc.selectFirst(
-                        "article",
+                        "[itemprop=articleBody], .article-content, .content-text, " +
+                            ".materia-conteudo, .article-body, .post-content, " +
+                            "[class*=article-body], [class*=article-content], " +
+                            "[class*=materia-conteudo]",
                     )
+                        ?: doc.selectFirst(
+                            "article",
+                        )
                         ?: doc.selectFirst(
                             "main",
                         )
@@ -910,7 +920,10 @@ class NewsExtractorActivity : BaseActivity() {
                 val paragraphs =
                     article
                         ?.select(
-                            "p",
+                            "p, [itemprop=articleBody] p, .article-content p, " +
+                                ".content-text p, .materia-conteudo p, " +
+                                ".article-body p, [class*=article-body] p, " +
+                                "[class*=article-content] p",
                         )
                         ?.map {
                             it.text()
@@ -1241,14 +1254,19 @@ class NewsExtractorActivity : BaseActivity() {
 
               var structured = structuredArticle();
 
+              // O Valor e outros portais podem montar o corpo em um contêiner
+              // próprio, sem usar <article> como elemento principal.
               var root =
+                document.querySelector('[itemprop="articleBody"]') ||
+                document.querySelector('.article-content, .content-text, .materia-conteudo, .article-body, .post-content') ||
+                document.querySelector('[class*="article-body"], [class*="article-content"], [class*="materia-conteudo"]') ||
                 document.querySelector('article') ||
                 document.querySelector('main') ||
                 document.body;
 
               var paragraphs = [];
               if (root) {
-                var nodes = root.querySelectorAll('p');
+                var nodes = root.querySelectorAll('p, [itemprop="articleBody"] p, .article-content p, .content-text p, .materia-conteudo p, .article-body p');
                 for (var i = 0; i < nodes.length; i++) {
                   var value =
                     (nodes[i].innerText || nodes[i].textContent || '').trim();
