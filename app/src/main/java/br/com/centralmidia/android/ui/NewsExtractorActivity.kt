@@ -2260,6 +2260,10 @@ class NewsExtractorActivity : BaseActivity() {
     }
 
     companion object {
+        // Tempo para a página concluir a hidratação do conteúdo antes da extração.
+        private const val WEB_EXTRACTION_SETTLE_MS =
+            1_600L
+
         private const val MIN_DIRECT_TEXT =
             120
 
