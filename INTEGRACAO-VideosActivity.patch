@@ -1,0 +1,23 @@
+--- a/app/src/main/java/br/com/centralmidia/android/ui/VideosActivity.kt
++++ b/app/src/main/java/br/com/centralmidia/android/ui/VideosActivity.kt
+@@
+     private lateinit var stopButton: MaterialButton
++    private lateinit var diagnosticsHost: LinearLayout
+@@
+         root.addView(searchConfigurationSummary(), MobileUi.match(dp(8)))
+         root.addView(statusCard(), MobileUi.match(dp(12)))
++
++        // O cartão fica abaixo do status e só é preenchido quando a busca retorna diagnósticos.
++        diagnosticsHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
++        root.addView(diagnosticsHost, MobileUi.match(dp(8)))
+@@
+                 statusDescription.text =
+                     if (outcome.cancelled) "Busca interrompida pelo usuário."
+                     else "A busca foi concluída. ${items.size} vídeo(s) encontrado(s) nesta execução."
++
++                diagnosticsHost.removeAllViews()
++                diagnosticsHost.addView(
++                    VideoDiagnosticsCard.create(this, outcome.diagnostics),
++                    MobileUi.match(dp(8)),
++                )
+*** End Patch
