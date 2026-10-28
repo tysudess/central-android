@@ -11,6 +11,8 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 class VideoSearchClient {
+    private val globoplayDiscoveryClient = GloboplayDiscoveryClient()
+
     data class VideoItem(
         val title: String,
         val sourceId: String,
@@ -97,6 +99,28 @@ class VideoSearchClient {
         var completed = 0
         var errors = 0
 
+        // O desktop consulta Jarvis uma vez para os cinco telejornais nacionais e
+        // distribui os candidatos por programa. Fazemos o mesmo no Android, em vez
+        // de pedir a cada fonte regional uma nova busca para cada termo.
+        val jarvisOutcome = runCatching {
+            globoplayDiscoveryClient.collectJarvis(
+                sources = sources,
+                rawQueries = terms + demands.filter { demand ->
+                    sources.any { source ->
+                        source.id in CORE_NATIONAL_GLOBOPLAY_IDS && sourceMatchesDemand(source, demand.second)
+                    }
+                }.map { it.third },
+                cancelled = cancelled,
+                onProgress = { query ->
+                    onProgress(Progress(completed, jobs.size, collected.size, errors, "Globoplay nacional", query))
+                },
+            )
+        }.getOrElse {
+            GloboplayDiscoveryClient.JarvisOutcome(emptyMap(), 0, 1)
+        }
+        errors += jarvisOutcome.failedQueries
+        val jarvisCandidates = jarvisOutcome.candidatesBySourceId
+
         for (job in jobs) {
             if (cancelled()) break
             onProgress(Progress(
@@ -106,8 +130,14 @@ class VideoSearchClient {
 
             var collectionError = ""
             val candidates = runCatching {
-                if (job.scanSource) collectSource(job.source)
+                val pageCandidates = if (job.scanSource) collectSource(job.source)
                 else collectForQuery(job.source, job.query)
+                if (job.scanSource) {
+                    (jarvisCandidates[job.source.id].orEmpty() + pageCandidates)
+                        .groupBy { canonical(it.link) }
+                        .values
+                        .map { duplicates -> duplicates.reduce { previous, incoming -> merge(previous, incoming) } }
+                } else pageCandidates
             }.getOrElse { error ->
                 errors++
                 collectionError = error.javaClass.simpleName + ": " +
@@ -130,8 +160,23 @@ class VideoSearchClient {
             // Sem isso, muitos portais entregam apenas título/link: a data fica 0 e o
             // resumo não contém a tag, então o filtro Android descartava o resultado.
             var resolvedInJob = 0
-            val resolveLimit = if (job.scanSource) MAX_SCAN_RESOLVE_PER_JOB else MAX_RESOLVED_PER_QUERY
-            for ((candidateIndex, candidate) in candidates.withIndex()) {
+            var deepGloboplayResolutions = 0
+            val resolveLimit = resolveLimit(job.source, job.scanSource)
+            val deepGloboplayLimit = deepGloboplayLimit(job.source, job.scanSource)
+            // A versão anterior resolvia os primeiros links da página, mesmo quando
+            // não tinham relação com os termos. Isso consumia o orçamento de páginas
+            // antes de chegar aos candidatos relevantes do período.
+            val prioritizedCandidates = candidates.withIndex().sortedWith(
+                compareByDescending<IndexedValue<VideoItem>> { indexed ->
+                    val body = "${indexed.value.title} ${indexed.value.summary}"
+                    terms.count { it.isNotBlank() && phraseMatches(body, it) } * 2 +
+                        demands.count { demand ->
+                            sourceMatchesDemand(job.source, demand.second) && phraseMatches(body, demand.third)
+                        }
+                }.thenByDescending { it.value.publishedAt > 0L }
+                    .thenBy { it.index },
+            ).map { it.value }
+            for ((candidateIndex, candidate) in prioritizedCandidates.withIndex()) {
                 if (cancelled()) break
                 if ((candidateIndex + 1) % 4 == 0) {
                     onProgress(Progress(
@@ -141,12 +186,26 @@ class VideoSearchClient {
                 }
 
                 val shallowBody = "${candidate.title} ${candidate.summary}"
-                val shallowTermMatch = terms.any { phraseMatches(shallowBody, it) }
+                val shallowTermMatch = terms.any { it.isNotBlank() && phraseMatches(shallowBody, it) }
                 val shallowDemandMatch = demands.any { demand ->
                     sourceMatchesDemand(job.source, demand.second) && phraseMatches(shallowBody, demand.third)
                 }
-                val requiresPageResolution = candidate.publishedAt <= 0L ||
-                    (!shallowTermMatch && !shallowDemandMatch) || candidate.summary.length < MIN_USEFUL_SUMMARY
+                val globoplayScan = job.scanSource && isGloboplaySource(job.source)
+                if (globoplayScan && !shallowTermMatch && !shallowDemandMatch) {
+                    // Igual ao Windows: o deep fallback em resultados que ainda não
+                    // parecem relevantes é limitado por fonte; não tentamos abrir
+                    // dezenas de páginas irrelevantes só para descobrir a data.
+                    if (deepGloboplayResolutions >= deepGloboplayLimit) continue
+                    deepGloboplayResolutions++
+                }
+                val shallowGloboplayCandidate = globoplayScan &&
+                    (shallowTermMatch || shallowDemandMatch) && candidate.publishedAt > 0L &&
+                    usefulTitle(candidate.title) && isSpecificVideoUrl(job.source, candidate.link)
+                val requiresPageResolution = !shallowGloboplayCandidate && (
+                    candidate.publishedAt <= 0L ||
+                        (!shallowTermMatch && !shallowDemandMatch) ||
+                        candidate.summary.length < MIN_USEFUL_SUMMARY
+                    )
 
                 var prepared = candidate
                 if (requiresPageResolution && resolvedInJob < resolveLimit && isSpecificVideoUrl(job.source, candidate.link)) {
@@ -184,6 +243,11 @@ class VideoSearchClient {
                     duplicates++
                     collected[key] = merge(previous, enriched)
                 }
+            }
+
+            if (job.scanSource && job.source.id in CORE_NATIONAL_GLOBOPLAY_IDS && jarvisOutcome.failedQueries > 0) {
+                val jarvisNote = "Jarvis GraphQL: ${jarvisOutcome.failedQueries}/${jarvisOutcome.queriesAttempted} consulta(s) falharam"
+                collectionError = listOf(collectionError, jarvisNote).filter { it.isNotBlank() }.joinToString("; ")
             }
 
             diagnostics += SourceDiagnostic(
@@ -239,20 +303,34 @@ class VideoSearchClient {
                 .map { it.third.trim() }
                 .filter { it.isNotBlank() }
                 .forEach { queries += it }
+            val fallbackQueries = linkedSetOf<String>()
+            demands.filter { sourceMatchesDemand(source, it.second) }
+                .map { it.third.trim() }.filter { it.isNotBlank() }.forEach { fallbackQueries += it }
+            terms.filter { it.isNotBlank() }.forEach { fallbackQueries += it }
 
-            // Portais com modo de varredura também devem receber consultas por termo.
-            // Antes, alguns eram varridos pela página inicial e só depois filtrados localmente.
-            val portalSupportsTermSearch =
-                "globoplay" in source.id.lowercase(Locale.ROOT) ||
-                    source.id.startsWith("video-r7-") ||
-                    source.id.startsWith("video-band") ||
-                    source.id == "video-sbt-news" ||
-                    source.id == "video-cnn-brasil"
+            // Alinhamento com o Windows: fontes em modo de varredura são coletadas
+            // uma vez e cruzadas localmente. Consultas extras ficam restritas aos
+            // portais nacionais com fallback explícito no desktop.
+            val nationalFallbackIds = setOf(
+                "video-globoplay-jornalismo",
+                "video-r7-record",
+                "video-sbt-news",
+                "video-band",
+                "video-band-jornal-da-band",
+                "video-band-brasil-urgente",
+                "video-r7-jornal-da-record",
+                "video-r7-domingo-espetacular",
+            )
+            val portalSupportsTermSearch = source.id in nationalFallbackIds
 
             if (isSourceScanMode(source)) {
                 add(Job(source, "", true))
                 if (portalSupportsTermSearch && source.searchUrlTemplate.isNotBlank()) {
-                    queries.forEach { add(Job(source, it, false)) }
+                    // O Windows limita o fallback a seis consultas para não disparar
+                    // 25 consultas por cada fonte regional do Globoplay.
+                    fallbackQueries.take(MAX_NATIONAL_PORTAL_FALLBACK_TERMS).forEach {
+                        add(Job(source, it, false))
+                    }
                 }
             } else {
                 queries.forEach { add(Job(source, it, false)) }
@@ -266,8 +344,7 @@ class VideoSearchClient {
             "globoplay" in joined ||
             source.id.startsWith("video-r7-") ||
             source.id.startsWith("video-band") ||
-            source.id == "video-sbt-news" ||
-            source.id == "video-cnn-brasil"
+            source.id == "video-sbt-news"
     }
 
     private fun collectSource(source: VideoSource): List<VideoItem> {
@@ -298,13 +375,25 @@ class VideoSearchClient {
         val out = linkedMapOf<String, VideoItem>()
         val attemptedUrls = linkedSetOf<String>()
         var lastFailure: Throwable? = null
-        urls.forEach { url ->
-            attemptedUrls += url
-            runCatching {
-                parseDocument(fetch(url), source, url, 44).forEach { item ->
-                    out.putIfAbsent(canonical(item.link), item)
-                }
-            }.onFailure { lastFailure = it }
+        if (globoplaySource) {
+            // O coletor adicional lê os IDs /v/... escondidos em scripts e em páginas
+            // /cenas/, que o parser genérico baseado em anchors não conseguia ver.
+            runCatching { globoplayDiscoveryClient.collect(source) }
+                .getOrDefault(emptyList())
+                .forEach { item -> out.putIfAbsent(canonical(item.link), item) }
+        }
+        // Se o coletor especializado já encontrou candidatos, não repetimos a
+        // requisição às mesmas páginas de busca/entrada com o parser genérico.
+        // Isso evita duplicar tráfego em dezenas de fontes Globoplay regionais.
+        if (!globoplaySource || out.isEmpty()) {
+            urls.forEach { url ->
+                attemptedUrls += url
+                runCatching {
+                    parseDocument(fetch(url), source, url, 44).forEach { item ->
+                        out.putIfAbsent(canonical(item.link), item)
+                    }
+                }.onFailure { lastFailure = it }
+            }
         }
         // Se a página inicial não expõe itens, tenta a busca cadastrada para a fonte.
         if (out.isEmpty() && source.searchUrlTemplate.isNotBlank() && source.searchPrefix.isNotBlank()) {
@@ -768,6 +857,30 @@ class VideoSearchClient {
         )
     }
 
+    private fun resolveLimit(source: VideoSource, scanSource: Boolean): Int {
+        if (!scanSource) return MAX_RESOLVED_PER_QUERY
+        if (source.youtubeHandle.isNotBlank()) return MAX_YOUTUBE_ITEMS_PER_SCAN
+        if (source.id in CORE_NATIONAL_GLOBOPLAY_IDS) return MAX_GLOBOPLAY_NATIONAL_RESOLVE
+        if (source.id == "video-globoplay-jornalismo" || source.id.startsWith("globoplay-regionais-")) {
+            return MAX_GLOBOPLAY_GENERAL_RESOLVE
+        }
+        return if (isGloboplaySource(source)) MAX_GLOBOPLAY_RESOLVE else MAX_SCAN_RESOLVE_PER_JOB
+    }
+
+    private fun deepGloboplayLimit(source: VideoSource, scanSource: Boolean): Int {
+        if (!scanSource || !isGloboplaySource(source)) return 0
+        return when {
+            source.id in CORE_NATIONAL_GLOBOPLAY_IDS -> MAX_GLOBOPLAY_DEEP_NATIONAL
+            source.id == "video-globoplay-jornalismo" || source.id.startsWith("globoplay-regionais-") -> MAX_GLOBOPLAY_DEEP_GENERAL
+            else -> MAX_GLOBOPLAY_DEEP_PER_SOURCE
+        }
+    }
+
+    private fun isGloboplaySource(source: VideoSource): Boolean =
+        "globoplay" in source.id.lowercase(Locale.ROOT) ||
+            "globoplay.globo.com" in source.landingUrl.lowercase(Locale.ROOT) ||
+            "globoplay.globo.com" in source.searchUrlTemplate.lowercase(Locale.ROOT)
+
     private fun sourceMatchesDemand(source: VideoSource, vehicle: String): Boolean {
         if (vehicle.isBlank()) return true
         val wanted = normalize(vehicle).replace(" ", "")
@@ -920,6 +1033,17 @@ class VideoSearchClient {
         private const val MAX_YOUTUBE_ITEMS_PER_SCAN = 40
         private const val MAX_SCAN_RESOLVE_PER_JOB = 40
         private const val MAX_RESOLVED_PER_QUERY = 24
+        private const val MAX_GLOBOPLAY_RESOLVE = 40
+        private const val MAX_GLOBOPLAY_GENERAL_RESOLVE = 48
+        private const val MAX_GLOBOPLAY_NATIONAL_RESOLVE = 72
+        private const val MAX_GLOBOPLAY_DEEP_PER_SOURCE = 12
+        private const val MAX_GLOBOPLAY_DEEP_GENERAL = 14
+        private const val MAX_GLOBOPLAY_DEEP_NATIONAL = 72
+        private const val MAX_NATIONAL_PORTAL_FALLBACK_TERMS = 6
+        private val CORE_NATIONAL_GLOBOPLAY_IDS = setOf(
+            "globoplay-bom-dia-brasil", "globoplay-hora-1", "globoplay-jornal-hoje",
+            "globoplay-jornal-nacional", "globoplay-jornal-da-globo",
+        )
         private const val MIN_USEFUL_SUMMARY = 50
         private const val MAX_ENRICHED_SUMMARY_LENGTH = 1800
         private const val MAX_HTML_BODY_BYTES = 8_000_000
