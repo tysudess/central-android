@@ -1,4 +1,4 @@
-name: Validar Android (testes e APK)
+name: Validar Android (testes e compilação)
 
 on:
   workflow_dispatch:
@@ -68,27 +68,7 @@ jobs:
       - name: Executar testes unitários
         run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
 
-      - name: Compilar APK de depuração
+      # Esta rotina não publica APK: APKs instaláveis são publicados apenas
+      # pelo build-android.yml, com a chave persistente de assinatura.
+      - name: Validar compilação de depuração
         run: gradle :app:assembleDebug --no-daemon --stacktrace
-
-      - name: Validar APK e gerar checksum
-        shell: bash
-        run: |
-          set -euo pipefail
-          APK="app/build/outputs/apk/debug/app-debug.apk"
-          test -s "$APK"
-          mkdir -p release
-          cp "$APK" release/Central-Inteligente-de-Midia-Android-arm64.apk
-          sha256sum release/Central-Inteligente-de-Midia-Android-arm64.apk \
-            > release/Central-Inteligente-de-Midia-Android-arm64.apk.sha256
-          file release/Central-Inteligente-de-Midia-Android-arm64.apk
-
-      - name: Publicar APK e checksum como artefato
-        uses: actions/upload-artifact@v4
-        with:
-          name: Central-Android-APK-validado
-          path: |
-            release/Central-Inteligente-de-Midia-Android-arm64.apk
-            release/Central-Inteligente-de-Midia-Android-arm64.apk.sha256
-          if-no-files-found: error
-          retention-days: 14
