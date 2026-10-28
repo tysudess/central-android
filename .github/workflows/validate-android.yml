@@ -1,0 +1,94 @@
+name: Validar Android (testes e APK)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'app/**'
+      - 'scripts/**'
+      - '*.gradle.kts'
+      - 'gradle.properties'
+      - '.github/workflows/**'
+  push:
+    branches: [ main ]
+    paths:
+      - 'app/**'
+      - 'scripts/**'
+      - '*.gradle.kts'
+      - 'gradle.properties'
+      - '.github/workflows/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Testes e compilação Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Baixar repositório Android
+        uses: actions/checkout@v4
+
+      - name: Baixar repositório desktop para sincronização
+        uses: actions/checkout@v4
+        with:
+          repository: tysudess/noticias-python
+          path: desktop
+          persist-credentials: false
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Sincronizar catálogo/configuração do desktop
+        run: python scripts/sync_desktop.py desktop
+
+      - name: Configurar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Configurar Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Validar configuração Gradle
+        run: gradle tasks --no-daemon
+
+      - name: Executar testes unitários
+        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
+
+      - name: Compilar APK de depuração
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Validar APK e gerar checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          mkdir -p release
+          cp "$APK" release/Central-Inteligente-de-Midia-Android-arm64.apk
+          sha256sum release/Central-Inteligente-de-Midia-Android-arm64.apk \
+            > release/Central-Inteligente-de-Midia-Android-arm64.apk.sha256
+          file release/Central-Inteligente-de-Midia-Android-arm64.apk
+
+      - name: Publicar APK e checksum como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: Central-Android-APK-validado
+          path: |
+            release/Central-Inteligente-de-Midia-Android-arm64.apk
+            release/Central-Inteligente-de-Midia-Android-arm64.apk.sha256
+          if-no-files-found: error
+          retention-days: 14
