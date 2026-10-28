@@ -53,7 +53,7 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Preparar assinatura persistente e versão crescente
+      - name: Validar e normalizar Secrets de assinatura
         shell: bash
         env:
           ANDROID_SIGNING_KEYSTORE_BASE64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 }}
@@ -62,21 +62,51 @@ jobs:
           ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
         run: |
           set -euo pipefail
+
           for name in ANDROID_SIGNING_KEYSTORE_BASE64 ANDROID_SIGNING_STORE_PASSWORD ANDROID_SIGNING_KEY_PASSWORD ANDROID_SIGNING_KEY_ALIAS; do
             if [[ -z "${!name:-}" ]]; then
-              echo "::error::Secret obrigatório ausente: $name. Consulte LEIA-ME-ATUALIZACAO-ANDROID.md."
+              echo "::error::Secret obrigatório ausente: $name. Cadastre-o em Settings > Secrets and variables > Actions."
               exit 1
             fi
           done
+
+          # Protege contra quebras de linha introduzidas ao copiar e colar no GitHub.
+          KEYSTORE_B64="$(printf '%s' "$ANDROID_SIGNING_KEYSTORE_BASE64" | tr -d '[:space:]')"
+          STORE_PASSWORD="$(printf '%s' "$ANDROID_SIGNING_STORE_PASSWORD" | tr -d '\r\n')"
+          KEY_PASSWORD="$(printf '%s' "$ANDROID_SIGNING_KEY_PASSWORD" | tr -d '\r\n')"
+          KEY_ALIAS="$(printf '%s' "$ANDROID_SIGNING_KEY_ALIAS" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+
           KEYSTORE_PATH="$RUNNER_TEMP/central-android-upload-key.p12"
-          printf '%s' "$ANDROID_SIGNING_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
-          test -s "$KEYSTORE_PATH"
-          keytool -list -storetype PKCS12 -keystore "$KEYSTORE_PATH" \
-            -storepass "$ANDROID_SIGNING_STORE_PASSWORD" \
-            -alias "$ANDROID_SIGNING_KEY_ALIAS" >/dev/null
-          echo "ANDROID_SIGNING_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
-          echo "ANDROID_VERSION_CODE=$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
-          echo "ANDROID_VERSION_NAME=1.0.$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
+          DECODE_LOG="$RUNNER_TEMP/keystore-base64-check.log"
+          KEYTOOL_LOG="$RUNNER_TEMP/keystore-key-check.log"
+
+          if ! printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH" 2>"$DECODE_LOG"; then
+            echo "::error::O Secret ANDROID_SIGNING_KEYSTORE_BASE64 não é um Base64 válido. Copie novamente todo o conteúdo do arquivo ANDROID_SIGNING_KEYSTORE_BASE64.txt."
+            exit 1
+          fi
+
+          if [[ ! -s "$KEYSTORE_PATH" ]]; then
+            echo "::error::O keystore decodificado está vazio. Confira o Secret ANDROID_SIGNING_KEYSTORE_BASE64."
+            exit 1
+          fi
+
+          if ! keytool -list -storetype PKCS12 -keystore "$KEYSTORE_PATH" \
+            -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null 2>"$KEYTOOL_LOG"; then
+            echo "::error::O arquivo Base64 foi decodificado, mas a chave não passou na validação. Confira ANDROID_SIGNING_STORE_PASSWORD e ANDROID_SIGNING_KEY_ALIAS com os arquivos privados. Nenhum valor secreto foi exibido."
+            exit 1
+          fi
+
+          echo "Keystore PKCS12 e alias validados."
+
+          # Usa valores sem CR/LF no resto do job, sem exibi-los nos logs.
+          {
+            echo "ANDROID_SIGNING_KEYSTORE_PATH=$KEYSTORE_PATH"
+            echo "ANDROID_SIGNING_STORE_PASSWORD=$STORE_PASSWORD"
+            echo "ANDROID_SIGNING_KEY_PASSWORD=$KEY_PASSWORD"
+            echo "ANDROID_SIGNING_KEY_ALIAS=$KEY_ALIAS"
+            echo "ANDROID_VERSION_CODE=$GITHUB_RUN_NUMBER"
+            echo "ANDROID_VERSION_NAME=1.0.$GITHUB_RUN_NUMBER"
+          } >> "$GITHUB_ENV"
 
       - name: Validar configuração Gradle
         run: gradle tasks --no-daemon
@@ -85,10 +115,6 @@ jobs:
         run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
 
       - name: Compilar APK ARM64 assinado para atualização
-        env:
-          ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}
-          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
-          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
         run: gradle :app:assembleRelease --no-daemon --stacktrace
 
       - name: Preparar artefato e checksum
