@@ -3,6 +3,23 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// A assinatura de release deve permanecer a mesma em todas as versões instaláveis.
+// Os valores vêm exclusivamente das variáveis do ambiente no GitHub Actions.
+val signingStorePath = System.getenv("ANDROID_SIGNING_KEYSTORE_PATH")
+val signingStorePassword = System.getenv("ANDROID_SIGNING_STORE_PASSWORD")
+val signingKeyAlias = System.getenv("ANDROID_SIGNING_KEY_ALIAS")
+val signingKeyPassword = System.getenv("ANDROID_SIGNING_KEY_PASSWORD")
+val stableSigningConfigured = listOf(
+    signingStorePath,
+    signingStorePassword,
+    signingKeyAlias,
+    signingKeyPassword,
+).all { !it.isNullOrBlank() }
+
+// O workflow fornece o número crescente da execução, evitando versionCode repetido.
+val ciVersionCode = System.getenv("ANDROID_VERSION_CODE")?.toIntOrNull() ?: 35
+val ciVersionName = System.getenv("ANDROID_VERSION_NAME")?.takeIf { it.isNotBlank() } ?: "1.0.$ciVersionCode"
+
 android {
     namespace = "br.com.centralmidia.android"
     compileSdk = 35
@@ -11,17 +28,32 @@ android {
         applicationId = "br.com.centralmidia.android"
         minSdk = 24
         targetSdk = 35
-        versionCode = 34
-        versionName = "1.0.34"
+        versionCode = ciVersionCode
+        versionName = ciVersionName
 
         ndk {
             abiFilters += listOf("arm64-v8a")
         }
     }
 
+    signingConfigs {
+        if (stableSigningConfigured) {
+            create("stableRelease") {
+                storeFile = file(signingStorePath!!)
+                storeType = "PKCS12"
+                storePassword = signingStorePassword!!
+                keyAlias = signingKeyAlias!!
+                keyPassword = signingKeyPassword!!
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (stableSigningConfigured) {
+                signingConfig = signingConfigs.getByName("stableRelease")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
