@@ -9,7 +9,7 @@ on:
       - 'scripts/**'
       - '*.gradle.kts'
       - 'gradle.properties'
-      - '.github/workflows/build-android.yml'
+      - '.github/workflows/**'
 
 permissions:
   contents: write
@@ -32,6 +32,7 @@ jobs:
         with:
           repository: tysudess/noticias-python
           path: desktop
+          persist-credentials: false
 
       - name: Python 3.12
         uses: actions/setup-python@v5
@@ -52,29 +53,64 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Preparar assinatura persistente e versão crescente
+        shell: bash
+        env:
+          ANDROID_SIGNING_KEYSTORE_BASE64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 }}
+          ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}
+          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
+          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          for name in ANDROID_SIGNING_KEYSTORE_BASE64 ANDROID_SIGNING_STORE_PASSWORD ANDROID_SIGNING_KEY_PASSWORD ANDROID_SIGNING_KEY_ALIAS; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Secret obrigatório ausente: $name. Consulte LEIA-ME-ATUALIZACAO-ANDROID.md."
+              exit 1
+            fi
+          done
+          KEYSTORE_PATH="$RUNNER_TEMP/central-android-upload-key.p12"
+          printf '%s' "$ANDROID_SIGNING_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          test -s "$KEYSTORE_PATH"
+          keytool -list -storetype PKCS12 -keystore "$KEYSTORE_PATH" \
+            -storepass "$ANDROID_SIGNING_STORE_PASSWORD" \
+            -alias "$ANDROID_SIGNING_KEY_ALIAS" >/dev/null
+          echo "ANDROID_SIGNING_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "ANDROID_VERSION_CODE=$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
+          echo "ANDROID_VERSION_NAME=1.0.$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
+
       - name: Validar configuração Gradle
         run: gradle tasks --no-daemon
 
-      - name: Build APK ARM64
-        run: gradle :app:assembleDebug --no-daemon --stacktrace
+      - name: Testes unitários
+        run: gradle :app:testDebugUnitTest --no-daemon --stacktrace
 
-      - name: Preparar artefato
+      - name: Compilar APK ARM64 assinado para atualização
+        env:
+          ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}
+          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
+          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
+        run: gradle :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Preparar artefato e checksum
         shell: bash
         run: |
           set -euo pipefail
+          APK="app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
           mkdir -p release
-          cp app/build/outputs/apk/debug/app-debug.apk release/Central-Inteligente-de-Midia-Android-arm64.apk
+          cp "$APK" release/Central-Inteligente-de-Midia-Android-arm64.apk
           sha256sum release/Central-Inteligente-de-Midia-Android-arm64.apk > release/Central-Inteligente-de-Midia-Android-arm64.apk.sha256
           test -s release/Central-Inteligente-de-Midia-Android-arm64.apk
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Central-Android-APK
+          name: Central-Android-APK-assinado
           path: |
             release/Central-Inteligente-de-Midia-Android-arm64.apk
             release/Central-Inteligente-de-Midia-Android-arm64.apk.sha256
           if-no-files-found: error
+          retention-days: 30
 
       - name: Criar Release
         if: github.ref == 'refs/heads/main'
