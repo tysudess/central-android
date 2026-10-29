@@ -1,34 +1,39 @@
-# Etapa — novo layout de Capas com tema naval
+# Ajuste fino do layout Capas — tema naval
 
-Base consultada: `tysudess/central-android`, `main` no commit `f5ef568aef1ee6f902930f2e8e6fe8615f552366`.
+## Base consultada
 
-Builds de referência antes da mudança:
-- Build Android APK #138: sucesso
-- Validar Android #15: sucesso
+Repositório: `tysudess/central-android`
 
-## Arquivo incluído
+`main` consultado antes desta alteração: `68dd937f2d9ba51fbabd41f6565148bbee2c6b1b`.
 
-Substituir o arquivo completo:
+Validação anterior da base:
+- Build Android APK #140: sucesso
+- Validar Android #16: sucesso
+
+## Arquivo completo incluído
+
+Substitua este arquivo, mantendo exatamente o caminho:
+
 `app/src/main/java/br/com/centralmidia/android/ui/CoversActivity.kt`
 
-## O que esta etapa muda
+## Correções desta versão
 
-- Paleta azul-marinho, azul naval, branco e dourado.
-- Cabeçalho da aba com identidade da Central e fundo navy.
-- Ações Atualizar capas (navy) e Gerar PDF (dourado).
-- Contadores compactos de jornais, capas disponíveis, pendências e seleção.
-- Grade adaptável de cartões com prévias, status, revisão e inserção manual.
-- Destaque dourado da aba Capas no dock compartilhado.
-- Correção do padding inferior do módulo para a grade não perder espaço útil nem ficar encoberta pela navegação.
-- Preserva o módulo de busca, os dados de capa, seleção, inserção manual, revisão e exportação existentes; não altera os motores de captura ou a criação do PDF.
+- Aplica o layout na primeira abertura e na reentrada da atividade, com tentativas limitadas quando a hierarquia visual ainda não está pronta.
+- Reaplica a identidade naval após o scaffold da Central terminar de ajustar a tela.
+- Corrige contraste dos rótulos e ícones da navegação inferior; os itens não selecionados ficam claros sobre o fundo azul-marinho e Capas fica dourado.
+- Centraliza o item Capas no menu inferior depois que a largura da barra é medida, evitando que a primeira abertura deixe Capas fora da área visível.
+- Reduz a altura do cabeçalho, da data, dos botões, dos indicadores e do título da lista para dar mais espaço às capas.
+- Não expande todos os jornais automaticamente. O primeiro continua aberto por padrão; jornais pendentes ficam compactos.
+- Quando existe uma capa, a grade mostra uma prévia maior mesmo no cartão recolhido. A inserção manual permanece disponível ao expandir o cartão.
+- Mantém os motores existentes de busca, Gmail, revisão, seleção, substituição manual e exportação PDF em `MainActivity`/`ModernMainActivity`; este pacote não modifica essas rotinas.
 
-## Aplicação
+## Como aplicar
 
-1. Descompacte o ZIP na raiz de `tysudess/central-android`.
-2. Mantenha a estrutura de diretórios e substitua apenas `CoversActivity.kt`.
-3. Faça commit no GitHub.
-4. Confira `Validar Android (testes e compilação)` e `Build Android APK` antes de usar o APK.
+1. Descompacte este ZIP na raiz do repositório `tysudess/central-android`.
+2. Substitua o arquivo indicado acima.
+3. Faça o commit no GitHub.
+4. Confirme os workflows `Validar Android (testes e compilação)` e `Build Android APK`.
 
-## Limite da validação
+## Limite da validação local
 
-O arquivo foi revisado estruturalmente e os delimitadores foram verificados. O ZIP foi validado quanto à integridade. Não foi possível executar uma compilação Android completa local nesta sessão; o build do GitHub Actions continua sendo a validação final. Se os cartões tiverem problemas de medida em algum aparelho, o passo seguinte deve ser um ajuste de layout após validar o APK, não uma mudança nos motores de captura.
+A integridade do ZIP e a estrutura das pastas foram verificadas. Este ambiente não possui Android SDK/Gradle configurados para compilar o APK completo; o build final deve ser confirmado no GitHub Actions depois do commit. Não altere os secrets de assinatura por causa desta mudança visual.

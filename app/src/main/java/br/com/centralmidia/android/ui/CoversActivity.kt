@@ -17,10 +17,10 @@ import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import br.com.principaiscapas.ModernMainActivity
 import br.com.centralmidia.android.core.dp
 import java.lang.reflect.Field
-import java.lang.reflect.Method
 
 /**
  * Tela de Capas integrada ao dock da Central.
@@ -32,7 +32,7 @@ import java.lang.reflect.Method
  */
 class CoversActivity : ModernMainActivity() {
 
-    private var defaultExpansionApplied = false
+    private var layoutRefreshToken = 0
     private var compactInsetsFixInstalled = false
     private var packingGrid = false
     private var currentGridRow: LinearLayout? = null
@@ -64,35 +64,68 @@ class CoversActivity : ModernMainActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.decorView.post { applyNavalLayout() }
+        scheduleNavalLayout()
     }
 
     override fun onResume() {
         super.onResume()
-        // ModernMainActivity refaz o estilo genérico ao retornar à tela. Aplicamos
-        // o tema da aba depois dele para preservar o dock e os cartões da grade.
-        window.decorView.post { applyNavalLayout() }
+        // ModernMainActivity reaplica o estilo genérico ao voltar à tela. A fila
+        // em duas etapas garante que nosso tema seja aplicado depois desse ajuste.
+        scheduleNavalLayout()
     }
 
-    private fun applyNavalLayout() {
-        val content = findViewById<ViewGroup>(android.R.id.content) ?: return
-        val shell = content.getChildAt(0) as? ViewGroup ?: return
-        val moduleRoot = shell.getChildAt(0) as? LinearLayout ?: return
-        val scroll = findFirstScrollView(moduleRoot) ?: return
-        val list = scroll.getChildAt(0) as? LinearLayout ?: return
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        scheduleNavalLayout()
+    }
+
+    private fun scheduleNavalLayout() {
+        val token = ++layoutRefreshToken
+        window.decorView.post {
+            window.decorView.postOnAnimation {
+                retryNavalLayout(token, 0)
+            }
+        }
+    }
+
+    private fun retryNavalLayout(token: Int, attempt: Int) {
+        if (token != layoutRefreshToken || isFinishing) return
+        if (applyNavalLayout()) {
+            // O scaffold base instala insets e estilos após a primeira passagem em
+            // alguns aparelhos. Uma aplicação final, já com as dimensões medidas,
+            // fixa o tema e o item Capas visível na barra inferior.
+            window.decorView.postDelayed({
+                if (token == layoutRefreshToken && !isFinishing) applyNavalLayout()
+            }, 160L)
+            return
+        }
+        if (attempt < 6) {
+            window.decorView.postDelayed({ retryNavalLayout(token, attempt + 1) }, 70L)
+        }
+    }
+
+    private fun applyNavalLayout(): Boolean {
+        val content = findViewById<ViewGroup>(android.R.id.content) ?: return false
+        val shell = content.getChildAt(0) as? ViewGroup ?: return false
+        val moduleRoot = shell.getChildAt(0) as? LinearLayout ?: return false
+        val scroll = findFirstScrollView(moduleRoot) ?: return false
+        val list = scroll.getChildAt(0) as? LinearLayout ?: return false
 
         activeList = list
         gridColumns = if (resources.configuration.screenWidthDp >= 520) 3 else 2
 
         applySystemChrome()
         moduleRoot.setBackgroundColor(pageBg)
-        moduleRoot.setPadding(dp(10), dp(6), dp(10), dp(8))
+        // Menos altura antes da primeira linha de jornais, para mostrar mais capas
+        // sem reduzir a área de toque dos controles principais.
+        moduleRoot.setPadding(dp(8), dp(2), dp(8), dp(5))
         installCompactBottomInsetsFix(moduleRoot)
         scroll.setBackgroundColor(Color.TRANSPARENT)
         scroll.setPadding(0, 0, 0, 0)
         scroll.clipToPadding = false
         list.setBackgroundColor(Color.TRANSPARENT)
-        list.setPadding(0, dp(2), 0, dp(8))
+        list.setPadding(0, dp(1), 0, dp(5))
 
         styleHeader(moduleRoot)
         styleDateAndActions(moduleRoot)
@@ -100,17 +133,13 @@ class CoversActivity : ModernMainActivity() {
         styleSectionHeader(moduleRoot)
         installOrRefreshGrid(list)
 
-        if (!defaultExpansionApplied) {
-            defaultExpansionApplied = true
-            if (expandEntriesForGallery()) {
-                invokePrivateNoArg("renderList")
-            }
-        }
-
-        // Atualização após o primeiro render, e também ao retornar da configuração.
+        // A tela base já expande o primeiro jornal. Não expandimos todos de uma vez:
+        // cartões pendentes ficam compactos e a ação de inserir manual aparece ao abrir
+        // somente o jornal desejado.
         restyleVisibleCards(list)
         updateSummaryCounts()
         styleSelectedDockItem(shell)
+        return true
     }
 
 
@@ -143,12 +172,18 @@ class CoversActivity : ModernMainActivity() {
             flags = flags and View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR.inv()
         }
         window.decorView.systemUiVisibility = flags
+        // A barra compartilhada usa WindowInsetsControllerCompat. Definimos também
+        // o estado moderno para evitar que o primeiro frame reative ícones escuros.
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
+        }
     }
 
     private fun styleHeader(root: LinearLayout) {
         val toolbar = root.getChildAt(0) as? LinearLayout ?: return
-        toolbar.layoutParams = toolbar.layoutParams.apply { height = dp(64) }
-        toolbar.setPadding(dp(10), dp(7), dp(8), dp(7))
+        toolbar.layoutParams = toolbar.layoutParams.apply { height = dp(54) }
+        toolbar.setPadding(dp(8), dp(5), dp(6), dp(5))
         toolbar.background = gradient(navy, navyDeep, 17, gold, 1)
         toolbar.elevation = dp(3).toFloat()
 
@@ -157,7 +192,7 @@ class CoversActivity : ModernMainActivity() {
         brandTitle?.apply {
             text = "Central Inteligente de Mídia"
             setTextColor(Color.WHITE)
-            setTextSize(14.5f)
+            setTextSize(13.2f)
             typeface = Typeface.create("sans-serif", Typeface.BOLD)
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
@@ -166,7 +201,7 @@ class CoversActivity : ModernMainActivity() {
         brandSubtitle?.apply {
             text = "Monitoramento, análise e produção de informação"
             setTextColor(Color.rgb(218, 227, 238))
-            setTextSize(9.5f)
+            setTextSize(8.4f)
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
         }
@@ -187,13 +222,13 @@ class CoversActivity : ModernMainActivity() {
         val dateCard = root.getChildAt(1) as? LinearLayout
         dateCard?.apply {
             background = rounded(surface, 14, border, 1)
-            setPadding(dp(11), dp(6), dp(11), dp(6))
+            setPadding(dp(9), dp(3), dp(9), dp(3))
             elevation = dp(1).toFloat()
             layoutParams = layoutParams.apply {
-                height = dp(62)
+                height = dp(52)
                 if (this is LinearLayout.LayoutParams) {
-                    topMargin = dp(7)
-                    bottomMargin = dp(5)
+                    topMargin = dp(4)
+                    bottomMargin = dp(3)
                 }
             }
         }
@@ -211,7 +246,7 @@ class CoversActivity : ModernMainActivity() {
             }
             findAllViews(date).filterIsInstance<Button>().forEach { b ->
                 b.setTextColor(textMain)
-                b.setTextSize(16f)
+                b.setTextSize(14.8f)
                 b.typeface = Typeface.DEFAULT_BOLD
                 b.background = rounded(Color.TRANSPARENT, 8, Color.TRANSPARENT, 0)
                 b.gravity = Gravity.START or Gravity.CENTER_VERTICAL
@@ -220,16 +255,16 @@ class CoversActivity : ModernMainActivity() {
 
         val actions = root.getChildAt(2) as? LinearLayout
         actions?.apply {
-            setPadding(0, dp(2), 0, dp(1))
-            layoutParams = layoutParams.apply { height = dp(48) }
+            setPadding(0, dp(1), 0, 0)
+            layoutParams = layoutParams.apply { height = dp(40) }
             for (i in 0 until childCount) {
                 val button = getChildAt(i) as? Button ?: continue
                 val label = button.text?.toString().orEmpty().uppercase()
                 button.setAllCaps(false)
                 button.setTypeface(Typeface.DEFAULT_BOLD)
-                button.setTextSize(12f)
+                button.setTextSize(11f)
                 button.setPadding(dp(8), 0, dp(8), 0)
-                button.layoutParams = button.layoutParams.apply { height = dp(44) }
+                button.layoutParams = button.layoutParams.apply { height = dp(36) }
                 if (label.contains("GERAR PDF")) {
                     styleButton(button, gold, goldDeep, navyDeep)
                 } else {
@@ -257,7 +292,7 @@ class CoversActivity : ModernMainActivity() {
             tag = summaryTag
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(3), 0, dp(5))
+            setPadding(0, dp(1), 0, dp(2))
             clipChildren = false
             clipToPadding = false
         }
@@ -272,7 +307,7 @@ class CoversActivity : ModernMainActivity() {
             val box = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                setPadding(dp(2), dp(7), dp(2), dp(7))
+                setPadding(dp(2), dp(4), dp(2), dp(4))
                 background = rounded(surface, 11, border, 1)
                 elevation = dp(1).toFloat()
                 tag = "covers-summary-box:${spec.first}"
@@ -282,7 +317,7 @@ class CoversActivity : ModernMainActivity() {
                     tag = "covers-summary-value:${spec.first}"
                     text = "—"
                     setTextColor(spec.third)
-                    setTextSize(16f)
+                    setTextSize(14f)
                     typeface = Typeface.DEFAULT_BOLD
                     gravity = Gravity.CENTER
                 },
@@ -291,7 +326,7 @@ class CoversActivity : ModernMainActivity() {
                 TextView(this).apply {
                     text = spec.second
                     setTextColor(textMuted)
-                    setTextSize(if (gridColumns == 3) 8.5f else 9.5f)
+                    setTextSize(if (gridColumns == 3) 8f else 8.8f)
                     gravity = Gravity.CENTER
                     maxLines = 1
                     ellipsize = TextUtils.TruncateAt.END
@@ -322,7 +357,7 @@ class CoversActivity : ModernMainActivity() {
             box.elevation = dp(1).toFloat()
             if (box.childCount > 0) {
                 (box.getChildAt(0) as? TextView)?.apply {
-                    setTextSize(16f)
+                    setTextSize(14f)
                     typeface = Typeface.DEFAULT_BOLD
                     gravity = Gravity.CENTER
                 }
@@ -330,7 +365,7 @@ class CoversActivity : ModernMainActivity() {
             if (box.childCount > 1) {
                 (box.getChildAt(1) as? TextView)?.apply {
                     setTextColor(textMuted)
-                    setTextSize(if (gridColumns == 3) 8.5f else 9.5f)
+                    setTextSize(if (gridColumns == 3) 8f else 8.8f)
                     maxLines = 1
                     ellipsize = TextUtils.TruncateAt.END
                     gravity = Gravity.CENTER
@@ -345,21 +380,21 @@ class CoversActivity : ModernMainActivity() {
                 findTextViewContaining(v, "SELEÇÃO") != null
         } as? LinearLayout ?: return
 
-        section.layoutParams = section.layoutParams.apply { height = dp(42) }
-        section.setPadding(dp(2), dp(3), dp(2), dp(3))
+        section.layoutParams = section.layoutParams.apply { height = dp(34) }
+        section.setPadding(dp(1), dp(1), dp(1), dp(1))
         findTextViewContaining(section, "JORNAIS")?.apply {
             text = "CAPAS DE JORNAIS"
             setTextColor(navy)
-            setTextSize(12f)
+            setTextSize(11f)
             typeface = Typeface.DEFAULT_BOLD
         }
         findTextViewContaining(section, "selecionados")?.apply {
             setTextColor(goldDeep)
-            setTextSize(10f)
+            setTextSize(9f)
         }
         findAllViews(section).filterIsInstance<Button>().forEach {
             styleButton(it, surface, gold, navy)
-            it.setTextSize(9.5f)
+            it.setTextSize(9f)
         }
     }
 
@@ -472,7 +507,35 @@ class CoversActivity : ModernMainActivity() {
                 }
             }
 
-            val hasLargePreview = (0 until card.childCount).any { card.getChildAt(it) is ImageView }
+            // Quando a capa está disponível, mostre uma prévia útil também no cartão
+            // recolhido. Assim a grade lembra o painel aprovado, sem expandir todos os
+            // jornais e exibir oito botões de inserção manual quando ainda estão pendentes.
+            var hasLargePreview = (1 until card.childCount).any { card.getChildAt(it) is ImageView }
+            if (!hasLargePreview) {
+                val thumbnail = (0 until header.childCount)
+                    .map { header.getChildAt(it) }
+                    .filterIsInstance<ImageView>()
+                    .firstOrNull { it.drawable != null }
+                if (thumbnail != null) {
+                    header.removeView(thumbnail)
+                    thumbnail.setBackground(rounded(surface, 8, border, 1))
+                    thumbnail.setPadding(dp(3), dp(3), dp(3), dp(3))
+                    thumbnail.scaleType = ImageView.ScaleType.CENTER_INSIDE
+                    thumbnail.adjustViewBounds = true
+                    card.addView(
+                        thumbnail,
+                        1.coerceAtMost(card.childCount),
+                        LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            dp(if (gridColumns == 3) 108 else 126),
+                        ).apply {
+                            topMargin = dp(4)
+                            bottomMargin = dp(3)
+                        },
+                    )
+                    hasLargePreview = true
+                }
+            }
             for (i in header.childCount - 1 downTo 0) {
                 val child = header.getChildAt(i)
                 if (child is ImageView && hasLargePreview) {
@@ -673,40 +736,61 @@ class CoversActivity : ModernMainActivity() {
     private fun styleSelectedDockItem(shell: ViewGroup) {
         val navScroll = findByDescription(shell, "Navegação das áreas da Central") as? ViewGroup ?: return
         val row = navScroll.getChildAt(0) as? ViewGroup ?: return
-        val item = (0 until row.childCount).map { row.getChildAt(it) }.firstOrNull {
-            it.contentDescription?.toString()?.contains("Capas", true) == true &&
-                it.contentDescription?.toString()?.contains("selecionada", true) == true
-        } as? LinearLayout ?: return
+        val unselectedLabel = Color.rgb(218, 229, 241)
+        val unselectedIcon = Color.rgb(220, 231, 243)
 
-        item.background = rounded(Color.argb(42, Color.red(gold), Color.green(gold), Color.blue(gold)), 16, gold, 1)
-        if (item.childCount > 0) {
-            val iconBox = item.getChildAt(0) as? LinearLayout
-            iconBox?.background = GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                intArrayOf(gold, goldDeep),
-            ).apply {
-                cornerRadius = dp(13).toFloat()
-                setStroke(dp(1), Color.argb(100, 255, 255, 255))
+        // ModernMainActivity estiliza genericamente todo TextView após abrir/voltar
+        // da atividade. Reforçamos contraste em TODOS os itens do dock, não apenas
+        // no selecionado, para que os rótulos não fiquem azul-escuros sobre o navy.
+        var selectedItem: LinearLayout? = null
+        for (i in 0 until row.childCount) {
+            val item = row.getChildAt(i) as? LinearLayout ?: continue
+            val description = item.contentDescription?.toString().orEmpty()
+            if (description.isBlank()) continue // ignora os espaços laterais do scroll
+            val selected = description.contains("selecionada", true)
+            if (description.contains("Capas", true) && selected) selectedItem = item
+
+            item.background = if (selected) {
+                rounded(Color.argb(42, Color.red(gold), Color.green(gold), Color.blue(gold)), 16, gold, 1)
+            } else {
+                rounded(Color.TRANSPARENT, 16, Color.TRANSPARENT, 0)
             }
-            iconBox?.let { box ->
-                if (box.childCount > 0 && box.getChildAt(0) is ImageView) {
-                    (box.getChildAt(0) as ImageView).setColorFilter(navyDeep)
+            item.elevation = if (selected) dp(1).toFloat() else 0f
+
+            val iconBox = item.getChildAt(0) as? LinearLayout
+            if (iconBox != null) {
+                iconBox.background = if (selected) {
+                    GradientDrawable(
+                        GradientDrawable.Orientation.TL_BR,
+                        intArrayOf(gold, goldDeep),
+                    ).apply {
+                        cornerRadius = dp(13).toFloat()
+                        setStroke(dp(1), Color.argb(100, 255, 255, 255))
+                    }
+                } else {
+                    rounded(Color.argb(24, 255, 255, 255), 13, Color.argb(42, 255, 255, 255), 1)
+                }
+                for (j in 0 until iconBox.childCount) {
+                    val icon = iconBox.getChildAt(j)
+                    if (icon is ImageView) icon.setColorFilter(if (selected) navyDeep else unselectedIcon)
+                }
+            }
+
+            for (j in 1 until item.childCount) {
+                val child = item.getChildAt(j)
+                if (child is TextView) {
+                    child.setTextColor(if (selected) gold else unselectedLabel)
+                    child.typeface = Typeface.create("sans-serif", if (selected) Typeface.BOLD else Typeface.NORMAL)
+                } else if (selected && j == item.childCount - 1) {
+                    child.background = rounded(gold, 3, Color.TRANSPARENT, 0)
                 }
             }
         }
-        for (i in 1 until item.childCount) {
-            val child = item.getChildAt(i)
-            if (child is TextView) {
-                child.setTextColor(gold)
-                child.typeface = Typeface.DEFAULT_BOLD
-            } else if (child is View) {
-                child.background = rounded(gold, 3, Color.TRANSPARENT, 0)
-            }
-        }
 
-        // O dock também usa uma superfície naval sólida, coerente com o topo.
-        val scrollParent = navScroll.parent as? ViewGroup
-        val dock = scrollParent as? LinearLayout
+        // O dock real é o pai do HorizontalScrollView. O item Capas é centralizado
+        // após a medida do layout, corrigindo a primeira abertura quando a largura
+        // ainda era zero no primeiro post do scaffold.
+        val dock = navScroll.parent as? LinearLayout
         dock?.background = GradientDrawable(
             GradientDrawable.Orientation.TL_BR,
             intArrayOf(navyBlue, navyDeep),
@@ -714,42 +798,18 @@ class CoversActivity : ModernMainActivity() {
             cornerRadius = dp(19).toFloat()
             setStroke(dp(1), Color.rgb(47, 73, 99))
         }
-    }
 
-    private fun expandEntriesForGallery(): Boolean {
-        val entries = privateField("entries")?.let { field ->
-            try { field.get(this) as? List<*> } catch (_: Exception) { null }
-        }?.filterNotNull().orEmpty()
-        @Suppress("UNCHECKED_CAST")
-        val expanded = privateField("expandedCards")?.let { field ->
-            try { field.get(this) as? MutableSet<String> } catch (_: Exception) { null }
-        } ?: return false
-
-        var changed = false
-        entries.forEach { entry ->
-            val source = readField(entry, "source") ?: return@forEach
-            val name = readField(source, "name")?.toString().orEmpty()
-            if (name.isNotBlank()) changed = expanded.add(name) || changed
+        selectedItem?.let { active ->
+            navScroll.post {
+                navScroll.postOnAnimation {
+                    if (navScroll.width > 0 && active.width > 0) {
+                        val target = (active.left + active.width / 2 - navScroll.width / 2)
+                            .coerceAtLeast(0)
+                        navScroll.scrollTo(target, 0)
+                    }
+                }
+            }
         }
-        return changed
-    }
-
-    private fun invokePrivateNoArg(name: String) {
-        try {
-            val method: Method = findPrivateMethod(name) ?: return
-            method.isAccessible = true
-            method.invoke(this)
-        } catch (e: Exception) {
-            android.util.Log.w("CentralCovers", "Não foi possível atualizar a apresentação da lista", e)
-        }
-    }
-
-    private fun findPrivateMethod(name: String): Method? {
-        var type: Class<*>? = javaClass
-        while (type != null) {
-            try { return type.getDeclaredMethod(name) } catch (_: NoSuchMethodException) { type = type.superclass }
-        }
-        return null
     }
 
     private fun privateField(name: String): Field? {
