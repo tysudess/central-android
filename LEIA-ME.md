@@ -1,20 +1,18 @@
-# Detalhe dourado nos cards — Central Android
+# Contorno dourado completo dos cards — Android
 
-Repositório: `tysudess/central-android`
+**Base conferida:** `tysudess/central-android`, branch `main`, commit `620c9ed81946f9207e5b443a52a749b856d61ebd`.
 
-Base consultada: `main` no commit `29740b5a8ae5841f40667c5dd5af1c6f90864857`.
-Arquivo de origem: `app/src/main/java/br/com/centralmidia/android/ui/NavalTheme.kt`.
+## Arquivo a substituir
 
-## O que muda
-- Adiciona um filete dourado discreto na parte inferior dos cards `MaterialCardView` das abas que usam `NavalTheme`.
-- Mantém o fundo branco, a borda clara, os cantos arredondados e o foreground de toque existente.
-- Insere o detalhe apenas uma vez por card, evitando acúmulo quando o tema é reaplicado.
-- Mantém a exclusão da `CoversActivity` e de `br.com.principaiscapas`; a aba Capas não é alterada.
-
-## Como aplicar
-Extraia este ZIP na raiz do repositório e substitua o arquivo existente pelo arquivo no mesmo caminho:
 `app/src/main/java/br/com/centralmidia/android/ui/NavalTheme.kt`
 
-Faça o commit e rode os workflows `Validar Android (testes e compilação)` e `Build Android APK`.
+Este pacote contém o arquivo Kotlin completo, baseado no `main` conferido. Extraia o ZIP na raiz do repositório e permita a substituição desse caminho.
 
-O pacote contém o arquivo Kotlin completo, não um patch. A compilação da alteração precisa ser confirmada pelo GitHub Actions após o commit.
+## Correção aplicada
+
+- Os cards agora usam o contorno nativo `MaterialCardView` em dourado (`#C6A15B`) nos quatro lados, com espessura de 1 dp e preservação dos cantos arredondados.
+- Foi removido o filete separado que aparecia apenas na parte inferior.
+- A alteração fica concentrada em `NavalTheme.kt`; mantém a exclusão de `CoversActivity` e do pacote `br.com.principaiscapas.`. A aba Capas e o módulo Principais Capas não são alterados.
+- O arquivo foi baseado no `main` mais recente que foi consultado, sem reaproveitar versões antigas.
+
+Depois do commit, execute `Validar Android (testes e compilação)` e `Build Android APK`. A compilação deste novo ajuste só pode ser confirmada pelo GitHub Actions após o envio.

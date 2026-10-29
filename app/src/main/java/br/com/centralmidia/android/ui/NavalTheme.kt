@@ -4,10 +4,7 @@ import android.app.Activity
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
-import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
-import android.graphics.drawable.LayerDrawable
-import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
@@ -53,7 +50,6 @@ internal object NavalTheme {
     )
 
     private val states = WeakHashMap<Activity, State>()
-    private val cardsWithGoldUnderline = WeakHashMap<MaterialCardView, Boolean>()
 
     fun install(activity: Activity) {
         if (isExcluded(activity)) return
@@ -142,28 +138,11 @@ internal object NavalTheme {
 
     private fun styleCard(card: MaterialCardView, activity: Activity) {
         card.setCardBackgroundColor(white)
-        card.strokeColor = border
+        // Contorno dourado em todo o perímetro, como na referência visual.
+        // O stroke nativo respeita os cantos arredondados e preserva o ripple.
+        card.strokeColor = gold
         card.strokeWidth = dp(activity, 1)
         card.cardElevation = dp(activity, 1).toFloat()
-
-        // Adiciona o filete dourado apenas uma vez, preservando o foreground
-        // original do MaterialCardView (inclusive o feedback de toque/ripple).
-        if (!cardsWithGoldUnderline.containsKey(card)) {
-            val originalForeground = card.foreground ?: ColorDrawable(Color.TRANSPARENT)
-            val underline = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                setColor(gold)
-                cornerRadius = dp(activity, 1).toFloat()
-            }
-            val layeredForeground = LayerDrawable(arrayOf(originalForeground, underline)).apply {
-                setLayerWidth(1, ViewGroup.LayoutParams.MATCH_PARENT)
-                setLayerHeight(1, dp(activity, 2))
-                setLayerGravity(1, Gravity.BOTTOM)
-                setLayerInset(1, dp(activity, 9), 0, dp(activity, 9), dp(activity, 5))
-            }
-            card.foreground = layeredForeground
-            cardsWithGoldUnderline[card] = true
-        }
     }
 
     private fun styleText(view: TextView) {
