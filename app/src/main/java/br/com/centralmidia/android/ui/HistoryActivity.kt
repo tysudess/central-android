@@ -31,8 +31,7 @@ class HistoryActivity : BaseActivity() {
     private lateinit var count: TextView
 
     private var tab = Tab.NEWS
-    private var tabButtons =
-        linkedMapOf<Tab, MaterialButton>()
+    private var tabButtons = linkedMapOf<Tab, MaterialButton>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,7 +40,7 @@ class HistoryActivity : BaseActivity() {
         val root = MobileScaffold.page(
             this,
             "Histórico",
-            "Histórico local das buscas e resultados.",
+            "Histórico local das buscas e resultados. Os registros ficam disponíveis por 7 dias.",
             MobileScaffold.Tab.MORE,
             showAutomation = true,
         )
@@ -79,10 +78,7 @@ class HistoryActivity : BaseActivity() {
     }
 
     private fun toolbar(): View {
-        val card = MobileUi.card(
-            this,
-            10,
-        )
+        val card = MobileUi.card(this, 10)
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
@@ -109,7 +105,6 @@ class HistoryActivity : BaseActivity() {
             }
 
             tabButtons[value] = button
-
             tabs.addView(
                 button,
                 LinearLayout.LayoutParams(
@@ -122,17 +117,8 @@ class HistoryActivity : BaseActivity() {
             )
         }
 
-        addTab(
-            Tab.NEWS,
-            "Notícias",
-            R.drawable.ic_news,
-        )
-        addTab(
-            Tab.VIDEOS,
-            "Vídeos",
-            R.drawable.ic_video,
-        )
-
+        addTab(Tab.NEWS, "Notícias", R.drawable.ic_news)
+        addTab(Tab.VIDEOS, "Vídeos", R.drawable.ic_video)
         box.addView(tabs)
 
         box.addView(
@@ -143,13 +129,7 @@ class HistoryActivity : BaseActivity() {
                 MobileUi.PINK,
                 R.drawable.ic_delete,
             ) {
-                db.clearHistory(
-                    if (tab == Tab.NEWS) {
-                        "news"
-                    } else {
-                        "video"
-                    },
-                )
+                db.clearHistory(if (tab == Tab.NEWS) "news" else "video")
                 refresh()
             },
             LinearLayout.LayoutParams(
@@ -167,90 +147,43 @@ class HistoryActivity : BaseActivity() {
 
     private fun updateTabs() {
         tabButtons.forEach { (value, button) ->
-            val selected =
-                value == tab
-
-            button.backgroundTintList =
-                ColorStateList.valueOf(
-                    if (selected) {
-                        MobileUi.BLUE
-                    } else {
-                        Color.WHITE
-                    },
-                )
-
-            button.setTextColor(
-                if (selected) {
-                    Color.WHITE
-                } else {
-                    MobileUi.NAVY
-                },
+            val selected = value == tab
+            button.backgroundTintList = ColorStateList.valueOf(
+                if (selected) MobileUi.BLUE else Color.WHITE,
             )
-
-            button.iconTint =
-                ColorStateList.valueOf(
-                    if (selected) {
-                        Color.WHITE
-                    } else {
-                        MobileUi.NAVY
-                    },
-                )
-
-            button.strokeColor =
-                ColorStateList.valueOf(
-                    if (selected) {
-                        MobileUi.BLUE
-                    } else {
-                        MobileUi.BORDER
-                    },
-                )
-
+            button.setTextColor(if (selected) Color.WHITE else MobileUi.NAVY)
+            button.iconTint = ColorStateList.valueOf(
+                if (selected) Color.WHITE else MobileUi.NAVY,
+            )
+            button.strokeColor = ColorStateList.valueOf(
+                if (selected) MobileUi.BLUE else MobileUi.BORDER,
+            )
             button.strokeWidth = dp(1)
         }
     }
 
     private fun refresh() {
-        if (!::listContainer.isInitialized) {
-            return
-        }
+        if (!::listContainer.isInitialized) return
 
-        val type =
-            if (tab == Tab.NEWS) {
-                "news"
-            } else {
-                "video"
-            }
+        val type = if (tab == Tab.NEWS) "news" else "video"
+        // Do not cap the visible history at 1,000 rows: all records within the
+        // configured retention window should be available to the user.
+        val rows = db.history(Int.MAX_VALUE, type)
 
-        val rows =
-            db.history(
-                1000,
-                type,
-            )
-
-        count.text =
-            if (rows.size == 1) {
-                "1 registro"
-            } else {
-                "${rows.size} registros"
-            }
+        val totalLabel = if (rows.size == 1) "1 registro" else "${rows.size} registros"
+        count.text = "$totalLabel • retenção de 7 dias (mínimo solicitado: 72 horas)"
 
         listContainer.removeAllViews()
-
         if (rows.isEmpty()) {
             listContainer.addView(
                 MobileUi.text(
                     this,
-                    "Nenhum item no histórico desta categoria.",
+                    "Nenhum item no histórico desta categoria nos últimos 7 dias. As buscas concluídas e as notícias encontradas serão registradas aqui automaticamente.",
                     11.5f,
                     MobileUi.MUTED,
                 ).apply {
                     gravity = Gravity.CENTER
-                    setPadding(
-                        dp(8),
-                        dp(28),
-                        dp(8),
-                        dp(28),
-                    )
+                    setPadding(dp(8), dp(28), dp(8), dp(28))
                 },
             )
             return
@@ -258,10 +191,7 @@ class HistoryActivity : BaseActivity() {
 
         rows.forEach { row ->
             listContainer.addView(
-                if (
-                    tab == Tab.NEWS &&
-                    row[5].isNotBlank()
-                ) {
+                if (tab == Tab.NEWS && row[5].isNotBlank()) {
                     newsHistoryCard(row)
                 } else {
                     genericHistoryCard(row)
@@ -271,69 +201,31 @@ class HistoryActivity : BaseActivity() {
         }
     }
 
-    private fun newsHistoryCard(
-        row: Array<String>,
-    ): View {
-        val detail =
-            row[4]
-                .split("\n")
-
-        val source =
-            detail.firstOrNull()
-                .orEmpty()
-                .ifBlank {
-                    "Notícia"
-                }
-
-        val snippet =
-            detail.getOrNull(1)
-                .orEmpty()
-
-        val termLine =
-            detail.firstOrNull {
-                it.startsWith(
-                    "Termo:",
-                    ignoreCase = true,
-                )
-            }
-                .orEmpty()
-                .substringAfter(
-                    ":",
-                    "",
-                )
-                .trim()
+    private fun newsHistoryCard(row: Array<String>): View {
+        val detail = row[4].split("\n")
+        val source = detail.firstOrNull().orEmpty().ifBlank { "Notícia" }
+        val snippet = detail.getOrNull(1).orEmpty()
+        val termLine = detail.firstOrNull {
+            it.startsWith("Termo:", ignoreCase = true)
+        }.orEmpty().substringAfter(":", "").trim()
 
         val item = NewsItem(
             title = row[3],
             source = source,
             link = row[5],
-            pubDate = formatTs(
-                row[1]
-                    .toLongOrNull()
-                    ?: 0L,
-            ),
+            pubDate = formatTs(row[1].toLongOrNull() ?: 0L),
             snippet = snippet,
             matchedTerm = termLine,
         )
 
-        return NewsCards.create(
-            this,
-            item,
-            allowExtract = false,
-        )
+        return NewsCards.create(this, item, allowExtract = false)
     }
 
-    private fun genericHistoryCard(
-        row: Array<String>,
-    ): View {
-        val card = MobileUi.card(
-            this,
-            11,
-        )
+    private fun genericHistoryCard(row: Array<String>): View {
+        val card = MobileUi.card(this, 11)
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
-
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.TOP
@@ -342,27 +234,14 @@ class HistoryActivity : BaseActivity() {
         val iconBox = LinearLayout(this).apply {
             gravity = Gravity.CENTER
             background = MobileUi.rounded(
-                if (tab == Tab.NEWS) {
-                    MobileUi.BLUE_TINT
-                } else {
-                    MobileUi.PURPLE_TINT
-                },
+                if (tab == Tab.NEWS) MobileUi.BLUE_TINT else MobileUi.PURPLE_TINT,
                 dp(12).toFloat(),
             )
-
             addView(
                 MobileUi.icon(
                     this@HistoryActivity,
-                    if (tab == Tab.NEWS) {
-                        R.drawable.ic_news
-                    } else {
-                        R.drawable.ic_video
-                    },
-                    if (tab == Tab.NEWS) {
-                        MobileUi.BLUE
-                    } else {
-                        MobileUi.PURPLE
-                    },
+                    if (tab == Tab.NEWS) R.drawable.ic_news else R.drawable.ic_video,
+                    if (tab == Tab.NEWS) MobileUi.BLUE else MobileUi.PURPLE,
                     23,
                 ),
             )
@@ -370,10 +249,7 @@ class HistoryActivity : BaseActivity() {
 
         top.addView(
             iconBox,
-            LinearLayout.LayoutParams(
-                dp(52),
-                dp(52),
-            ).apply {
+            LinearLayout.LayoutParams(dp(52), dp(52)).apply {
                 marginEnd = dp(10)
             },
         )
@@ -381,43 +257,24 @@ class HistoryActivity : BaseActivity() {
         val copy = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
-
         copy.addView(
             MobileUi.text(
                 this,
-                formatTs(
-                    row[1]
-                        .toLongOrNull()
-                        ?: 0L,
-                ),
+                formatTs(row[1].toLongOrNull() ?: 0L),
                 9.5f,
                 MobileUi.MUTED,
             ),
         )
-
         copy.addView(
-            MobileUi.text(
-                this,
-                row[3],
-                13.5f,
-                MobileUi.NAVY,
-                true,
-            ),
+            MobileUi.text(this, row[3], 13.5f, MobileUi.NAVY, true),
             MobileUi.match(dp(4)),
         )
-
         if (row[4].isNotBlank()) {
             copy.addView(
-                MobileUi.text(
-                    this,
-                    row[4],
-                    10f,
-                    MobileUi.MUTED,
-                ),
+                MobileUi.text(this, row[4], 10f, MobileUi.MUTED),
                 MobileUi.match(dp(4)),
             )
         }
-
         top.addView(
             copy,
             LinearLayout.LayoutParams(
@@ -426,37 +283,24 @@ class HistoryActivity : BaseActivity() {
                 1f,
             ),
         )
-
         box.addView(top)
 
         if (row[5].isNotBlank()) {
             val actions = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
             }
-
             actions.addView(
                 MobileUi.button(
                     this,
-                    if (tab == Tab.NEWS) {
-                        "Abrar matéria"
-                    } else {
-                        "Abrar vídeo"
-                    },
+                    if (tab == Tab.NEWS) "Abrir matéria" else "Abrir vídeo",
                     false,
                     MobileUi.NAVY,
                     R.drawable.ic_open,
-                ) {
-                    openUrl(row[5])
-                },
-                LinearLayout.LayoutParams(
-                    0,
-                    dp(44),
-                    1f,
-                ).apply {
+                ) { openUrl(row[5]) },
+                LinearLayout.LayoutParams(0, dp(44), 1f).apply {
                     marginEnd = dp(4)
                 },
             )
-
             actions.addView(
                 MobileUi.button(
                     this,
@@ -464,58 +308,28 @@ class HistoryActivity : BaseActivity() {
                     false,
                     MobileUi.NAVY,
                     R.drawable.ic_copy,
-                ) {
-                    copyLink(row[5])
-                },
-                LinearLayout.LayoutParams(
-                    0,
-                    dp(44),
-                    1f,
-                ).apply {
+                ) { copyLink(row[5]) },
+                LinearLayout.LayoutParams(0, dp(44), 1f).apply {
                     marginStart = dp(4)
                 },
             )
-
-            box.addView(
-                actions,
-                MobileUi.match(dp(9)),
-            )
+            box.addView(actions, MobileUi.match(dp(9)))
         }
 
         card.addView(box)
         return card
     }
 
-    private fun copyLink(
-        link: String,
-    ) {
-        val clipboard =
-            getSystemService(
-                Context.CLIPBOARD_SERVICE,
-            ) as ClipboardManager
-
-        clipboard.setPrimaryClip(
-            ClipData.newPlainText(
-                "Link",
-                link,
-            ),
-        )
-
+    private fun copyLink(link: String) {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText("Link", link))
         toast("Link copiado.")
     }
 
-    private fun formatTs(
-        value: Long,
-    ): String =
+    private fun formatTs(value: Long): String =
         if (value <= 0L) {
             "—"
         } else {
-            SimpleDateFormat(
-                "dd/MM/yyyy HH:mm",
-                Locale(
-                    "pt",
-                    "BR",
-                ),
-            ).format(Date(value))
+            SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR")).format(Date(value))
         }
 }

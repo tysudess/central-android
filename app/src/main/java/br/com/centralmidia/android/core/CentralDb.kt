@@ -34,17 +34,21 @@ class CentralDb(
                 "active INTEGER NOT NULL DEFAULT 1)"
         )
         createVideoTerms(db)
+        createHistoryIndexes(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) {
             createVideoTerms(db)
         }
+        createHistoryIndexes(db)
     }
 
     override fun onOpen(db: SQLiteDatabase) {
         super.onOpen(db)
         seedDefaultTerms(db)
+        createHistoryIndexes(db)
+        pruneExpiredHistory(db)
     }
 
     private fun createVideoTerms(db: SQLiteDatabase) {
@@ -54,6 +58,34 @@ class CentralDb(
                 "term TEXT NOT NULL UNIQUE," +
                 "active INTEGER NOT NULL DEFAULT 1)"
         )
+    }
+
+    private fun createHistoryIndexes(db: SQLiteDatabase) {
+        // Keep lookups by type and recency efficient on existing installations too.
+        runCatching {
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS idx_history_type_ts " +
+                    "ON history(type, ts DESC)"
+            )
+        }
+        runCatching {
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS idx_history_url_type " +
+                    "ON history(type, url)"
+            )
+        }
+    }
+
+    private fun pruneExpiredHistory(db: SQLiteDatabase) {
+        // Retain a full 7 days, exceeding the requested minimum of 72 hours.
+        // A failed prune must never prevent opening or reading the history.
+        runCatching {
+            db.delete(
+                "history",
+                "ts < ?",
+                arrayOf((System.currentTimeMillis() - HISTORY_RETENTION_MS).toString()),
+            )
+        }
     }
 
     private fun seedDefaultTerms(db: SQLiteDatabase) {
@@ -166,23 +198,25 @@ class CentralDb(
     }
 
     fun history(
-        limit: Int = 250,
+        limit: Int = Int.MAX_VALUE,
         type: String? = null,
     ): List<Array<String>> {
         val out = mutableListOf<Array<String>>()
+        val cutoff = (System.currentTimeMillis() - HISTORY_RETENTION_MS).toString()
+        val safeLimit = limit.coerceAtLeast(1).toString()
         val sql: String
         val args: Array<String>
 
         if (type.isNullOrBlank()) {
             sql =
                 "SELECT id,ts,type,title,detail,url FROM history " +
-                    "ORDER BY ts DESC LIMIT ?"
-            args = arrayOf(limit.toString())
+                    "WHERE ts >= ? ORDER BY ts DESC LIMIT ?"
+            args = arrayOf(cutoff, safeLimit)
         } else {
             sql =
                 "SELECT id,ts,type,title,detail,url FROM history " +
-                    "WHERE type=? ORDER BY ts DESC LIMIT ?"
-            args = arrayOf(type, limit.toString())
+                    "WHERE type=? AND ts >= ? ORDER BY ts DESC LIMIT ?"
+            args = arrayOf(type, cutoff, safeLimit)
         }
 
         readableDatabase.rawQuery(sql, args).use { c ->
@@ -297,4 +331,8 @@ class CentralDb(
         } else {
             "terms"
         }
+
+    companion object {
+        private const val HISTORY_RETENTION_MS = 7L * 24L * 60L * 60L * 1000L
+    }
 }
