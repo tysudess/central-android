@@ -276,7 +276,7 @@ internal object NavalTheme {
         }
     }
 
-    private inline fun visit(root: View, action: (View) -> Unit) {
+    private fun visit(root: View, action: (View) -> Unit) {
         action(root)
         if (root is ViewGroup) {
             for (i in 0 until root.childCount) visit(root.getChildAt(i), action)

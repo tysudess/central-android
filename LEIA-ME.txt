@@ -1,0 +1,14 @@
+CORREÇÃO PRONTA PARA O REPOSITÓRIO central-android
+
+Base revisada: tysudess/central-android, branch main, commit 755333b6e1c907d7862dd9c5b4636fb6563d0441.
+Arquivo substituído: app/src/main/java/br/com/centralmidia/android/ui/NavalTheme.kt
+
+Como aplicar:
+1. Extraia o ZIP na raiz do repositório local (mesmo nível da pasta app), mantendo a estrutura de pastas.
+2. Confirme que o arquivo existente NavalTheme.kt será substituído pelo arquivo deste pacote.
+3. Envie/commite a alteração para o GitHub.
+4. Rode os workflows de validação e Build Android APK.
+
+Correção principal: a função recursiva visit não é mais inline. Nenhuma mudança foi feita em CoversActivity.kt nem no módulo Principais Capas.
+
+O ZIP contém o arquivo-fonte completo no caminho exato para ser copiado para o repositório. A compilação precisa ser confirmada pelo GitHub Actions após o commit; não foi possível executar o build neste ambiente.
