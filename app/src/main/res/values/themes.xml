@@ -1,10 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
     <style name="Theme.Central" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="colorPrimary">@color/central_blue</item>
         <item name="colorPrimaryVariant">@color/central_blue_dark</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
         <item name="colorSecondary">@color/central_blue</item>
+        <item name="colorSecondaryVariant">@color/central_blue_dark</item>
+        <item name="colorOnSecondary">#FFFFFF</item>
+        <item name="colorSurface">@color/central_surface</item>
+        <item name="colorOnSurface">@color/central_text</item>
+        <item name="colorBackground">@color/central_bg</item>
+        <item name="colorOnBackground">@color/central_text</item>
+        <item name="colorError">@color/central_error</item>
+        <item name="colorControlActivated">@color/central_blue</item>
+        <item name="colorControlHighlight">@color/central_blue_container</item>
+        <item name="android:colorAccent">@color/central_blue</item>
+        <item name="android:textColorPrimary">@color/central_text</item>
+        <item name="android:textColorSecondary">@color/central_muted</item>
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
@@ -13,8 +25,10 @@
         <item name="android:windowBackground">@color/central_bg</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowActionModeOverlay">true</item>
-        <item name="android:colorAccent">@color/central_blue</item>
         <item name="android:windowDisablePreview">true</item>
+        <item name="materialButtonStyle">@style/Widget.Central.Button</item>
+        <item name="materialCardViewStyle">@style/Widget.Central.Card</item>
+        <item name="textInputStyle">@style/Widget.Central.TextInputLayout</item>
     </style>
 
     <style name="Theme.Central.CaptureArea" parent="Theme.MaterialComponents.DayNight.NoActionBar">
@@ -31,5 +45,4 @@
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
-
 </resources>

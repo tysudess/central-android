@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Variante noturna com contraste adequado e sem superfícies brancas ofuscantes. -->
+    <color name="central_navy">#0B1726</color>
+    <color name="central_blue">#78B8F5</color>
+    <color name="central_blue_dark">#9ACBFA</color>
+    <color name="central_blue_container">#193754</color>
+
+    <color name="central_bg">#0D1724</color>
+    <color name="central_surface">#152334</color>
+    <color name="central_surface_elevated">#1B2C40</color>
+    <color name="central_text">#EDF4FB</color>
+    <color name="central_muted">#A9BBCD</color>
+    <color name="central_border">#30445A</color>
+    <color name="central_outline">#8299B0</color>
+
+    <color name="central_success">#69D2B0</color>
+    <color name="central_success_container">#173D36</color>
+    <color name="central_warning">#F0C36C</color>
+    <color name="central_warning_container">#47351B</color>
+    <color name="central_error">#FF9AA4</color>
+    <color name="central_error_container">#4B252E</color>
+    <color name="central_info">#A6C8EB</color>
+    <color name="central_info_container">#243A51</color>
+
+    <color name="white">#FFFFFF</color>
+</resources>
