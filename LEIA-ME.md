@@ -1,18 +1,19 @@
-# Contorno dourado completo dos cards — Android
+# Remover a aba Histórico — Central Android
 
-**Base conferida:** `tysudess/central-android`, branch `main`, commit `620c9ed81946f9207e5b443a52a749b856d61ebd`.
+Repositório-base consultado: `tysudess/central-android`
+Commit de referência: `6b62c6f9b61420d2aff5e2d9a9769808d1178c0b`
 
 ## Arquivo a substituir
 
-`app/src/main/java/br/com/centralmidia/android/ui/NavalTheme.kt`
+`app/src/main/java/br/com/centralmidia/android/ui/MoreHubActivity.kt`
 
-Este pacote contém o arquivo Kotlin completo, baseado no `main` conferido. Extraia o ZIP na raiz do repositório e permita a substituição desse caminho.
+O ZIP contém o arquivo Kotlin completo, com o atalho **Histórico** removido do grupo **Mais > Monitoramento** e a descrição atualizada para “Busca, fontes e termos”. Os outros atalhos, permissões, a aba Capas e o código de gravação local do histórico são mantidos. A tela `HistoryActivity.kt` continua no repositório, mas deixa de ser apresentada como opção na interface; isso mantém a alteração cirúrgica e reduz o risco para outras funcionalidades.
 
-## Correção aplicada
+## Aplicação
 
-- Os cards agora usam o contorno nativo `MaterialCardView` em dourado (`#C6A15B`) nos quatro lados, com espessura de 1 dp e preservação dos cantos arredondados.
-- Foi removido o filete separado que aparecia apenas na parte inferior.
-- A alteração fica concentrada em `NavalTheme.kt`; mantém a exclusão de `CoversActivity` e do pacote `br.com.principaiscapas.`. A aba Capas e o módulo Principais Capas não são alterados.
-- O arquivo foi baseado no `main` mais recente que foi consultado, sem reaproveitar versões antigas.
+1. Extraia o ZIP na raiz do repositório.
+2. Substitua o arquivo existente no caminho indicado.
+3. Faça o commit pelo GitHub.
+4. Execute os workflows `Validar Android (testes e compilação)` e `Build Android APK`.
 
-Depois do commit, execute `Validar Android (testes e compilação)` e `Build Android APK`. A compilação deste novo ajuste só pode ser confirmada pelo GitHub Actions após o envio.
+A validação do commit-base estava aprovada quando o pacote foi preparado. Esta alteração ainda precisa ser validada após o commit.

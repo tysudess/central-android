@@ -115,10 +115,10 @@ class MoreHubActivity : BaseActivity() {
             action: () -> Unit,
         ) = ActionItem(title, subtitle, icon, accent, permission, action)
 
+        // Histórico foi removido da interface; os demais atalhos e permissões permanecem.
         val monitor = listOf(
             item("Demandas", "Assuntos prioritários por veículo", R.drawable.ic_demands, MobileUi.ORANGE, "demands", launch(DemandsActivity::class.java)),
             item("Fontes", "Escolha veículos e fontes de vídeo", R.drawable.ic_sources, MobileUi.GREEN, "sources", launch(SourcesActivity::class.java)),
-            item("Histórico", "Notícias, vídeos e ações recentes", R.drawable.ic_history, MobileUi.BLUE, "history", launch(HistoryActivity::class.java)),
             item("Termos", "Listas independentes de Notícias e Vídeos", R.drawable.ic_terms, MobileUi.PURPLE, "terms", launch(TermsActivity::class.java)),
             item("Parar buscas", "Interrompe automações e gravações em andamento", R.drawable.ic_delete, MobileUi.PINK, null) {
                 MonitoringScheduler.cancel(this)
@@ -162,7 +162,7 @@ class MoreHubActivity : BaseActivity() {
         ).filter { allowed(it.permission) }
 
         return listOf(
-            Page("Monitoramento", "Busca, fontes, termos e histórico", monitor),
+            Page("Monitoramento", "Busca, fontes e termos", monitor),
             Page("Produção", "Ferramentas para conteúdo, PDF e vídeo", production),
             Page("Sistema", "Configurações, conta e sessão", system),
         )
