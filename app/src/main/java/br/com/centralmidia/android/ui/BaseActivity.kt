@@ -52,6 +52,12 @@ open class BaseActivity : AppCompatActivity() {
             "MainActivity" -> CentralBackgroundService.start(this)
             "LoginActivity" -> CentralBackgroundService.stop(this)
         }
+
+        // A tela raiz é criada pela Activity concreta depois deste método.
+        // O post permite aplicar a identidade naval quando a árvore já existir.
+        window.decorView.post {
+            NavalTheme.install(this)
+        }
     }
 
     override fun onResume() {
@@ -64,6 +70,16 @@ open class BaseActivity : AppCompatActivity() {
                 enableNewsArticleTextSelection()
             }
         }
+
+        // Reaplica o tema ao voltar de diálogos e de telas secundárias.
+        window.decorView.post {
+            NavalTheme.install(this)
+        }
+    }
+
+    override fun onDestroy() {
+        NavalTheme.clear(this)
+        super.onDestroy()
     }
 
     private fun enableNewsArticleTextSelection() {
