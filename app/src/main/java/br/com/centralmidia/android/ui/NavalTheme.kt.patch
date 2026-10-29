@@ -1,0 +1,5 @@
+--- a/app/src/main/java/br/com/centralmidia/android/ui/NavalTheme.kt
++++ b/app/src/main/java/br/com/centralmidia/android/ui/NavalTheme.kt
+@@
+-    private inline fun visit(root: View, action: (View) -> Unit) {
++    private fun visit(root: View, action: (View) -> Unit) {

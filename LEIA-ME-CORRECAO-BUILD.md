@@ -1,30 +1,36 @@
 # Correção do build — tema naval
 
 Repositório: `tysudess/central-android`
-Base consultada: `main` no commit `658e93a05b87383f9a9772b258bb9328f7576489`.
+Base consultada: `main` no commit `d2124cf98a711c02a745330de63c7815fc920b87`.
 
-## Erro identificado
-
-O GitHub Actions #144 falhou em `:app:compileDebugKotlin`:
+## Erro confirmado no GitHub Actions #145
 
 `NavalTheme.kt:282:48 Inline function 'visit' cannot be recursive`
 
-## Aplicar
+## Arquivo a corrigir
 
-Arquivo: `app/src/main/java/br/com/centralmidia/android/ui/NavalTheme.kt`
+`app/src/main/java/br/com/centralmidia/android/ui/NavalTheme.kt`
 
-Na declaração da função `visit`, altere somente:
+Localize a declaração:
 
-`private inline fun visit(root: View, action: (View) -> Unit) {`
+```kotlin
+private inline fun visit(root: View, action: (View) -> Unit) {
+```
 
-para:
+Substitua por:
 
-`private fun visit(root: View, action: (View) -> Unit) {`
+```kotlin
+private fun visit(root: View, action: (View) -> Unit) {
+```
 
-Não altere o corpo da função. A palavra `inline` precisa ser removida porque a função é recursiva.
+Remova somente a palavra `inline`. Não altere o corpo da função nem os outros arquivos.
 
-## Escopo
+## Por que a correção anterior não resolveu
 
-A correção não modifica `CoversActivity.kt`, os arquivos de Principais Capas nem os secrets de assinatura.
+O log da execução #145 ainda encontrou `private inline fun visit`, portanto o arquivo-fonte usado no build não tinha recebido a alteração. Este pacote documenta exatamente a mudança necessária; não inclui uma cópia incompleta do arquivo Kotlin.
 
-Depois de salvar o arquivo, faça o commit e execute novamente `Validar Android (testes e compilação)` e `Build Android APK`.
+## O que preservar
+
+- Não alterar `CoversActivity.kt` nem os arquivos do módulo Principais Capas.
+- Não alterar secrets de assinatura.
+- Depois de salvar a alteração, faça commit e execute novamente `Validar Android (testes e compilação)` e `Build Android APK`.
