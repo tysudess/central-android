@@ -1,12 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Mantém ícones de status claros no tema escuro para preservar contraste. -->
-    <style name="Theme.Central">
+    <!--
+      Os estilos precisam declarar o pai explicitamente: sem parent, o Android
+      infere "Theme" a partir do nome "Theme.Central", mas esse estilo não existe.
+    -->
+    <style name="Theme.Central" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">false</item>
         <item name="android:navigationBarColor">@color/central_surface</item>
     </style>
-    <style name="Theme.Central.CaptureArea">
+
+    <style name="Theme.Central.CaptureArea" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">false</item>
     </style>
