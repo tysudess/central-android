@@ -5,11 +5,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Persiste os últimos resultados exibidos nas abas Notícias e Vídeos.
- *
- * O histórico continua existindo separadamente; este armazenamento serve para
- * reconstruir exatamente a tela quando o aplicativo é fechado/reaberto e para
- * alimentar o painel Início com os mesmos números mostrados nas abas.
+ * Persists the latest results displayed in the News and Videos tabs.
+ * The history remains stored separately; this store reconstructs the last result screen.
  */
 class ResultStore(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences(
@@ -31,6 +28,7 @@ class ResultStore(context: Context) {
                     put("matchedTerm", item.matchedTerm)
                     put("matchedDemand", item.matchedDemand)
                     put("isNew", item.isNew)
+                    put("sourceUrl", item.sourceUrl)
                 },
             )
         }
@@ -52,6 +50,7 @@ class ResultStore(context: Context) {
                 matchedTerm = obj.optString("matchedTerm"),
                 matchedDemand = obj.optString("matchedDemand"),
                 isNew = obj.optBoolean("isNew", false),
+                sourceUrl = obj.optString("sourceUrl"),
             )
         }
 

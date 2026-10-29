@@ -47,6 +47,8 @@ data class NewsItem(
     val matchedTerm: String = "",
     val matchedDemand: String = "",
     val isNew: Boolean = false,
+    /** Official publisher URL supplied by Google News RSS, used to identify the outlet logo. */
+    val sourceUrl: String = "",
 )
 
 data class Newspaper(

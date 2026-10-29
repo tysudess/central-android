@@ -5,7 +5,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -35,19 +34,16 @@ object NewsCards {
             gravity = Gravity.TOP
         }
 
-        val initials = item.source
-            .trim()
-            .split(" ")
-            .filter { it.isNotBlank() }
-            .take(2)
-            .joinToString("") { it.first().uppercaseChar().toString() }
-            .ifBlank { "NT" }
-            .take(2)
-
-        val badge = MobileUi.text(activity, initials, 14f, Color.WHITE, true).apply {
-            gravity = Gravity.CENTER
-            background = MobileUi.rounded(MobileUi.BLUE, activity.dp(11).toFloat())
-        }
+        // Prefer the publisher's URL embedded in Google News RSS; the source icon
+        // loader falls back to the article host or the shared Windows name catalogue.
+        val badge = VehicleIconView.create(
+            context = activity,
+            sourceName = item.source,
+            sourceUrl = item.sourceUrl,
+            articleUrl = item.link,
+            widthDp = 48,
+            heightDp = 48,
+        )
         row.addView(
             badge,
             LinearLayout.LayoutParams(activity.dp(48), activity.dp(48)).apply {
@@ -174,14 +170,7 @@ object NewsCards {
         )
     }
 
-    /**
-     * O Google News entrega pubDate em GMT/UTC.
-     *
-     * A ordenação continua usando publishedAt (epoch UTC), mas a interface
-     * sempre converte esse instante para o fuso configurado no celular.
-     * Isso também corrige resultados antigos salvos com a string RFC-822
-     * "Fri, 25 Sep 2026 ... GMT".
-     */
+    /** Google News RSS provides pubDate in GMT/UTC; display it in the device timezone. */
     private fun formatLocalPublicationTime(item: NewsItem): String {
         val timestamp =
             if (item.publishedAt > 0L) {
@@ -196,50 +185,29 @@ object NewsCards {
 
         return SimpleDateFormat(
             "dd/MM/yyyy HH:mm",
-            Locale(
-                "pt",
-                "BR",
-            ),
+            Locale("pt", "BR"),
         ).apply {
             timeZone = TimeZone.getDefault()
-        }.format(
-            Date(timestamp),
-        )
+        }.format(Date(timestamp))
     }
 
     private fun parseLegacyPublicationTime(raw: String): Long {
-        if (raw.isBlank()) {
-            return 0L
-        }
-
-        val patterns =
-            listOf(
-                "EEE, dd MMM yyyy HH:mm:ss z",
-                "EEE, dd MMM yyyy HH:mm:ss Z",
-                "dd/MM/yyyy HH:mm",
-            )
+        if (raw.isBlank()) return 0L
+        val patterns = listOf(
+            "EEE, dd MMM yyyy HH:mm:ss z",
+            "EEE, dd MMM yyyy HH:mm:ss Z",
+            "dd/MM/yyyy HH:mm",
+        )
 
         for (pattern in patterns) {
-            val parsed =
-                runCatching {
-                    SimpleDateFormat(
-                        pattern,
-                        if (pattern.startsWith("EEE")) {
-                            Locale.US
-                        } else {
-                            Locale(
-                                "pt",
-                                "BR",
-                            )
-                        },
-                    ).parse(raw)
-                }.getOrNull()
-
-            if (parsed != null) {
-                return parsed.time
-            }
+            val parsed = runCatching {
+                SimpleDateFormat(
+                    pattern,
+                    if (pattern.startsWith("EEE")) Locale.US else Locale("pt", "BR"),
+                ).parse(raw)
+            }.getOrNull()
+            if (parsed != null) return parsed.time
         }
-
         return 0L
     }
 

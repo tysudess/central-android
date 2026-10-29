@@ -49,6 +49,7 @@ class GoogleNewsClient {
         var link = ""
         var pub = ""
         var source = ""
+        var sourceUrl = ""
         var description = ""
         var event = parser.eventType
 
@@ -61,12 +62,17 @@ class GoogleNewsClient {
                         link = ""
                         pub = ""
                         source = ""
+                        sourceUrl = ""
                         description = ""
                     }
                     "title" -> if (inItem) title = parser.nextText()
                     "link" -> if (inItem) link = parser.nextText()
                     "pubDate" -> if (inItem) pub = parser.nextText()
-                    "source" -> if (inItem) source = parser.nextText()
+                    "source" -> if (inItem) {
+                        // Google News encodes the official publisher URL on the source element.
+                        sourceUrl = parser.getAttributeValue(null, "url").orEmpty()
+                        source = parser.nextText()
+                    }
                     "description" -> if (inItem) description = parser.nextText()
                 }
 
@@ -79,6 +85,7 @@ class GoogleNewsClient {
                             pubDate = pub.trim(),
                             snippet = stripHtml(description).take(500),
                             publishedAt = parseDate(pub),
+                            sourceUrl = sourceUrl.trim(),
                         )
                         onItemParsed(out.size)
                     }

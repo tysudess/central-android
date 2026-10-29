@@ -35,6 +35,7 @@ class SourcesActivity : BaseActivity() {
         val region: String,
         val state: String,
         val aliases: List<String>,
+        val siteUrl: String = "",
     )
 
     private lateinit var prefs: SourcePreferences
@@ -246,7 +247,6 @@ class SourcesActivity : BaseActivity() {
                 }
         }
 
-        // Refinamento visual: cada seletor passa a ter identificação própria.
         fun filterLabel(text: String): TextView =
             MobileUi.text(
                 this,
@@ -261,19 +261,13 @@ class SourcesActivity : BaseActivity() {
         val regionBox = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(filterLabel("Região"), MobileUi.match())
-            addView(
-                regionSpinner,
-                MobileUi.match(dp(3)),
-            )
+            addView(regionSpinner, MobileUi.match(dp(3)))
         }
 
         val stateBox = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(filterLabel("Estado"), MobileUi.match())
-            addView(
-                stateSpinner,
-                MobileUi.match(dp(3)),
-            )
+            addView(stateSpinner, MobileUi.match(dp(3)))
         }
 
         filtersRow.addView(
@@ -294,7 +288,6 @@ class SourcesActivity : BaseActivity() {
         )
 
         box.addView(filtersRow, MobileUi.match(dp(6)))
-
         box.addView(
             MobileUi.text(
                 this,
@@ -379,11 +372,7 @@ class SourcesActivity : BaseActivity() {
             refresh()
         }
 
-        row.addView(
-            modeButton,
-            LinearLayout.LayoutParams(dp(112), dp(44)),
-        )
-
+        row.addView(modeButton, LinearLayout.LayoutParams(dp(112), dp(44)))
         card.addView(row)
         return card
     }
@@ -405,39 +394,32 @@ class SourcesActivity : BaseActivity() {
         }
 
         actions.addView(
-            MobileUi.button(
-                this,
-                "Selecionar visíveis",
-                true,
-                MobileUi.BLUE,
-            ) { setVisibleSelection(true) },
+            MobileUi.button(this, "Selecionar visíveis", true, MobileUi.BLUE) {
+                setVisibleSelection(true)
+            },
             actionLp(),
         )
         actions.addView(
-            MobileUi.button(
-                this,
-                "Limpar visíveis",
-            ) { setVisibleSelection(false) },
+            MobileUi.button(this, "Limpar visíveis") {
+                setVisibleSelection(false)
+            },
             actionLp(),
         )
         actions.addView(
-            MobileUi.button(
-                this,
-                "Selecionar todas",
-            ) { setAll(true) },
+            MobileUi.button(this, "Selecionar todas") {
+                setAll(true)
+            },
             actionLp(),
         )
         actions.addView(
-            MobileUi.button(
-                this,
-                "Limpar todas",
-            ) { setAll(false) },
+            MobileUi.button(this, "Limpar todas") {
+                setAll(false)
+            },
             actionLp(),
         )
 
         scroll.addView(actions)
         box.addView(scroll, MobileUi.match(dp(9)))
-
         card.addView(box)
         return card
     }
@@ -471,11 +453,7 @@ class SourcesActivity : BaseActivity() {
         val values = buildList {
             add("Todos")
             states.forEach { state ->
-                if (
-                    region == "Todas" ||
-                    region == "Nacional" ||
-                    state.third == region
-                ) {
+                if (region == "Todas" || region == "Nacional" || state.third == region) {
                     add(state.first)
                 }
             }
@@ -488,10 +466,7 @@ class SourcesActivity : BaseActivity() {
         )
 
         val index = values.indexOf(old)
-        stateSpinner.setSelection(
-            if (index >= 0) index else 0,
-            false,
-        )
+        stateSpinner.setSelection(if (index >= 0) index else 0, false)
     }
 
     private fun allRows(): List<SourceRow> =
@@ -511,24 +486,19 @@ class SourcesActivity : BaseActivity() {
         val region = regionSpinner.selectedItem?.toString().orEmpty().ifBlank { "Todas" }
         val state = stateSpinner.selectedItem?.toString().orEmpty().ifBlank { "Todos" }
 
-        return allRows()
-            .filter { source ->
-                val srcRegion = source.region.ifBlank { "Nacional" }
-                val srcState = source.state.ifBlank { "BR" }
+        return allRows().filter { source ->
+            val srcRegion = source.region.ifBlank { "Nacional" }
+            val srcState = source.state.ifBlank { "BR" }
 
-                if (region != "Todas" && srcRegion != region) return@filter false
-                if (state != "Todos" && srcState != state) return@filter false
+            if (region != "Todas" && srcRegion != region) return@filter false
+            if (state != "Todos" && srcState != state) return@filter false
 
-                val haystack = (
-                    "${source.name} " +
-                        "${source.group} " +
-                        "$srcRegion " +
-                        "$srcState " +
-                        source.aliases.joinToString(" ")
-                    ).lowercase(Locale.getDefault())
+            val haystack = (
+                "${source.name} ${source.group} $srcRegion $srcState ${source.aliases.joinToString(" ")}"
+                ).lowercase(Locale.getDefault())
 
-                text.isBlank() || text in haystack
-            }
+            text.isBlank() || text in haystack
+        }
     }
 
     private fun selectedIds(): Set<String> =
@@ -573,25 +543,17 @@ class SourcesActivity : BaseActivity() {
 
         if (tab != Tab.VIDEOS) {
             val enabled = prefs.newsAllSources()
-
             modeButton.text = if (enabled) "ATIVADO" else "DESATIVADO"
             modeButton.backgroundTintList = ColorStateList.valueOf(
-                if (enabled) {
-                    Color.rgb(4, 128, 112)
-                } else {
-                    Color.WHITE
-                },
+                if (enabled) Color.rgb(4, 128, 112) else Color.WHITE,
             )
             modeButton.setTextColor(if (enabled) Color.WHITE else MobileUi.MUTED)
         }
 
         val selectedVisible = visible.count { it.id in selected }
-        info.text =
-            "${visible.size} fonte(s) visível(is)   " +
-                "$selectedVisible selecionada(s) neste filtro"
+        info.text = "${visible.size} fonte(s) visível(is)   $selectedVisible selecionada(s) neste filtro"
 
         listContainer.removeAllViews()
-
         if (visible.isEmpty()) {
             listContainer.addView(
                 MobileUi.text(
@@ -622,9 +584,7 @@ class SourcesActivity : BaseActivity() {
         val card = MobileUi.card(this, 10).apply {
             isClickable = true
             isFocusable = true
-            setOnClickListener {
-                toggleSource(source.id, !checked)
-            }
+            setOnClickListener { toggleSource(source.id, !checked) }
         }
 
         val row = LinearLayout(this).apply {
@@ -641,72 +601,33 @@ class SourcesActivity : BaseActivity() {
         ).apply {
             gravity = Gravity.CENTER
             background = MobileUi.rounded(
-                if (checked) {
-                    Color.rgb(3, 123, 132)
-                } else {
-                    Color.WHITE
-                },
+                if (checked) Color.rgb(3, 123, 132) else Color.WHITE,
                 dp(6).toFloat(),
-                if (checked) {
-                    Color.rgb(3, 123, 132)
-                } else {
-                    Color.rgb(133, 151, 170)
-                },
+                if (checked) Color.rgb(3, 123, 132) else Color.rgb(133, 151, 170),
                 dp(1),
             )
         }
-
         row.addView(
             check,
-            LinearLayout.LayoutParams(dp(28), dp(28)).apply {
-                marginEnd = dp(9)
-            },
+            LinearLayout.LayoutParams(dp(28), dp(28)).apply { marginEnd = dp(9) },
         )
 
-        val initials = source.name
-            .split(" ")
-            .filter { it.isNotBlank() }
-            .take(2)
-            .joinToString("") {
-                it.first().uppercaseChar().toString()
-            }
-            .ifBlank { "F" }
-            .take(2)
-
-        val badge = MobileUi.text(
-            this,
-            initials,
-            11f,
-            MobileUi.BLUE,
-            true,
-        ).apply {
-            gravity = Gravity.CENTER
-            background = MobileUi.rounded(
-                MobileUi.BLUE_TINT,
-                dp(9).toFloat(),
-            )
-        }
-
+        val badge = VehicleIconView.create(
+            context = this,
+            sourceName = source.name,
+            sourceUrl = source.siteUrl,
+            widthDp = 48,
+            heightDp = 40,
+        )
         row.addView(
             badge,
-            LinearLayout.LayoutParams(dp(48), dp(40)).apply {
-                marginEnd = dp(10)
-            },
+            LinearLayout.LayoutParams(dp(48), dp(40)).apply { marginEnd = dp(10) },
         )
 
         val copy = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
-
-        copy.addView(
-            MobileUi.text(
-                this,
-                source.name,
-                13f,
-                MobileUi.NAVY,
-                true,
-            ),
-        )
+        copy.addView(MobileUi.text(this, source.name, 13f, MobileUi.NAVY, true))
         copy.addView(
             MobileUi.text(
                 this,
@@ -714,9 +635,7 @@ class SourcesActivity : BaseActivity() {
                     source.group,
                     source.region.ifBlank { "Nacional" },
                     source.state.ifBlank { "BR" },
-                )
-                    .filter { it.isNotBlank() }
-                    .joinToString(" • "),
+                ).filter { it.isNotBlank() }.joinToString(" • "),
                 9.5f,
                 MobileUi.MUTED,
             ),
@@ -725,21 +644,11 @@ class SourcesActivity : BaseActivity() {
 
         row.addView(
             copy,
-            LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                1f,
-            ),
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f),
         )
 
         row.addView(
-            MobileUi.text(
-                this,
-                "Disponível",
-                10f,
-                MobileUi.GREEN,
-                true,
-            ).apply {
+            MobileUi.text(this, "Disponível", 10f, MobileUi.GREEN, true).apply {
                 setPadding(dp(10), dp(6), dp(10), dp(6))
                 background = MobileUi.rounded(
                     MobileUi.GREEN_TINT,
@@ -764,14 +673,11 @@ class SourcesActivity : BaseActivity() {
         }
 
         var ids = prefs.selectedNewsIds().toMutableSet()
-
         if (prefs.newsAllSources()) {
             ids = newsSources.map { it.id }.toMutableSet()
             prefs.setNewsAllSources(false)
         }
-
         if (checked) ids += id else ids -= id
-
         prefs.setSelectedNewsIds(ids)
         refresh()
     }
@@ -788,7 +694,6 @@ class SourcesActivity : BaseActivity() {
         }
 
         var ids = prefs.selectedNewsIds().toMutableSet()
-
         if (prefs.newsAllSources() && !checked) {
             ids = newsSources.map { it.id }.toMutableSet()
             prefs.setNewsAllSources(false)
@@ -796,9 +701,7 @@ class SourcesActivity : BaseActivity() {
             refresh()
             return
         }
-
         if (checked) ids += visibleIds else ids -= visibleIds
-
         prefs.setSelectedNewsIds(ids)
         refresh()
     }
@@ -819,7 +722,6 @@ class SourcesActivity : BaseActivity() {
             Tab.SPECIALIZED -> {
                 val specIds = specializedNews.map { it.id }.toSet()
                 var ids = prefs.selectedNewsIds().toMutableSet()
-
                 if (prefs.newsAllSources()) {
                     if (checked) {
                         refresh()
@@ -828,12 +730,10 @@ class SourcesActivity : BaseActivity() {
                     ids = newsSources.map { it.id }.toMutableSet()
                     prefs.setNewsAllSources(false)
                 }
-
                 if (checked) ids += specIds else ids -= specIds
                 prefs.setSelectedNewsIds(ids)
             }
         }
-
         refresh()
     }
 
@@ -855,5 +755,6 @@ class SourcesActivity : BaseActivity() {
             region = region,
             state = state,
             aliases = aliases,
+            siteUrl = landingUrl,
         )
 }
