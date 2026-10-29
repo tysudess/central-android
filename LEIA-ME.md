@@ -1,19 +1,36 @@
-# Remover a aba Histórico — Central Android
+# Bordas douradas — Extrator de Vídeos, Editor de Vídeo e Editor PDF
 
-Repositório-base consultado: `tysudess/central-android`
-Commit de referência: `6b62c6f9b61420d2aff5e2d9a9769808d1178c0b`
+Base consultada: `tysudess/central-android`, branch `main`, commit `483a200a393704df13b54b3f96f60ee38fbca8e5`.
+Cor da borda: `#C6A15B` (dourado naval), espessura de `1dp`.
 
-## Arquivo a substituir
+## Arquivos de recursos prontos
 
-`app/src/main/java/br/com/centralmidia/android/ui/MoreHubActivity.kt`
+Copie estes quatro arquivos para os mesmos caminhos do repositório, substituindo os existentes:
 
-O ZIP contém o arquivo Kotlin completo, com o atalho **Histórico** removido do grupo **Mais > Monitoramento** e a descrição atualizada para “Busca, fontes e termos”. Os outros atalhos, permissões, a aba Capas e o código de gravação local do histórico são mantidos. A tela `HistoryActivity.kt` continua no repositório, mas deixa de ser apresentada como opção na interface; isso mantém a alteração cirúrgica e reduz o risco para outras funcionalidades.
+- `app/src/main/res/drawable/bg_card.xml`
+- `app/src/main/res/drawable/bg_preview.xml`
+- `app/src/main/res/drawable/bg_timeline_panel.xml`
+- `app/src/main/res/drawable/bg_status.xml`
 
-## Aplicação
+Eles estilizam os painéis do Extrator de Vídeos e do Editor de Vídeo, preservando preenchimentos, raios e espaçamentos.
 
-1. Extraia o ZIP na raiz do repositório.
-2. Substitua o arquivo existente no caminho indicado.
-3. Faça o commit pelo GitHub.
-4. Execute os workflows `Validar Android (testes e compilação)` e `Build Android APK`.
+## Ajuste do Editor PDF
 
-A validação do commit-base estava aprovada quando o pacote foi preparado. Esta alteração ainda precisa ser validada após o commit.
+O Editor PDF constrói seus cards em Java e usa a constante local `BORDER`; por isso os drawables acima não alteram essa tela. No arquivo `app/src/main/java/br/com/editorpdf/MainActivity.java`, altere somente esta linha:
+
+Antes:
+```java
+final int BORDER = 0xFFD8E4F3;
+```
+Depois:
+```java
+final int BORDER = 0xFFC6A15B;
+```
+
+O diff exato está em `PATCHES/PDF-MainActivity.java.diff`. Não substitua `MainActivity.java` por esse arquivo `.diff`; aplique a mudança de uma linha no arquivo original.
+
+## Escopo e validação
+
+- Não altera `CoversActivity.kt` nem o módulo Principais Capas.
+- Não altera funções de download, edição, corte ou exportação de arquivos.
+- Este ZIP contém arquivos drawable completos e o diff exato para a alteração Java do PDF. A compilação deve ser confirmada pelos workflows do GitHub Actions depois de aplicar as alterações.

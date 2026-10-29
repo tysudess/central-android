@@ -1,0 +1,5 @@
+--- a/app/src/main/java/br/com/editorpdf/MainActivity.java
++++ b/app/src/main/java/br/com/editorpdf/MainActivity.java
+@@
+-        final int BORDER = 0xFFD8E4F3;
++        final int BORDER = 0xFFC6A15B;
