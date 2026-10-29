@@ -38,6 +38,7 @@ class VideosActivity : BaseActivity() {
 
     private lateinit var queryInput: android.widget.EditText
     private lateinit var resultContainer: LinearLayout
+    private lateinit var diagnosticsContainer: LinearLayout
     private lateinit var shownLabel: TextView
     private lateinit var statusTitle: TextView
     private lateinit var statusDescription: TextView
@@ -150,6 +151,14 @@ class VideosActivity : BaseActivity() {
             statusDescription.text = "A consulta atual será encerrada assim que a requisição em andamento terminar."
         }.apply { visibility = View.GONE }
         root.addView(stopButton, MobileUi.match(dp(8)))
+
+        // Diagnóstico recolhido por padrão; só aparece quando a busca termina.
+        // O cartão limita os detalhes visuais para não criar milhares de Views.
+        diagnosticsContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+        }
+        root.addView(diagnosticsContainer, MobileUi.match(dp(8)))
 
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -332,6 +341,8 @@ class VideosActivity : BaseActivity() {
         val (fromMs, toMs) = selectedRange()
         cancelRequested = false
         stopButton.visibility = View.VISIBLE
+        diagnosticsContainer.removeAllViews()
+        diagnosticsContainer.visibility = View.GONE
         progress.isIndeterminate = false
         progress.progress = 0
         pctValue.text = "0%"
@@ -408,6 +419,8 @@ class VideosActivity : BaseActivity() {
                     if (outcome.cancelled) "Busca interrompida pelo usuário."
                     else "A busca foi concluída. ${items.size} vídeo(s) encontrado(s) nesta execução."
 
+                showDiagnostics(outcome.diagnostics)
+
                 getSharedPreferences("dashboard_stats", MODE_PRIVATE)
                     .edit()
                     .putInt("last_video_count", items.size)
@@ -425,6 +438,20 @@ class VideosActivity : BaseActivity() {
                 toast(statusDescription.text.toString())
             },
         )
+    }
+
+    private fun showDiagnostics(diagnostics: List<VideoSearchClient.SourceDiagnostic>) {
+        if (!::diagnosticsContainer.isInitialized) return
+        diagnosticsContainer.removeAllViews()
+        if (diagnostics.isEmpty()) {
+            diagnosticsContainer.visibility = View.GONE
+            return
+        }
+        diagnosticsContainer.addView(
+            VideoDiagnosticsCard.create(this, diagnostics),
+            MobileUi.match(dp(8)),
+        )
+        diagnosticsContainer.visibility = View.VISIBLE
     }
 
     private fun renderResults() {
