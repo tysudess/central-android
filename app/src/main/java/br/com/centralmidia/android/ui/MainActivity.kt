@@ -75,11 +75,7 @@ class MainActivity : BaseActivity() {
                     "Notícias 24h",
                     newsCount.toString(),
                     "na última busca",
-                    Color.rgb(
-                        226,
-                        241,
-                        255,
-                    ),
+                    Color.rgb(226, 241, 255),
                     MobileUi.BLUE,
                 ),
                 statCard(
@@ -100,11 +96,7 @@ class MainActivity : BaseActivity() {
                     "Vídeos hoje",
                     videoTodayCount.toString(),
                     "capturados hoje",
-                    Color.rgb(
-                        224,
-                        248,
-                        240,
-                    ),
+                    Color.rgb(224, 248, 240),
                     MobileUi.GREEN,
                 ),
                 statCard(
@@ -264,6 +256,9 @@ class MainActivity : BaseActivity() {
                     true,
                 ).apply {
                     setPadding(dp(10), dp(9), dp(10), dp(9))
+                    maxLines = 2
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                    gravity = Gravity.CENTER_VERTICAL
                     background = MobileUi.rounded(
                         Color.rgb(249, 252, 255),
                         dp(9).toFloat(),
@@ -287,11 +282,12 @@ class MainActivity : BaseActivity() {
     ): View =
         LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.TOP
             addView(
                 left,
                 LinearLayout.LayoutParams(
                     0,
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    dp(112),
                     1f,
                 ).apply {
                     marginEnd = dp(4)
@@ -301,7 +297,7 @@ class MainActivity : BaseActivity() {
                 right,
                 LinearLayout.LayoutParams(
                     0,
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    dp(112),
                     1f,
                 ).apply {
                     marginStart = dp(4)
@@ -317,10 +313,9 @@ class MainActivity : BaseActivity() {
         tint: Int,
         accent: Int,
     ): View {
-        val card = MobileUi.card(
-            this,
-            12,
-        )
+        val card = MobileUi.card(this, 9).apply {
+            minimumHeight = dp(104)
+        }
 
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -331,14 +326,14 @@ class MainActivity : BaseActivity() {
             gravity = Gravity.CENTER
             background = MobileUi.rounded(
                 tint,
-                dp(13).toFloat(),
+                dp(11).toFloat(),
             )
             addView(
                 MobileUi.icon(
                     this@MainActivity,
                     iconRes,
                     accent,
-                    23,
+                    21,
                 ),
             )
         }
@@ -346,50 +341,63 @@ class MainActivity : BaseActivity() {
         row.addView(
             iconBox,
             LinearLayout.LayoutParams(
-                dp(50),
-                dp(50),
+                dp(42),
+                dp(42),
             ).apply {
-                marginEnd = dp(10)
+                marginEnd = dp(8)
             },
         )
 
         val copy = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
         }
         copy.addView(
             MobileUi.text(
                 this,
                 title,
-                11.5f,
+                11f,
                 MobileUi.NAVY,
                 true,
-            ),
+            ).apply {
+                maxLines = 2
+                minLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                includeFontPadding = false
+            },
         )
         copy.addView(
             MobileUi.text(
                 this,
                 value,
-                24f,
+                22f,
                 MobileUi.NAVY,
                 true,
             ).apply {
                 tag = "dashboard:$title"
+                maxLines = 1
+                includeFontPadding = false
             },
         )
         copy.addView(
             MobileUi.text(
                 this,
                 caption,
-                9.5f,
+                9f,
                 MobileUi.MUTED,
-            ),
+            ).apply {
+                maxLines = 2
+                minLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                includeFontPadding = false
+            },
         )
 
         row.addView(
             copy,
             LinearLayout.LayoutParams(
                 0,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
                 1f,
             ),
         )
@@ -483,11 +491,7 @@ class MainActivity : BaseActivity() {
                 background = MobileUi.rounded(
                     MobileUi.GREEN_TINT,
                     dp(12).toFloat(),
-                    Color.rgb(
-                        187,
-                        233,
-                        208,
-                    ),
+                    Color.rgb(187, 233, 208),
                     dp(1),
                 )
             },
@@ -751,11 +755,7 @@ class MainActivity : BaseActivity() {
                 dp(7),
             )
             background = MobileUi.rounded(
-                Color.rgb(
-                    250,
-                    252,
-                    255,
-                ),
+                Color.rgb(250, 252, 255),
                 dp(10).toFloat(),
                 MobileUi.BORDER,
                 dp(1),
@@ -883,8 +883,7 @@ class MainActivity : BaseActivity() {
             MobileUi.match(dp(4)),
         )
 
-        val buckets =
-            historyBuckets(db)
+        val buckets = historyBuckets(db)
 
         box.addView(
             DailySummaryView(
@@ -918,69 +917,26 @@ class MainActivity : BaseActivity() {
     private fun historyBuckets(
         db: CentralDb,
     ): Triple<IntArray, IntArray, IntArray> {
-        val now =
-            System.currentTimeMillis()
-        val start =
-            now -
-                24L * 60L * 60L * 1000L
+        val now = System.currentTimeMillis()
+        val start = now - 24L * 60L * 60L * 1000L
 
         val news = IntArray(12)
         val videos = IntArray(12)
         val demands = IntArray(12)
 
-        db.history(500)
-            .forEach { row ->
-                val ts =
-                    row.getOrNull(1)
-                        ?.toLongOrNull()
-                        ?: return@forEach
+        db.history(500).forEach { row ->
+            val ts = row.getOrNull(1)?.toLongOrNull() ?: return@forEach
+            if (ts < start || ts > now) return@forEach
 
-                if (
-                    ts < start ||
-                    ts > now
-                ) {
-                    return@forEach
-                }
-
-                val bucket =
-                    (
-                        (
-                            ts - start
-                            ) /
-                            (
-                                2L *
-                                    60L *
-                                    60L *
-                                    1000L
-                                )
-                        )
-                        .toInt()
-                        .coerceIn(
-                            0,
-                            11,
-                        )
-
-                when (
-                    row.getOrNull(2)
-                        .orEmpty()
-                ) {
-                    "news" ->
-                        news[bucket]++
-
-                    "video" ->
-                        videos[bucket]++
-
-                    "automation",
-                    "demand" ->
-                        demands[bucket]++
-                }
+            val bucket = (((ts - start) / (2L * 60L * 60L * 1000L)).toInt()).coerceIn(0, 11)
+            when (row.getOrNull(2).orEmpty()) {
+                "news" -> news[bucket]++
+                "video" -> videos[bucket]++
+                "automation", "demand" -> demands[bucket]++
             }
+        }
 
-        return Triple(
-            news,
-            videos,
-            demands,
-        )
+        return Triple(news, videos, demands)
     }
 }
 
@@ -990,108 +946,45 @@ private class DailySummaryView(
     private val videos: IntArray,
     private val demands: IntArray,
 ) : View(context) {
-    private val gridPaint =
-        Paint(
-            Paint.ANTI_ALIAS_FLAG,
-        ).apply {
-            color = Color.rgb(
-                224,
-                233,
-                245,
-            )
-            strokeWidth = 1f
-        }
+    private val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(224, 233, 245)
+        strokeWidth = 1f
+    }
 
-    private val newsPaint =
-        Paint(
-            Paint.ANTI_ALIAS_FLAG,
-        ).apply {
-            color = MobileUi.BLUE
-            strokeWidth =
-                context.dp(2).toFloat()
-            style = Paint.Style.STROKE
-        }
+    private val newsPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = MobileUi.BLUE
+        strokeWidth = context.dp(2).toFloat()
+        style = Paint.Style.STROKE
+    }
 
-    private val videosPaint =
-        Paint(
-            Paint.ANTI_ALIAS_FLAG,
-        ).apply {
-            color = MobileUi.PURPLE
-            strokeWidth =
-                context.dp(2).toFloat()
-            style = Paint.Style.STROKE
-        }
+    private val videosPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = MobileUi.PURPLE
+        strokeWidth = context.dp(2).toFloat()
+        style = Paint.Style.STROKE
+    }
 
-    private val demandPaint =
-        Paint(
-            Paint.ANTI_ALIAS_FLAG,
-        ).apply {
-            color = MobileUi.ORANGE
-            strokeWidth =
-                context.dp(2).toFloat()
-            style = Paint.Style.STROKE
-        }
+    private val demandPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = MobileUi.ORANGE
+        strokeWidth = context.dp(2).toFloat()
+        style = Paint.Style.STROKE
+    }
 
-    override fun onDraw(
-        canvas: Canvas,
-    ) {
+    override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        val left =
-            context.dp(8).toFloat()
-        val right =
-            width -
-                context.dp(8).toFloat()
-        val top =
-            context.dp(12).toFloat()
-        val bottom =
-            height -
-                context.dp(16).toFloat()
+        val left = context.dp(8).toFloat()
+        val right = width - context.dp(8).toFloat()
+        val top = context.dp(12).toFloat()
+        val bottom = height - context.dp(16).toFloat()
 
         repeat(5) { index ->
-            val y =
-                top +
-                    (
-                        bottom - top
-                        ) *
-                    index /
-                    4f
-            canvas.drawLine(
-                left,
-                y,
-                right,
-                y,
-                gridPaint,
-            )
+            val y = top + (bottom - top) * index / 4f
+            canvas.drawLine(left, y, right, y, gridPaint)
         }
 
-        drawSeries(
-            canvas,
-            news,
-            newsPaint,
-            left,
-            right,
-            top,
-            bottom,
-        )
-        drawSeries(
-            canvas,
-            videos,
-            videosPaint,
-            left,
-            right,
-            top,
-            bottom,
-        )
-        drawSeries(
-            canvas,
-            demands,
-            demandPaint,
-            left,
-            right,
-            top,
-            bottom,
-        )
+        drawSeries(canvas, news, newsPaint, left, right, top, bottom)
+        drawSeries(canvas, videos, videosPaint, left, right, top, bottom)
+        drawSeries(canvas, demands, demandPaint, left, right, top, bottom)
     }
 
     private fun drawSeries(
@@ -1103,62 +996,19 @@ private class DailySummaryView(
         top: Float,
         bottom: Float,
     ) {
-        val maxValue =
-            max(
-                1,
-                listOf(
-                    news.maxOrNull()
-                        ?: 0,
-                    videos.maxOrNull()
-                        ?: 0,
-                    demands.maxOrNull()
-                        ?: 0,
-                ).maxOrNull()
-                    ?: 1,
-            )
+        val maxValue = max(
+            1,
+            listOf(news.maxOrNull() ?: 0, videos.maxOrNull() ?: 0, demands.maxOrNull() ?: 0).maxOrNull() ?: 1,
+        )
 
         var px = left
         var py = bottom
-
         data.forEachIndexed { index, value ->
-            val x =
-                left +
-                    (
-                        right - left
-                        ) *
-                    index /
-                    (
-                        data.size - 1
-                        )
-                        .coerceAtLeast(1)
+            val x = left + (right - left) * index / (data.size - 1).coerceAtLeast(1)
+            val y = bottom - (bottom - top) * value / maxValue.toFloat()
 
-            val y =
-                bottom -
-                    (
-                        bottom - top
-                        ) *
-                    value /
-                    maxValue.toFloat()
-
-            if (index > 0) {
-                canvas.drawLine(
-                    px,
-                    py,
-                    x,
-                    y,
-                    paint,
-                )
-            }
-
-            canvas.drawCircle(
-                x,
-                y,
-                context.dp(2).toFloat(),
-                Paint(paint).apply {
-                    style = Paint.Style.FILL
-                },
-            )
-
+            if (index > 0) canvas.drawLine(px, py, x, y, paint)
+            canvas.drawCircle(x, y, context.dp(2).toFloat(), Paint(paint).apply { style = Paint.Style.FILL })
             px = x
             py = y
         }

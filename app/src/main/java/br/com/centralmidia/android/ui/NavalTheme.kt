@@ -1,6 +1,8 @@
 package br.com.centralmidia.android.ui
 
 import android.app.Activity
+import android.app.Application
+import android.os.Bundle
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
@@ -12,6 +14,7 @@ import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.ImageView
+import android.widget.HorizontalScrollView
 import android.widget.TextView
 import android.widget.LinearLayout
 import androidx.core.view.WindowCompat
@@ -50,13 +53,16 @@ internal object NavalTheme {
     )
 
     private val states = WeakHashMap<Activity, State>()
+    private var historyFilterRegistered = false
 
     fun install(activity: Activity) {
+        ensureHistoryFilterRegistered(activity)
         if (isExcluded(activity)) return
         val root = activity.findViewById<ViewGroup>(android.R.id.content) ?: return
         val state = states.getOrPut(activity) { State() }
 
         applyWindowChrome(activity)
+        removeHistoryNavigation(root)
         styleTree(activity, root)
         state.signature = signature(root)
 
@@ -103,6 +109,53 @@ internal object NavalTheme {
         WindowCompat.getInsetsController(activity.window, activity.window.decorView).apply {
             isAppearanceLightStatusBars = false
             isAppearanceLightNavigationBars = false
+        }
+    }
+
+    /** Registra uma única proteção para que a aba História não reapareça em módulos independentes. */
+    private fun ensureHistoryFilterRegistered(activity: Activity) {
+        if (historyFilterRegistered) return
+        historyFilterRegistered = true
+        activity.application.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
+            private fun filterLater(target: Activity) {
+                val decor = target.window?.decorView ?: return
+                decor.post {
+                    if (!target.isFinishing && !target.isDestroyed) {
+                        removeHistoryNavigation(decor)
+                    }
+                }
+            }
+
+            override fun onActivityCreated(target: Activity, state: Bundle?) = filterLater(target)
+            override fun onActivityStarted(target: Activity) = filterLater(target)
+            override fun onActivityResumed(target: Activity) = filterLater(target)
+            override fun onActivityPaused(target: Activity) = Unit
+            override fun onActivityStopped(target: Activity) = Unit
+            override fun onActivitySaveInstanceState(target: Activity, state: Bundle) = Unit
+            override fun onActivityDestroyed(target: Activity) = Unit
+        })
+    }
+
+    /** Remove o atalho Histórico somente da navegação inferior da Central. */
+    private fun removeHistoryNavigation(view: View) {
+        if (view is HorizontalScrollView &&
+            view.contentDescription?.toString() == "Navegação das áreas da Central") {
+            for (rowIndex in 0 until view.childCount) {
+                val row = view.getChildAt(rowIndex) as? ViewGroup ?: continue
+                for (childIndex in row.childCount - 1 downTo 0) {
+                    val child = row.getChildAt(childIndex)
+                    val description = child.contentDescription?.toString().orEmpty()
+                    if (description.equals("Histórico", ignoreCase = true) ||
+                        description.startsWith("Histórico, selecionada", ignoreCase = true)) {
+                        row.removeViewAt(childIndex)
+                    }
+                }
+            }
+        }
+        if (view is ViewGroup) {
+            for (index in view.childCount - 1 downTo 0) {
+                removeHistoryNavigation(view.getChildAt(index))
+            }
         }
     }
 

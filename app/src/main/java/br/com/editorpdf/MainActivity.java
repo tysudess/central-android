@@ -60,6 +60,7 @@ import java.util.Locale;
 public class MainActivity extends AppCompatActivity {
     private static final int PAGE_WIDTH_PT = 595;
     private static final int MARGIN_PT = 2;
+    private static final int GOLD_BORDER = 0xFFC6A15B;
     private static final String PREFS = "editor_pdf_prefs";
     private static final String PREF_COVER_URI = "cover_uri";
 
@@ -91,14 +92,10 @@ public class MainActivity extends AppCompatActivity {
 
     private void registerLaunchers() {
         imagePicker = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
-            if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
-                consumeImageResult(result.getData());
-            }
+            if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) consumeImageResult(result.getData());
         });
         pdfPicker = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
-            if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
-                consumePdfResult(result.getData());
-            }
+            if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) consumePdfResult(result.getData());
         });
         coverPicker = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
             if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null && result.getData().getData() != null) {
@@ -110,10 +107,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         pdfCreator = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
-            if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null && result.getData().getData() != null) {
-                Uri out = result.getData().getData();
-                exportPdf(out);
-            }
+            if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null && result.getData().getData() != null) exportPdf(result.getData().getData());
         });
     }
 
@@ -131,8 +125,6 @@ public class MainActivity extends AppCompatActivity {
         final int MUTED = 0xFF5B749E;
         final int PRIMARY = 0xFF147EF6;
 
-        // A tela passa a ser rolavel para a pre-visualizacao poder ocupar uma area
-        // realmente grande, sem espremer Páginas e Configuracoes no mesmo viewport.
         ScrollView screenScroll = new ScrollView(this);
         screenScroll.setFillViewport(true);
         screenScroll.setClipToPadding(false);
@@ -142,17 +134,15 @@ public class MainActivity extends AppCompatActivity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(12), dp(12), dp(12), dp(14));
         root.setBackgroundColor(BG);
-        screenScroll.addView(root, new ScrollView.LayoutParams(
-                ScrollView.LayoutParams.MATCH_PARENT,
-                ScrollView.LayoutParams.WRAP_CONTENT));
+        screenScroll.addView(root, new ScrollView.LayoutParams(ScrollView.LayoutParams.MATCH_PARENT, ScrollView.LayoutParams.WRAP_CONTENT));
         setContentView(screenScroll);
 
-        // Cabeçalho — mesma identidade visual do Windows, adaptada ao celular.
+        // Cabeçalho e cards principais com contorno dourado completo.
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(8), dp(10), dp(10));
-        header.setBackground(rounded(PANEL, BORDER, 14));
+        header.setBackground(rounded(PANEL, GOLD_BORDER, 14));
 
         ImageView logo = new ImageView(this);
         try (InputStream in = getAssets().open("editor_pdf_icon.png")) {
@@ -173,7 +163,6 @@ public class MainActivity extends AppCompatActivity {
         header.addView(titleBox, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         root.addView(header);
 
-        // Ações principais.
         HorizontalScrollView quickScroll = new HorizontalScrollView(this);
         quickScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout quick = new LinearLayout(this);
@@ -181,16 +170,14 @@ public class MainActivity extends AppCompatActivity {
         quick.setPadding(0, dp(10), 0, dp(8));
         quickScroll.addView(quick);
         root.addView(quickScroll);
-
         addModernButton(quick, "+  Imagem", PRIMARY, v -> pickImages());
         addModernButton(quick, "▣  PDF", CARD, v -> pickPdfs());
         addModernButton(quick, "▤  Trocar capa", CARD, v -> pickCover());
 
-        // Pré-visualização em card central.
         LinearLayout previewCard = new LinearLayout(this);
         previewCard.setOrientation(LinearLayout.VERTICAL);
         previewCard.setPadding(dp(10), dp(10), dp(10), dp(10));
-        previewCard.setBackground(rounded(PANEL, BORDER, 14));
+        previewCard.setBackground(rounded(PANEL, GOLD_BORDER, 14));
 
         LinearLayout previewHeader = new LinearLayout(this);
         previewHeader.setOrientation(LinearLayout.HORIZONTAL);
@@ -199,9 +186,6 @@ public class MainActivity extends AppCompatActivity {
         previewTitle.setTypeface(previewTitle.getTypeface(), android.graphics.Typeface.BOLD);
         previewHeader.addView(previewTitle, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         status = text("Pronto", 11, MUTED);
-        // O status precisa permanecer em uma unica linha. Antes, a mensagem longa
-        // do modo de recorte aumentava a altura do cabecalho e empurrava a
-        // imagem/moldura para fora da area visivel.
         status.setSingleLine(true);
         status.setEllipsize(TextUtils.TruncateAt.END);
         status.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
@@ -214,22 +198,16 @@ public class MainActivity extends AppCompatActivity {
         preview.setAdjustViewBounds(false);
         preview.setBackground(rounded(0xFFF8FBFF, 0xFFD8E4F3, 10));
         preview.setPadding(dp(6), dp(6), dp(6), dp(6));
-        preview.setOnCropSelectedListener(crop -> {
-            setStatus("Modo de corte ativo");
-        });
+        preview.setOnCropSelectedListener(crop -> setStatus("Modo de corte ativo"));
         LinearLayout.LayoutParams previewLp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         previewLp.topMargin = dp(8);
         previewLp.bottomMargin = dp(8);
         previewCard.addView(preview, previewLp);
 
-        // Cerca de 58% da altura util da tela, respeitando limites para celulares
-        // menores e maiores. Como a tela e rolavel, os demais controles ficam abaixo.
         int screenHeightDp = getResources().getConfiguration().screenHeightDp;
         int previewHeightDp = Math.max(380, Math.min(520, Math.round(screenHeightDp * 0.58f)));
-        root.addView(previewCard, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(previewHeightDp)));
+        root.addView(previewCard, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(previewHeightDp)));
 
-        // Barra de edição horizontal: botões grandes e fáceis de tocar.
         HorizontalScrollView toolsScroll = new HorizontalScrollView(this);
         toolsScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout tools = new LinearLayout(this);
@@ -237,7 +215,6 @@ public class MainActivity extends AppCompatActivity {
         tools.setPadding(0, dp(8), 0, dp(8));
         toolsScroll.addView(tools);
         root.addView(toolsScroll);
-
         addModernButton(tools, "⌗  Selecionar corte", PRIMARY, v -> startCrop());
         addModernButton(tools, "✓  Aplicar", CARD, v -> applyCrop());
         addModernButton(tools, "Cancelar", CARD, v -> cancelCrop());
@@ -247,11 +224,10 @@ public class MainActivity extends AppCompatActivity {
         addModernButton(tools, "↓", CARD, v -> moveSelected(1));
         addModernButton(tools, "Excluir", 0xFFFFF4F8, v -> deleteSelected());
 
-        // Faixa de páginas.
         LinearLayout pagesCard = new LinearLayout(this);
         pagesCard.setOrientation(LinearLayout.VERTICAL);
         pagesCard.setPadding(dp(8), dp(7), dp(8), dp(7));
-        pagesCard.setBackground(rounded(PANEL, BORDER, 12));
+        pagesCard.setBackground(rounded(PANEL, GOLD_BORDER, 12));
         TextView pagesTitle = text("PÁGINAS  •  toque para selecionar", 11, MUTED);
         pagesCard.addView(pagesTitle);
         RecyclerView list = new RecyclerView(this);
@@ -263,11 +239,10 @@ public class MainActivity extends AppCompatActivity {
         pagesCard.addView(list, listLp);
         root.addView(pagesCard);
 
-        // Configurações rápidas.
         LinearLayout settingsCard = new LinearLayout(this);
         settingsCard.setOrientation(LinearLayout.VERTICAL);
         settingsCard.setPadding(dp(10), dp(8), dp(10), dp(8));
-        settingsCard.setBackground(rounded(CARD, BORDER, 12));
+        settingsCard.setBackground(rounded(CARD, GOLD_BORDER, 12));
         LinearLayout.LayoutParams settingsLp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         settingsLp.topMargin = dp(8);
         root.addView(settingsCard, settingsLp);
@@ -292,8 +267,7 @@ public class MainActivity extends AppCompatActivity {
         TextView q = text("Qualidade", 12, MUTED);
         qualityRow.addView(q);
         qualitySpinner = new Spinner(this);
-        ArrayAdapter<String> qa = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,
-                new String[]{"Alta (300 dpi)", "Média (220 dpi)", "Compacta (160 dpi)"});
+        ArrayAdapter<String> qa = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, new String[]{"Alta (300 dpi)", "Média (220 dpi)", "Compacta (160 dpi)"});
         qualitySpinner.setAdapter(qa);
         LinearLayout.LayoutParams qLp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
         qLp.leftMargin = dp(10);
@@ -311,33 +285,25 @@ public class MainActivity extends AppCompatActivity {
 
     private void pickImages() {
         Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        i.setType("image/*");
-        i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
-        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType("image/*"); i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true); i.addCategory(Intent.CATEGORY_OPENABLE);
         imagePicker.launch(i);
     }
 
     private void pickPdfs() {
         Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        i.setType("application/pdf");
-        i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
-        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType("application/pdf"); i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true); i.addCategory(Intent.CATEGORY_OPENABLE);
         pdfPicker.launch(i);
     }
 
     private void pickCover() {
         Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        i.setType("image/*");
-        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType("image/*"); i.addCategory(Intent.CATEGORY_OPENABLE);
         coverPicker.launch(i);
     }
 
     private void consumeImageResult(Intent data) {
         List<Uri> uris = resultUris(data);
-        for (Uri uri : uris) {
-            takeReadPermission(uri);
-            pages.add(PageItem.image(uri, displayName(uri)));
-        }
+        for (Uri uri : uris) { takeReadPermission(uri); pages.add(PageItem.image(uri, displayName(uri))); }
         afterImport();
     }
 
@@ -346,17 +312,11 @@ public class MainActivity extends AppCompatActivity {
         int added = 0;
         for (Uri uri : uris) {
             takeReadPermission(uri);
-            try (ParcelFileDescriptor fd = getContentResolver().openFileDescriptor(uri, "r");
-                 PdfRenderer renderer = fd == null ? null : new PdfRenderer(fd)) {
+            try (ParcelFileDescriptor fd = getContentResolver().openFileDescriptor(uri, "r"); PdfRenderer renderer = fd == null ? null : new PdfRenderer(fd)) {
                 if (renderer == null) continue;
                 String name = displayName(uri);
-                for (int p = 0; p < renderer.getPageCount(); p++) {
-                    pages.add(PageItem.pdf(uri, p, name));
-                    added++;
-                }
-            } catch (Exception e) {
-                toast("Não foi possível abrir um PDF: " + e.getMessage());
-            }
+                for (int p = 0; p < renderer.getPageCount(); p++) { pages.add(PageItem.pdf(uri, p, name)); added++; }
+            } catch (Exception e) { toast("Não foi possível abrir um PDF: " + e.getMessage()); }
         }
         afterImport();
         if (added > 0) setStatus(added + " página(s) de PDF adicionada(s).");
@@ -373,173 +333,92 @@ public class MainActivity extends AppCompatActivity {
         ArrayList<Uri> out = new ArrayList<>();
         if (data.getData() != null) out.add(data.getData());
         ClipData clip = data.getClipData();
-        if (clip != null) {
-            for (int i = 0; i < clip.getItemCount(); i++) {
-                Uri u = clip.getItemAt(i).getUri();
-                if (u != null && !out.contains(u)) out.add(u);
-            }
-        }
+        if (clip != null) for (int i = 0; i < clip.getItemCount(); i++) { Uri u = clip.getItemAt(i).getUri(); if (u != null && !out.contains(u)) out.add(u); }
         return out;
     }
 
     private void takeReadPermission(Uri uri) {
-        try {
-            getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        } catch (Exception ignored) {
-        }
+        try { getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION); } catch (Exception ignored) { }
     }
 
     private void select(int index) {
         if (index < 0 || index >= pages.size()) return;
-        int old = selectedIndex;
-        selectedIndex = index;
+        int old = selectedIndex; selectedIndex = index;
         if (old >= 0) adapter.notifyItemChanged(old);
         adapter.notifyItemChanged(index);
         showSelected(false);
     }
 
-    private PageItem selectedItem() {
-        if (selectedIndex < 0 || selectedIndex >= pages.size()) return null;
-        return pages.get(selectedIndex);
-    }
+    private PageItem selectedItem() { return selectedIndex < 0 || selectedIndex >= pages.size() ? null : pages.get(selectedIndex); }
 
     private void moveSelected(int direction) {
         if (selectedItem() == null) return;
         int target = selectedIndex + direction;
         if (target < 0 || target >= pages.size()) return;
         Collections.swap(pages, selectedIndex, target);
-        int old = selectedIndex;
-        selectedIndex = target;
-        adapter.notifyItemMoved(old, target);
-        adapter.notifyItemChanged(old);
-        adapter.notifyItemChanged(target);
+        int old = selectedIndex; selectedIndex = target;
+        adapter.notifyItemMoved(old, target); adapter.notifyItemChanged(old); adapter.notifyItemChanged(target);
     }
 
     private void deleteSelected() {
         if (selectedItem() == null) return;
         int old = selectedIndex;
-        pages.remove(old);
-        adapter.notifyItemRemoved(old);
-        if (pages.isEmpty()) {
-            selectedIndex = -1;
-            preview.setImageDrawable(null);
-            recycleCurrentPreview();
-        } else {
-            selectedIndex = Math.min(old, pages.size() - 1);
-            adapter.notifyItemChanged(selectedIndex);
-            showSelected(false);
-        }
+        pages.remove(old); adapter.notifyItemRemoved(old);
+        if (pages.isEmpty()) { selectedIndex = -1; preview.setImageDrawable(null); recycleCurrentPreview(); }
+        else { selectedIndex = Math.min(old, pages.size() - 1); adapter.notifyItemChanged(selectedIndex); showSelected(false); }
         setStatus(pages.size() + " página(s) no projeto.");
     }
 
     private void rotateSelected() {
-        PageItem item = selectedItem();
-        if (item == null) return;
+        PageItem item = selectedItem(); if (item == null) return;
         item.rotation = (item.rotation + 90) % 360;
-        if (item.crop != null) {
-            item.crop = null;
-            toast("O recorte foi removido para manter a rotação correta.");
-        }
-        item.thumbnail = null;
-        showSelected(false);
-        adapter.notifyItemChanged(selectedIndex);
+        if (item.crop != null) { item.crop = null; toast("O recorte foi removido para manter a rotação correta."); }
+        item.thumbnail = null; showSelected(false); adapter.notifyItemChanged(selectedIndex);
     }
 
     private void startCrop() {
-        PageItem item = selectedItem();
-        if (item == null) return;
+        PageItem item = selectedItem(); if (item == null) return;
         try {
-            // Mostra a página inteira, sem aplicar eventual recorte antigo,
-            // para que a nova área possa ser escolhida com precisão.
             Bitmap source = renderPage(item, 1500, false);
             setPreviewBitmap(source);
-            // Aguarda a ImageView concluir layout/matriz antes de criar a moldura.
-            // Isso garante que o retangulo seja calculado sobre a imagem visivel.
-            preview.post(() -> {
-                preview.setCropMode(true);
-                preview.invalidate();
-                preview.requestFocus();
-            });
+            preview.post(() -> { preview.setCropMode(true); preview.invalidate(); preview.requestFocus(); });
             setStatus("Modo de corte ativo");
             toast("Ajuste a moldura na imagem e toque em Aplicar quando estiver correto.");
-        } catch (Exception e) {
-            toast("Erro ao preparar recorte: " + e.getMessage());
-        }
+        } catch (Exception e) { toast("Erro ao preparar recorte: " + e.getMessage()); }
     }
 
     private void applyCrop() {
-        PageItem item = selectedItem();
-        if (item == null) return;
-
+        PageItem item = selectedItem(); if (item == null) return;
         RectF crop = preview.getNormalizedSelection();
-        if (crop == null) {
-            toast("Primeiro selecione uma área válida na imagem.");
-            setStatus("Ajuste a moldura de seleção e depois toque em Aplicar corte.");
-            return;
-        }
-
-        item.crop = new RectF(crop);
-        item.thumbnail = null;
-        preview.setCropMode(false);
-        showSelected(false);
-        adapter.notifyItemChanged(selectedIndex);
+        if (crop == null) { toast("Primeiro selecione uma área válida na imagem."); setStatus("Ajuste a moldura de seleção e depois toque em Aplicar corte."); return; }
+        item.crop = new RectF(crop); item.thumbnail = null; preview.setCropMode(false); showSelected(false); adapter.notifyItemChanged(selectedIndex);
         setStatus("Recorte aplicado. O arquivo original permanece intacto.");
     }
 
     private void cancelCrop() {
         if (!preview.isCropMode()) return;
-        preview.setCropMode(false);
-        showSelected(false);
-        setStatus("Seleção de corte cancelada. Nenhuma alteração foi aplicada.");
+        preview.setCropMode(false); showSelected(false); setStatus("Seleção de corte cancelada. Nenhuma alteração foi aplicada.");
     }
 
     private void clearCrop() {
-        PageItem item = selectedItem();
-        if (item == null) return;
-        item.crop = null;
-        item.thumbnail = null;
-        preview.setCropMode(false);
-        showSelected(false);
-        adapter.notifyItemChanged(selectedIndex);
-        setStatus("Recorte removido.");
+        PageItem item = selectedItem(); if (item == null) return;
+        item.crop = null; item.thumbnail = null; preview.setCropMode(false); showSelected(false); adapter.notifyItemChanged(selectedIndex); setStatus("Recorte removido.");
     }
 
     private void showSelected(boolean originalForCrop) {
-        PageItem item = selectedItem();
-        if (item == null) return;
+        PageItem item = selectedItem(); if (item == null) return;
         try {
-            Bitmap b = renderPage(item, 1500, !originalForCrop);
-            setPreviewBitmap(b);
-            preview.setCropMode(false);
+            Bitmap b = renderPage(item, 1500, !originalForCrop); setPreviewBitmap(b); preview.setCropMode(false);
             setStatus(String.format(Locale.getDefault(), "Página %d de %d", selectedIndex + 1, pages.size()));
-        } catch (Exception e) {
-            toast("Erro na prévia: " + e.getMessage());
-        }
+        } catch (Exception e) { toast("Erro na prévia: " + e.getMessage()); }
     }
 
-    private void setPreviewBitmap(Bitmap b) {
-        recycleCurrentPreview();
-        currentPreviewBitmap = b;
-        preview.setImageBitmap(b);
-    }
-
-    private void recycleCurrentPreview() {
-        if (currentPreviewBitmap != null && !currentPreviewBitmap.isRecycled()) {
-            currentPreviewBitmap.recycle();
-        }
-        currentPreviewBitmap = null;
-    }
+    private void setPreviewBitmap(Bitmap b) { recycleCurrentPreview(); currentPreviewBitmap = b; preview.setImageBitmap(b); }
+    private void recycleCurrentPreview() { if (currentPreviewBitmap != null && !currentPreviewBitmap.isRecycled()) currentPreviewBitmap.recycle(); currentPreviewBitmap = null; }
 
     private void createPdf() {
-        if (pages.isEmpty() && !includeCover.isChecked()) {
-            toast("Adicione pelo menos uma página ou ative a capa.");
-            return;
-        }
-        Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-        i.setType("application/pdf");
-        i.addCategory(Intent.CATEGORY_OPENABLE);
-        i.putExtra(Intent.EXTRA_TITLE, "EditorPDF.pdf");
-        pdfCreator.launch(i);
+        if (pages.isEmpty() && !includeCover.isChecked()) { toast("Adicione pelo menos uma página ou ative a capa."); return; }
+        Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT); i.setType("application/pdf"); i.addCategory(Intent.CATEGORY_OPENABLE); i.putExtra(Intent.EXTRA_TITLE, "EditorPDF.pdf"); pdfCreator.launch(i);
     }
 
     private void exportPdf(Uri outputUri) {
@@ -550,30 +429,18 @@ public class MainActivity extends AppCompatActivity {
                 if (includeCover.isChecked()) addCoverPage(document);
                 int targetWidth = exportPixelWidth();
                 for (int i = 0; i < pages.size(); i++) {
-                    PageItem item = pages.get(i);
-                    Bitmap bitmap = renderPage(item, targetWidth, true);
-                    addContentPage(document, bitmap);
-                    bitmap.recycle();
-                    int done = i + 1;
-                    runOnUiThread(() -> setStatus("Gerando: " + done + "/" + pages.size()));
+                    Bitmap bitmap = renderPage(pages.get(i), targetWidth, true);
+                    addContentPage(document, bitmap); bitmap.recycle();
+                    int done = i + 1; runOnUiThread(() -> setStatus("Gerando: " + done + "/" + pages.size()));
                 }
                 try (OutputStream os = getContentResolver().openOutputStream(outputUri, "w")) {
                     if (os == null) throw new IOException("Não foi possível abrir o arquivo de saída.");
                     document.writeTo(os);
                 }
-                runOnUiThread(() -> {
-                    setStatus("PDF gerado com sucesso.");
-                    toast("PDF salvo.");
-                    openGeneratedPdf(outputUri);
-                });
+                runOnUiThread(() -> { setStatus("PDF gerado com sucesso."); toast("PDF salvo."); openGeneratedPdf(outputUri); });
             } catch (Exception e) {
-                runOnUiThread(() -> {
-                    setStatus("Erro ao gerar PDF.");
-                    toast("Erro: " + e.getMessage());
-                });
-            } finally {
-                document.close();
-            }
+                runOnUiThread(() -> { setStatus("Erro ao gerar PDF."); toast("Erro: " + e.getMessage()); });
+            } finally { document.close(); }
         }).start();
     }
 
@@ -591,8 +458,7 @@ public class MainActivity extends AppCompatActivity {
         PdfDocument.Page page = document.startPage(info);
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
         page.getCanvas().drawBitmap(cover, null, new RectF(0, 0, PAGE_WIDTH_PT, heightPt), paint);
-        document.finishPage(page);
-        cover.recycle();
+        document.finishPage(page); cover.recycle();
     }
 
     private void addContentPage(PdfDocument document, Bitmap bitmap) {
@@ -601,25 +467,18 @@ public class MainActivity extends AppCompatActivity {
         int pageHeight = contentHeight + 2 * MARGIN_PT;
         PdfDocument.PageInfo info = new PdfDocument.PageInfo.Builder(PAGE_WIDTH_PT, pageHeight, document.getPages().size() + 1).create();
         PdfDocument.Page page = document.startPage(info);
-        Canvas c = page.getCanvas();
-        c.drawColor(Color.WHITE);
+        Canvas c = page.getCanvas(); c.drawColor(Color.WHITE);
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
-        RectF dst = new RectF(MARGIN_PT, MARGIN_PT, MARGIN_PT + contentWidth, MARGIN_PT + contentHeight);
-        c.drawBitmap(bitmap, null, dst, paint);
+        c.drawBitmap(bitmap, null, new RectF(MARGIN_PT, MARGIN_PT, MARGIN_PT + contentWidth, MARGIN_PT + contentHeight), paint);
         document.finishPage(page);
     }
 
     private Bitmap loadCoverBitmap(int targetWidth) throws Exception {
         if (customCoverUri != null) {
-            try {
-                return decodeImage(customCoverUri, targetWidth);
-            } catch (Exception ignored) {
-                customCoverUri = null;
-            }
+            try { return decodeImage(customCoverUri, targetWidth); } catch (Exception ignored) { customCoverUri = null; }
         }
         try (InputStream is = getAssets().open("capa_padrao.png")) {
-            Bitmap full = BitmapFactory.decodeStream(is);
-            if (full == null) return null;
+            Bitmap full = BitmapFactory.decodeStream(is); if (full == null) return null;
             if (full.getWidth() <= targetWidth) return full;
             int h = Math.round(full.getHeight() * targetWidth / (float) full.getWidth());
             Bitmap scaled = Bitmap.createScaledBitmap(full, targetWidth, h, true);
@@ -630,13 +489,8 @@ public class MainActivity extends AppCompatActivity {
 
     private Bitmap renderPage(PageItem item, int targetWidth, boolean applyCrop) throws Exception {
         Bitmap base = item.pdf ? renderPdfPage(item.uri, item.pageIndex, targetWidth) : decodeImage(item.uri, targetWidth);
-        Bitmap rotated = rotateBitmap(base, item.rotation);
-        if (rotated != base) base.recycle();
-        if (applyCrop && item.crop != null) {
-            Bitmap cropped = cropBitmap(rotated, item.crop);
-            if (cropped != rotated) rotated.recycle();
-            return cropped;
-        }
+        Bitmap rotated = rotateBitmap(base, item.rotation); if (rotated != base) base.recycle();
+        if (applyCrop && item.crop != null) { Bitmap cropped = cropBitmap(rotated, item.crop); if (cropped != rotated) rotated.recycle(); return cropped; }
         return rotated;
     }
 
@@ -644,11 +498,8 @@ public class MainActivity extends AppCompatActivity {
         ImageDecoder.Source source = ImageDecoder.createSource(getContentResolver(), uri);
         return ImageDecoder.decodeBitmap(source, (decoder, info, src) -> {
             decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);
-            int w = info.getSize().getWidth();
-            int h = info.getSize().getHeight();
-            if (w > targetWidth && targetWidth > 0) {
-                decoder.setTargetSize(targetWidth, Math.max(1, Math.round(h * targetWidth / (float) w)));
-            }
+            int w = info.getSize().getWidth(), h = info.getSize().getHeight();
+            if (w > targetWidth && targetWidth > 0) decoder.setTargetSize(targetWidth, Math.max(1, Math.round(h * targetWidth / (float) w)));
         });
     }
 
@@ -659,10 +510,8 @@ public class MainActivity extends AppCompatActivity {
             float scale = targetWidth / (float) page.getWidth();
             int height = Math.max(1, Math.round(page.getHeight() * scale));
             Bitmap bitmap = Bitmap.createBitmap(targetWidth, height, Bitmap.Config.ARGB_8888);
-            Canvas canvas = new Canvas(bitmap);
-            canvas.drawColor(Color.WHITE);
-            Matrix matrix = new Matrix();
-            matrix.postScale(scale, scale);
+            Canvas canvas = new Canvas(bitmap); canvas.drawColor(Color.WHITE);
+            Matrix matrix = new Matrix(); matrix.postScale(scale, scale);
             page.render(bitmap, null, matrix, PdfRenderer.Page.RENDER_MODE_FOR_PRINT);
             return bitmap;
         }
@@ -670,8 +519,7 @@ public class MainActivity extends AppCompatActivity {
 
     private Bitmap rotateBitmap(Bitmap source, int degrees) {
         if (degrees % 360 == 0) return source;
-        Matrix m = new Matrix();
-        m.postRotate(degrees);
+        Matrix m = new Matrix(); m.postRotate(degrees);
         return Bitmap.createBitmap(source, 0, 0, source.getWidth(), source.getHeight(), m, true);
     }
 
@@ -684,101 +532,54 @@ public class MainActivity extends AppCompatActivity {
         return Bitmap.createBitmap(source, left, top, right - left, bottom - top);
     }
 
-    private int clamp(int v, int min, int max) {
-        return Math.max(min, Math.min(v, max));
-    }
+    private int clamp(int v, int min, int max) { return Math.max(min, Math.min(v, max)); }
 
     private void restoreCover() {
-        customCoverUri = null;
-        getSharedPreferences(PREFS, MODE_PRIVATE).edit().remove(PREF_COVER_URI).apply();
-        toast("Capa original restaurada.");
+        customCoverUri = null; getSharedPreferences(PREFS, MODE_PRIVATE).edit().remove(PREF_COVER_URI).apply(); toast("Capa original restaurada.");
     }
 
     private void openGeneratedPdf(Uri uri) {
-        try {
-            Intent i = new Intent(Intent.ACTION_VIEW);
-            i.setDataAndType(uri, "application/pdf");
-            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(i);
-        } catch (Exception ignored) {
-        }
+        try { Intent i = new Intent(Intent.ACTION_VIEW); i.setDataAndType(uri, "application/pdf"); i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION); startActivity(i); } catch (Exception ignored) { }
     }
 
     private String displayName(Uri uri) {
         String name = "arquivo";
         try (android.database.Cursor c = getContentResolver().query(uri, null, null, null, null)) {
-            if (c != null && c.moveToFirst()) {
-                int idx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-                if (idx >= 0) name = c.getString(idx);
-            }
-        } catch (Exception ignored) {
-        }
+            if (c != null && c.moveToFirst()) { int idx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME); if (idx >= 0) name = c.getString(idx); }
+        } catch (Exception ignored) { }
         return name;
     }
 
     private TextView text(String value, int sp, int color) {
-        TextView t = new TextView(this);
-        t.setText(value);
-        t.setTextSize(sp);
-        t.setTextColor(color);
-        return t;
+        TextView t = new TextView(this); t.setText(value); t.setTextSize(sp); t.setTextColor(color); return t;
     }
 
     private GradientDrawable rounded(int fillColor, int strokeColor, int radiusDp) {
-        GradientDrawable d = new GradientDrawable();
-        d.setColor(fillColor);
-        d.setCornerRadius(dp(radiusDp));
-        d.setStroke(dp(1), strokeColor);
-        return d;
+        GradientDrawable d = new GradientDrawable(); d.setColor(fillColor); d.setCornerRadius(dp(radiusDp)); d.setStroke(dp(1), strokeColor); return d;
     }
 
     private Button modernButton(String label, int fillColor) {
-        Button b = new Button(this);
-        b.setText(label);
-        b.setTextSize(12);
-        b.setTextColor(fillColor == 0xFF147EF6 ? Color.WHITE : 0xFF0A2B63);
-        b.setAllCaps(false);
-        b.setMinHeight(0);
-        b.setMinimumHeight(0);
-        b.setPadding(dp(14), 0, dp(14), 0);
-        b.setBackground(rounded(fillColor, fillColor == 0xFF147EF6 ? 0xFF0F66CB : 0xFFD8E4F3, 9));
+        Button b = new Button(this); b.setText(label); b.setTextSize(12);
+        b.setTextColor(fillColor == 0xFF147EF6 ? Color.WHITE : 0xFF0A2B63); b.setAllCaps(false); b.setMinHeight(0); b.setMinimumHeight(0);
+        b.setPadding(dp(14), 0, dp(14), 0); b.setBackground(rounded(fillColor, fillColor == 0xFF147EF6 ? 0xFF0F66CB : 0xFFD8E4F3, 9));
         return b;
     }
 
     private void addModernButton(LinearLayout parent, String label, int fillColor, View.OnClickListener listener) {
-        Button b = modernButton(label, fillColor);
-        b.setOnClickListener(listener);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(46));
-        lp.rightMargin = dp(6);
-        parent.addView(b, lp);
+        Button b = modernButton(label, fillColor); b.setOnClickListener(listener);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(46)); lp.rightMargin = dp(6); parent.addView(b, lp);
     }
 
-    private Button button(String label) {
-        return modernButton(label, 0xFFFFFFFF);
-    }
-
-    private void addButton(LinearLayout parent, String label, View.OnClickListener listener) {
-        addModernButton(parent, label, 0xFFFFFFFF, listener);
-    }
-
-    private int dp(int value) {
-        return Math.round(value * getResources().getDisplayMetrics().density);
-    }
-
-    private void setStatus(String s) {
-        if (status != null) status.setText(s);
-    }
-
-    private void toast(String s) {
-        Toast.makeText(this, s, Toast.LENGTH_LONG).show();
-    }
+    private Button button(String label) { return modernButton(label, 0xFFFFFFFF); }
+    private void addButton(LinearLayout parent, String label, View.OnClickListener listener) { addModernButton(parent, label, 0xFFFFFFFF, listener); }
+    private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
+    private void setStatus(String s) { if (status != null) status.setText(s); }
+    private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_LONG).show(); }
 
     @Override
     protected void onDestroy() {
         recycleCurrentPreview();
-        for (PageItem p : pages) {
-            if (p.thumbnail != null && !p.thumbnail.isRecycled()) p.thumbnail.recycle();
-        }
+        for (PageItem p : pages) if (p.thumbnail != null && !p.thumbnail.isRecycled()) p.thumbnail.recycle();
         super.onDestroy();
     }
 
@@ -787,14 +588,10 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public PageHolder onCreateViewHolder(@NonNull android.view.ViewGroup parent, int viewType) {
             LinearLayout box = new LinearLayout(MainActivity.this);
-            box.setOrientation(LinearLayout.VERTICAL);
-            box.setGravity(Gravity.CENTER);
-            box.setPadding(dp(5), dp(5), dp(5), dp(5));
-            android.widget.ImageView img = new android.widget.ImageView(MainActivity.this);
-            img.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+            box.setOrientation(LinearLayout.VERTICAL); box.setGravity(Gravity.CENTER); box.setPadding(dp(5), dp(5), dp(5), dp(5));
+            ImageView img = new ImageView(MainActivity.this); img.setScaleType(ImageView.ScaleType.CENTER_CROP);
             box.addView(img, new LinearLayout.LayoutParams(dp(72), dp(72)));
-            TextView label = text("", 10, 0xFF0A2B63);
-            label.setGravity(Gravity.CENTER);
+            TextView label = text("", 10, 0xFF0A2B63); label.setGravity(Gravity.CENTER);
             box.addView(label, new LinearLayout.LayoutParams(dp(92), dp(28)));
             return new PageHolder(box, img, label);
         }
@@ -803,32 +600,24 @@ public class MainActivity extends AppCompatActivity {
         public void onBindViewHolder(@NonNull PageHolder holder, int position) {
             PageItem item = pages.get(position);
             holder.label.setText((position + 1) + (item.pdf ? " • PDF" : " • IMG"));
-            holder.itemView.setBackground(rounded(position == selectedIndex ? 0xFFE5F1FF : 0xFFFFFFFF, position == selectedIndex ? 0xFF147EF6 : 0xFFD8E4F3, 9));
+            int selectedFill = 0xFFFFF8E8;
+            holder.itemView.setBackground(rounded(position == selectedIndex ? selectedFill : 0xFFFFFFFF, GOLD_BORDER, 9));
             if (item.thumbnail == null || item.thumbnail.isRecycled()) {
-                try {
-                    item.thumbnail = renderPage(item, 260, true);
-                } catch (Exception ignored) {
-                    item.thumbnail = Bitmap.createBitmap(20, 20, Bitmap.Config.ARGB_8888);
-                }
+                try { item.thumbnail = renderPage(item, 260, true); }
+                catch (Exception ignored) { item.thumbnail = Bitmap.createBitmap(20, 20, Bitmap.Config.ARGB_8888); }
             }
             holder.image.setImageBitmap(item.thumbnail);
             holder.itemView.setOnClickListener(v -> select(holder.getBindingAdapterPosition()));
         }
 
         @Override
-        public int getItemCount() {
-            return pages.size();
-        }
+        public int getItemCount() { return pages.size(); }
     }
 
     private static class PageHolder extends RecyclerView.ViewHolder {
-        final android.widget.ImageView image;
+        final ImageView image;
         final TextView label;
-        PageHolder(@NonNull View itemView, android.widget.ImageView image, TextView label) {
-            super(itemView);
-            this.image = image;
-            this.label = label;
-        }
+        PageHolder(@NonNull View itemView, ImageView image, TextView label) { super(itemView); this.image = image; this.label = label; }
     }
 
     private static class PageItem {
@@ -840,22 +629,7 @@ public class MainActivity extends AppCompatActivity {
         RectF crop = null;
         Bitmap thumbnail = null;
 
-        static PageItem image(Uri uri, String name) {
-            PageItem p = new PageItem();
-            p.uri = uri;
-            p.pdf = false;
-            p.pageIndex = 0;
-            p.name = name;
-            return p;
-        }
-
-        static PageItem pdf(Uri uri, int page, String name) {
-            PageItem p = new PageItem();
-            p.uri = uri;
-            p.pdf = true;
-            p.pageIndex = page;
-            p.name = name;
-            return p;
-        }
+        static PageItem image(Uri uri, String name) { PageItem p = new PageItem(); p.uri = uri; p.pdf = false; p.pageIndex = 0; p.name = name; return p; }
+        static PageItem pdf(Uri uri, int page, String name) { PageItem p = new PageItem(); p.uri = uri; p.pdf = true; p.pageIndex = page; p.name = name; return p; }
     }
 }

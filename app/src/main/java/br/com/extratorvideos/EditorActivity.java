@@ -163,13 +163,11 @@ public class EditorActivity extends AppCompatActivity {
                         updateLocalPosition(sourcePos);
                     }
                 }
-
                 if (sequencePlaying && clip != null && !advancingClip && sourcePos >= previewClipEndSourceMs - 35L) {
                     advanceToNextClip();
                     return;
                 }
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) { }
             if (player != null && prepared) handler.postDelayed(this, 55L);
         }
     };
@@ -188,8 +186,7 @@ public class EditorActivity extends AppCompatActivity {
                 } else if (state == Transformer.PROGRESS_STATE_UNAVAILABLE) {
                     textStatus.setText("Renderizando sequência...");
                 }
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) { }
             if (joining) handler.postDelayed(this, 400L);
         }
     };
@@ -198,14 +195,12 @@ public class EditorActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_editor);
-
         bindViews();
         bindActions();
         configurePreview();
         configureTimeline();
         configureRangeEditor();
         configureExportSettings();
-
         clearSelectionUi();
         refreshTimeline(false);
         MobileScaffold.attachModule(this, VideoEditorActivity.class);
@@ -234,7 +229,6 @@ public class EditorActivity extends AppCompatActivity {
         forward1s = findViewById(R.id.editorForward1s);
         markStart = findViewById(R.id.editorMarkStart);
         markEnd = findViewById(R.id.editorMarkEnd);
-
         editStart = findViewById(R.id.editEditorStart);
         editEnd = findViewById(R.id.editEditorEnd);
         editOutputName = findViewById(R.id.editEditorOutputName);
@@ -256,7 +250,6 @@ public class EditorActivity extends AppCompatActivity {
         textSequenceTotal = findViewById(R.id.textEditorSequenceTotal);
         textTimelineZoom = findViewById(R.id.textEditorTimelineZoom);
         textClipCount = findViewById(R.id.textEditorClipCount);
-
         preview = findViewById(R.id.editorPreview);
         range = findViewById(R.id.editorRangeSelector);
         timeline = findViewById(R.id.editorTimeline);
@@ -275,12 +268,10 @@ public class EditorActivity extends AppCompatActivity {
         buttonApplyTimes.setOnClickListener(v -> applyTimesFromFields(true));
         buttonPreview.setOnClickListener(v -> toggleSequencePlayback());
         buttonJoin.setOnClickListener(v -> joinVideos());
-
         buttonBack5s.setOnClickListener(v -> seekGlobalBy(-5000L));
         buttonForward5s.setOnClickListener(v -> seekGlobalBy(5000L));
         buttonZoomOut.setOnClickListener(v -> changeZoom(-1));
         buttonZoomIn.setOnClickListener(v -> changeZoom(1));
-
         back1s.setOnClickListener(v -> nudgeLocal(-1000L));
         back100ms.setOnClickListener(v -> nudgeLocal(-100L));
         back10ms.setOnClickListener(v -> nudgeLocal(-10L));
@@ -289,13 +280,8 @@ public class EditorActivity extends AppCompatActivity {
         forward1s.setOnClickListener(v -> nudgeLocal(1000L));
         markStart.setOnClickListener(v -> markStartHere());
         markEnd.setOnClickListener(v -> markEndHere());
-
-        editStart.setOnFocusChangeListener((v, hasFocus) -> {
-            if (!hasFocus) applyTimesFromFields(false);
-        });
-        editEnd.setOnFocusChangeListener((v, hasFocus) -> {
-            if (!hasFocus) applyTimesFromFields(false);
-        });
+        editStart.setOnFocusChangeListener((v, hasFocus) -> { if (!hasFocus) applyTimesFromFields(false); });
+        editEnd.setOnFocusChangeListener((v, hasFocus) -> { if (!hasFocus) applyTimesFromFields(false); });
     }
 
     private void configureExportSettings() {
@@ -304,50 +290,31 @@ public class EditorActivity extends AppCompatActivity {
         adapter.setDropDownViewResource(R.layout.spinner_export_dropdown_item);
         spinnerResolution.setAdapter(adapter);
         spinnerResolution.setSelection(0);
-
-        String[] compressionOptions = new String[]{
-                "H.264 / AVC • maior compatibilidade",
-                "H.265 / HEVC • alta compressão"
-        };
+        String[] compressionOptions = new String[]{"H.264 / AVC • maior compatibilidade", "H.265 / HEVC • alta compressão"};
         ArrayAdapter<String> compressionAdapter = new ArrayAdapter<>(this, R.layout.spinner_export_item, compressionOptions);
         compressionAdapter.setDropDownViewResource(R.layout.spinner_export_dropdown_item);
         spinnerCompression.setAdapter(compressionAdapter);
         spinnerCompression.setSelection(1);
         spinnerCompression.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                updateExportSizeControls(true);
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) { }
+            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) { updateExportSizeControls(true); }
+            @Override public void onNothingSelected(AdapterView<?> parent) { }
         });
-
         spinnerResolution.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                updateExportSizeControls(true);
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) { }
+            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) { updateExportSizeControls(true); }
+            @Override public void onNothingSelected(AdapterView<?> parent) { }
         });
-
         checkTargetSize.setOnCheckedChangeListener((buttonView, isChecked) -> {
             panelTargetSize.setVisibility(isChecked ? View.VISIBLE : View.GONE);
             seekTargetSize.setEnabled(!joining && isChecked);
             updateExportSizeControls(false);
         });
-
         seekTargetSize.setMax(1000);
         seekTargetSize.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+            @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 if (updatingExportUi) return;
                 targetSizeMb = mapProgressToTargetSize(progress);
                 updateTargetSizeLabels();
             }
-
             @Override public void onStartTrackingTouch(SeekBar seekBar) { }
             @Override public void onStopTrackingTouch(SeekBar seekBar) { }
         });
@@ -357,21 +324,12 @@ public class EditorActivity extends AppCompatActivity {
 
     private void configurePreview() {
         preview.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
-            @Override
-            public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+            @Override public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
                 surfaceReady = true;
                 if (!clips.isEmpty()) seekSequence(globalPlayheadMs, sequencePlaying);
             }
-
             @Override public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) { }
-
-            @Override
-            public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
-                surfaceReady = false;
-                releaseMediaPlayer();
-                return true;
-            }
-
+            @Override public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) { surfaceReady = false; releaseMediaPlayer(); return true; }
             @Override public void onSurfaceTextureUpdated(SurfaceTexture surface) { }
         });
     }
@@ -380,24 +338,13 @@ public class EditorActivity extends AppCompatActivity {
         timeline.setPixelsPerSecondDp(zoomLevels[zoomIndex]);
         updateZoomLabel();
         timeline.setListener(new TimelineEditorView.Listener() {
-            @Override
-            public void onClipSelected(int index) {
-                selectClip(index, false);
-            }
-
-            @Override
-            public void onTimelineSeek(long globalMs, boolean finished) {
+            @Override public void onClipSelected(int index) { selectClip(index, false); }
+            @Override public void onTimelineSeek(long globalMs, boolean finished) {
                 timelineSeeking = !finished;
                 updateGlobalPlayhead(globalMs, false);
-                if (finished) {
-                    boolean keepPlaying = sequencePlaying;
-                    timelineSeeking = false;
-                    seekSequence(globalMs, keepPlaying);
-                }
+                if (finished) { boolean keepPlaying = sequencePlaying; timelineSeeking = false; seekSequence(globalMs, keepPlaying); }
             }
-
-            @Override
-            public void onClipMoveRequested(int fromIndex, int toIndex) {
+            @Override public void onClipMoveRequested(int fromIndex, int toIndex) {
                 if (joining || fromIndex < 0 || toIndex < 0 || fromIndex >= clips.size() || toIndex >= clips.size()) return;
                 pauseSequence();
                 ClipItem moving = clips.remove(fromIndex);
@@ -411,41 +358,25 @@ public class EditorActivity extends AppCompatActivity {
 
     private void configureRangeEditor() {
         range.setOnRangeChangeListener(new RangeSelectionView.OnRangeChangeListener() {
-            @Override
-            public void onRangeChanged(long startMs, long endMs, int activeThumb, boolean fromUser) {
+            @Override public void onRangeChanged(long startMs, long endMs, int activeThumb, boolean fromUser) {
                 ClipItem clip = currentClip();
                 if (clip == null) return;
-
                 if (activeThumb == RangeSelectionView.THUMB_START) {
-                    clip.startMs = startMs;
-                    editStart.setText(formatTime(startMs));
-                    updateLocalPosition(startMs);
+                    clip.startMs = startMs; editStart.setText(formatTime(startMs)); updateLocalPosition(startMs);
                 } else if (activeThumb == RangeSelectionView.THUMB_END) {
-                    clip.endMs = endMs;
-                    editEnd.setText(formatTime(endMs));
-                    updateLocalPosition(endMs);
+                    clip.endMs = endMs; editEnd.setText(formatTime(endMs)); updateLocalPosition(endMs);
                 } else {
-                    updateLocalPosition(range.getPlayheadMs());
-                    localRangeSeeking = fromUser;
+                    updateLocalPosition(range.getPlayheadMs()); localRangeSeeking = fromUser;
                 }
             }
-
-            @Override
-            public void onRangeChangeFinished(long startMs, long endMs, int activeThumb) {
+            @Override public void onRangeChangeFinished(long startMs, long endMs, int activeThumb) {
                 ClipItem clip = currentClip();
                 if (clip == null) return;
-
                 if (activeThumb == RangeSelectionView.THUMB_START || activeThumb == RangeSelectionView.THUMB_END) {
-                    pauseSequence();
-                    clip.startMs = startMs;
-                    clip.endMs = endMs;
-                    
-                    refreshTimeline(false);
+                    pauseSequence(); clip.startMs = startMs; clip.endMs = endMs; refreshTimeline(false);
                     long source = activeThumb == RangeSelectionView.THUMB_START ? startMs : endMs;
                     long global = clipGlobalStart(selectedIndex) + Math.max(0L, Math.min(clip.selectedDurationMs(), source - clip.startMs));
-                    range.setPlayhead(source);
-                    updateLocalPosition(source);
-                    seekSequence(global, false);
+                    range.setPlayhead(source); updateLocalPosition(source); seekSequence(global, false);
                 } else {
                     localRangeSeeking = false;
                     long source = range.getPlayheadMs();
@@ -459,49 +390,89 @@ public class EditorActivity extends AppCompatActivity {
 
     private void showAddVideosDialog() {
         if (joining) return;
-        File folder = videoFolder();
-        File[] files = folder.listFiles(file -> {
-            if (file == null || !file.isFile()) return false;
-            String n = file.getName().toLowerCase(Locale.ROOT);
-            return n.endsWith(".mp4") || n.endsWith(".mkv") || n.endsWith(".webm") ||
-                    n.endsWith(".mov") || n.endsWith(".m4v");
-        });
-
-        if (files == null || files.length == 0) {
-            Toast.makeText(this, "Nenhum vídeo encontrado em Downloads/ExtratorVideos.", Toast.LENGTH_LONG).show();
-            return;
+        Intent picker = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        picker.addCategory(Intent.CATEGORY_OPENABLE);
+        picker.setType("video/*");
+        picker.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+        picker.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try {
+            startActivityForResult(Intent.createChooser(picker, "Selecione vídeo(s) para adicionar"), REQUEST_ADD_VIDEO_FILES);
+        } catch (Exception e) {
+            Toast.makeText(this, "Não foi possível abrir o gerenciador de arquivos: " + shortMessage(e), Toast.LENGTH_LONG).show();
         }
+    }
 
-        Arrays.sort(files, Comparator.comparingLong(File::lastModified).reversed());
-        String[] names = new String[files.length];
-        boolean[] checked = new boolean[files.length];
-        for (int i = 0; i < files.length; i++) names[i] = files[i].getName();
+    private static final int REQUEST_ADD_VIDEO_FILES = 8421;
 
-        new AlertDialog.Builder(this)
-                .setTitle("Adicionar vídeos à timeline")
-                .setMultiChoiceItems(names, checked, (dialog, which, isChecked) -> checked[which] = isChecked)
-                .setPositiveButton("ADICIONAR", (dialog, which) -> {
-                    int firstNew = clips.size();
-                    int added = 0;
-                    for (int i = 0; i < files.length; i++) {
-                        if (!checked[i]) continue;
-                        ClipItem clip = readClip(files[i]);
-                        if (clip != null) {
-                            clips.add(clip);
-                            added++;
-                        }
-                    }
-                    if (added > 0) {
-                        
-                        selectedIndex = firstNew;
-                        globalPlayheadMs = clipGlobalStart(selectedIndex);
-                        refreshTimeline(false);
-                        loadSelectedClipUi(false);
-                        seekSequence(globalPlayheadMs, false);
-                    }
-                })
-                .setNegativeButton("CANCELAR", null)
-                .show();
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_ADD_VIDEO_FILES || resultCode != RESULT_OK || data == null || joining) return;
+        ArrayList<Uri> selectedUris = new ArrayList<>();
+        if (data.getClipData() != null) {
+            android.content.ClipData clipData = data.getClipData();
+            for (int i = 0; i < clipData.getItemCount(); i++) {
+                Uri uri = clipData.getItemAt(i).getUri();
+                if (uri != null && !selectedUris.contains(uri)) selectedUris.add(uri);
+            }
+        }
+        if (data.getData() != null && !selectedUris.contains(data.getData())) selectedUris.add(data.getData());
+        if (selectedUris.isEmpty()) return;
+
+        int firstNew = clips.size();
+        int added = 0;
+        for (Uri uri : selectedUris) {
+            try {
+                ClipItem clip = readClip(copyPickedVideoToCache(uri));
+                if (clip != null) { clips.add(clip); added++; }
+            } catch (Exception e) {
+                Toast.makeText(this, "Não foi possível importar um vídeo: " + shortMessage(e), Toast.LENGTH_LONG).show();
+            }
+        }
+        if (added > 0) {
+            selectedIndex = firstNew;
+            globalPlayheadMs = clipGlobalStart(selectedIndex);
+            refreshTimeline(false);
+            loadSelectedClipUi(false);
+            seekSequence(globalPlayheadMs, false);
+            Toast.makeText(this, added + (added == 1 ? " vídeo adicionado à timeline." : " vídeos adicionados à timeline."), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private File copyPickedVideoToCache(Uri uri) throws java.io.IOException {
+        String displayName = "video";
+        try (android.database.Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int nameColumn = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                if (nameColumn >= 0) {
+                    String candidate = cursor.getString(nameColumn);
+                    if (candidate != null && !candidate.trim().isEmpty()) displayName = candidate.trim();
+                }
+            }
+        } catch (Exception ignored) { }
+        String safeName = displayName.replaceAll("[^A-Za-z0-9._ -]", "_").trim();
+        if (safeName.isEmpty()) safeName = "video";
+        if (!safeName.toLowerCase(Locale.ROOT).matches(".*\\.(mp4|mkv|webm|mov|m4v|3gp|avi)$")) safeName += ".mp4";
+        File importFolder = new File(getCacheDir(), "editor-imports");
+        if (!importFolder.exists() && !importFolder.mkdirs()) throw new java.io.IOException("Não foi possível preparar a pasta temporária de importação.");
+        File target = new File(importFolder, System.currentTimeMillis() + "_" + java.util.UUID.randomUUID().toString().substring(0, 8) + "_" + safeName);
+        try (java.io.InputStream input = getContentResolver().openInputStream(uri);
+             java.io.FileOutputStream output = new java.io.FileOutputStream(target)) {
+            if (input == null) throw new java.io.IOException("O Android não forneceu acesso ao vídeo selecionado.");
+            byte[] buffer = new byte[64 * 1024];
+            int read;
+            while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
+            output.flush();
+        } catch (Exception e) {
+            if (target.exists()) target.delete();
+            if (e instanceof java.io.IOException) throw (java.io.IOException) e;
+            throw new java.io.IOException("Falha ao copiar o vídeo para o editor.", e);
+        }
+        if (!target.exists() || target.length() == 0L) {
+            if (target.exists()) target.delete();
+            throw new java.io.IOException("O arquivo selecionado está vazio ou não pôde ser copiado.");
+        }
+        return target;
     }
 
     private ClipItem readClip(File file) {
@@ -518,17 +489,13 @@ public class EditorActivity extends AppCompatActivity {
         } catch (Exception e) {
             Toast.makeText(this, "Não foi possível ler: " + file.getName(), Toast.LENGTH_LONG).show();
             return null;
-        } finally {
-            try { r.release(); } catch (Exception ignored) { }
-        }
+        } finally { try { r.release(); } catch (Exception ignored) { } }
     }
 
     private void refreshTimeline(boolean preservePlayhead) {
         long old = globalPlayheadMs;
         ArrayList<TimelineEditorView.ClipData> data = new ArrayList<>();
-        for (ClipItem clip : clips) {
-            data.add(new TimelineEditorView.ClipData(clip.file, clip.startMs, clip.endMs, clip.file.getName(), clip.cutBefore));
-        }
+        for (ClipItem clip : clips) data.add(new TimelineEditorView.ClipData(clip.file, clip.startMs, clip.endMs, clip.file.getName(), clip.cutBefore));
         timeline.setClips(data, selectedIndex);
         long total = totalEditedDurationMs();
         globalPlayheadMs = preservePlayhead ? Math.max(0L, Math.min(total, old)) : Math.max(0L, Math.min(total, globalPlayheadMs));
@@ -536,292 +503,147 @@ public class EditorActivity extends AppCompatActivity {
         textSequenceTotal.setText(formatSequenceTime(total));
         textSequenceCurrent.setText(formatSequenceTime(globalPlayheadMs));
         textClipCount.setText(clips.size() + (clips.size() == 1 ? " clipe" : " clipes") + " • " + formatSequenceTime(total));
-        updateExportSizeControls(false);
-        updateControls();
+        updateExportSizeControls(false); updateControls();
     }
 
     private void selectClip(int index, boolean movePlayhead) {
         if (joining || index < 0 || index >= clips.size()) return;
-        selectedIndex = index;
-        timeline.setSelectedIndex(index);
-        loadSelectedClipUi(movePlayhead);
+        selectedIndex = index; timeline.setSelectedIndex(index); loadSelectedClipUi(movePlayhead);
     }
 
     private void loadSelectedClipUi(boolean movePlayhead) {
         ClipItem clip = currentClip();
-        if (clip == null) {
-            clearSelectionUi();
-            return;
-        }
-
+        if (clip == null) { clearSelectionUi(); return; }
         textSelected.setText(clip.file.getName());
         String fpsText = clip.fps > 0f ? String.format(Locale.getDefault(), "%.2f fps", clip.fps) : "FPS --";
         String resolution = clip.width > 0 && clip.height > 0 ? clip.width + "x" + clip.height : "resolução --";
-        textInfo.setText("Original " + formatTime(clip.durationMs) + "  •  trecho " + formatTime(clip.selectedDurationMs()) +
-                "  •  " + resolution + "  •  " + fpsText + (clip.hasAudio ? "  •  áudio" : "  •  sem áudio"));
-        editStart.setText(formatTime(clip.startMs));
-        editEnd.setText(formatTime(clip.endMs));
-        range.setDuration(clip.durationMs);
-        range.setSelection(clip.startMs, clip.endMs);
-        range.setPlayhead(clip.startMs);
-        range.setVisibility(View.VISIBLE);
-        updateLocalPosition(clip.startMs);
-
-        if (movePlayhead) {
-            long global = clipGlobalStart(selectedIndex);
-            updateGlobalPlayhead(global, true);
-            seekSequence(global, false);
-        }
+        textInfo.setText("Original " + formatTime(clip.durationMs) + "  •  trecho " + formatTime(clip.selectedDurationMs()) + "  •  " + resolution + "  •  " + fpsText + (clip.hasAudio ? "  •  áudio" : "  •  sem áudio"));
+        editStart.setText(formatTime(clip.startMs)); editEnd.setText(formatTime(clip.endMs));
+        range.setDuration(clip.durationMs); range.setSelection(clip.startMs, clip.endMs); range.setPlayhead(clip.startMs); range.setVisibility(View.VISIBLE); updateLocalPosition(clip.startMs);
+        if (movePlayhead) { long global = clipGlobalStart(selectedIndex); updateGlobalPlayhead(global, true); seekSequence(global, false); }
         updateControls();
     }
 
     private void clearSelectionUi() {
-        
         selectedIndex = clips.isEmpty() ? -1 : selectedIndex;
-        textSelected.setText("Selecione um clipe na timeline");
-        textInfo.setText("Toque em um bloco para ajustar o início e o fim.");
-        editStart.setText("");
-        editEnd.setText("");
-        textPosition.setText("--:--");
-        range.setVisibility(View.GONE);
-        updateControls();
+        textSelected.setText("Selecione um clipe na timeline"); textInfo.setText("Toque em um bloco para ajustar o início e o fim.");
+        editStart.setText(""); editEnd.setText(""); textPosition.setText("--:--"); range.setVisibility(View.GONE); updateControls();
     }
 
     private void moveSelected(int delta) {
         if (joining || selectedIndex < 0) return;
-        
         int target = selectedIndex + delta;
         if (target < 0 || target >= clips.size()) return;
-        pauseSequence();
-        Collections.swap(clips, selectedIndex, target);
-        selectedIndex = target;
-        globalPlayheadMs = clipGlobalStart(selectedIndex);
-        refreshTimeline(false);
-        loadSelectedClipUi(false);
-        seekSequence(globalPlayheadMs, false);
+        pauseSequence(); Collections.swap(clips, selectedIndex, target); selectedIndex = target; globalPlayheadMs = clipGlobalStart(selectedIndex);
+        refreshTimeline(false); loadSelectedClipUi(false); seekSequence(globalPlayheadMs, false);
     }
 
     private void duplicateSelected() {
         if (joining || selectedIndex < 0 || selectedIndex >= clips.size()) return;
-        
-        pauseSequence();
-        ClipItem copy = clips.get(selectedIndex).copy();
-        copy.cutBefore = false;
-        int insert = selectedIndex + 1;
-        clips.add(insert, copy);
-        selectedIndex = insert;
-        globalPlayheadMs = clipGlobalStart(insert);
-        refreshTimeline(false);
-        loadSelectedClipUi(false);
-        seekSequence(globalPlayheadMs, false);
+        pauseSequence(); ClipItem copy = clips.get(selectedIndex).copy(); copy.cutBefore = false;
+        int insert = selectedIndex + 1; clips.add(insert, copy); selectedIndex = insert; globalPlayheadMs = clipGlobalStart(insert);
+        refreshTimeline(false); loadSelectedClipUi(false); seekSequence(globalPlayheadMs, false);
     }
 
     private void cutAtPlayhead() {
         if (joining || clips.isEmpty()) return;
-
         SequencePosition position = mapGlobalPosition(globalPlayheadMs);
         if (position == null || position.clipIndex < 0 || position.clipIndex >= clips.size()) return;
-
-        selectedIndex = position.clipIndex;
-        ClipItem original = clips.get(selectedIndex);
+        selectedIndex = position.clipIndex; ClipItem original = clips.get(selectedIndex);
         long source = Math.max(original.startMs, Math.min(original.endMs, position.sourceMs));
-        long edgeGuardMs = 40L;
-
-        if (source <= original.startMs + edgeGuardMs || source >= original.endMs - edgeGuardMs) {
-            Toast.makeText(this, "Mova a linha de reprodução para dentro do trecho antes de cortar.", Toast.LENGTH_LONG).show();
-            return;
+        if (source <= original.startMs + 40L || source >= original.endMs - 40L) {
+            Toast.makeText(this, "Mova a linha de reprodução para dentro do trecho antes de cortar.", Toast.LENGTH_LONG).show(); return;
         }
-
-        boolean keepPlaying = sequencePlaying;
-        long cutGlobal = globalPlayheadMs;
-
-        ClipItem left = original.copy();
-        left.endMs = source;
-
-        ClipItem right = original.copy();
-        right.startMs = source;
-        right.cutBefore = true;
-
-        clips.set(selectedIndex, left);
-        clips.add(selectedIndex + 1, right);
-        selectedIndex = selectedIndex + 1;
-        globalPlayheadMs = cutGlobal;
-
-        refreshTimeline(true);
-        loadSelectedClipUi(false);
-        seekSequence(globalPlayheadMs, keepPlaying);
+        boolean keepPlaying = sequencePlaying; long cutGlobal = globalPlayheadMs;
+        ClipItem left = original.copy(); left.endMs = source;
+        ClipItem right = original.copy(); right.startMs = source; right.cutBefore = true;
+        clips.set(selectedIndex, left); clips.add(selectedIndex + 1, right); selectedIndex++; globalPlayheadMs = cutGlobal;
+        refreshTimeline(true); loadSelectedClipUi(false); seekSequence(globalPlayheadMs, keepPlaying);
         Toast.makeText(this, "Corte criado em " + formatTime(source), Toast.LENGTH_SHORT).show();
     }
 
     private void removeSelected() {
         if (joining || selectedIndex < 0 || selectedIndex >= clips.size()) return;
-        
-        pauseSequence();
-        clips.remove(selectedIndex);
-        releaseMediaPlayer();
-        if (clips.isEmpty()) {
-            selectedIndex = -1;
-            globalPlayheadMs = 0L;
-            refreshTimeline(false);
-            clearSelectionUi();
-            return;
-        }
+        pauseSequence(); clips.remove(selectedIndex); releaseMediaPlayer();
+        if (clips.isEmpty()) { selectedIndex = -1; globalPlayheadMs = 0L; refreshTimeline(false); clearSelectionUi(); return; }
         if (selectedIndex >= clips.size()) selectedIndex = clips.size() - 1;
-        globalPlayheadMs = clipGlobalStart(selectedIndex);
-        refreshTimeline(false);
-        loadSelectedClipUi(false);
-        seekSequence(globalPlayheadMs, false);
+        globalPlayheadMs = clipGlobalStart(selectedIndex); refreshTimeline(false); loadSelectedClipUi(false); seekSequence(globalPlayheadMs, false);
     }
 
     private boolean applyTimesFromFields(boolean showMessage) {
-        ClipItem clip = currentClip();
-        if (clip == null) return false;
+        ClipItem clip = currentClip(); if (clip == null) return false;
         try {
-            long start = parseTime(editStart.getText().toString());
-            long end = parseTime(editEnd.getText().toString());
-            if (start < 0L || end <= start || end > clip.durationMs + 5L) {
-                throw new IllegalArgumentException("O fim precisa ser maior que o início e não pode ultrapassar o vídeo.");
-            }
-            pauseSequence();
-            
-            clip.startMs = Math.max(0L, start);
-            clip.endMs = Math.min(clip.durationMs, end);
-            range.setSelection(clip.startMs, clip.endMs);
-            range.setPlayhead(clip.startMs);
-            globalPlayheadMs = clipGlobalStart(selectedIndex);
-            refreshTimeline(false);
-            updateLocalPosition(clip.startMs);
-            seekSequence(globalPlayheadMs, false);
+            long start = parseTime(editStart.getText().toString()), end = parseTime(editEnd.getText().toString());
+            if (start < 0L || end <= start || end > clip.durationMs + 5L) throw new IllegalArgumentException("O fim precisa ser maior que o início e não pode ultrapassar o vídeo.");
+            pauseSequence(); clip.startMs = Math.max(0L, start); clip.endMs = Math.min(clip.durationMs, end);
+            range.setSelection(clip.startMs, clip.endMs); range.setPlayhead(clip.startMs); globalPlayheadMs = clipGlobalStart(selectedIndex);
+            refreshTimeline(false); updateLocalPosition(clip.startMs); seekSequence(globalPlayheadMs, false);
             if (showMessage) Toast.makeText(this, "Trecho atualizado na timeline", Toast.LENGTH_SHORT).show();
             return true;
-        } catch (IllegalArgumentException e) {
-            if (showMessage) Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
-            return false;
-        }
+        } catch (IllegalArgumentException e) { if (showMessage) Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show(); return false; }
     }
 
     private void nudgeLocal(long deltaMs) {
-        ClipItem clip = currentClip();
-        if (clip == null) return;
-        long next = Math.max(0L, Math.min(clip.durationMs, range.getPlayheadMs() + deltaMs));
-        range.setPlayhead(next);
-        updateLocalPosition(next);
-        long global = clipGlobalStart(selectedIndex) + Math.max(0L, Math.min(clip.selectedDurationMs(), next - clip.startMs));
-        seekSequence(global, sequencePlaying);
+        ClipItem clip = currentClip(); if (clip == null) return;
+        long next = Math.max(0L, Math.min(clip.durationMs, range.getPlayheadMs() + deltaMs)); range.setPlayhead(next); updateLocalPosition(next);
+        long global = clipGlobalStart(selectedIndex) + Math.max(0L, Math.min(clip.selectedDurationMs(), next - clip.startMs)); seekSequence(global, sequencePlaying);
     }
 
     private void markStartHere() {
-        ClipItem clip = currentClip();
-        if (clip == null) return;
-        long pos = range.getPlayheadMs();
-        if (pos >= clip.endMs) {
-            Toast.makeText(this, "O início precisa ficar antes do fim.", Toast.LENGTH_LONG).show();
-            return;
-        }
-        pauseSequence();
-        
-        clip.startMs = pos;
-        range.setSelection(clip.startMs, clip.endMs);
-        editStart.setText(formatTime(pos));
-        globalPlayheadMs = clipGlobalStart(selectedIndex);
-        refreshTimeline(false);
-        updateLocalPosition(pos);
-        seekSequence(globalPlayheadMs, false);
+        ClipItem clip = currentClip(); if (clip == null) return;
+        long pos = range.getPlayheadMs(); if (pos >= clip.endMs) { Toast.makeText(this, "O início precisa ficar antes do fim.", Toast.LENGTH_LONG).show(); return; }
+        pauseSequence(); clip.startMs = pos; range.setSelection(clip.startMs, clip.endMs); editStart.setText(formatTime(pos)); globalPlayheadMs = clipGlobalStart(selectedIndex);
+        refreshTimeline(false); updateLocalPosition(pos); seekSequence(globalPlayheadMs, false);
     }
 
     private void markEndHere() {
-        ClipItem clip = currentClip();
-        if (clip == null) return;
-        long pos = range.getPlayheadMs();
-        if (pos <= clip.startMs) {
-            Toast.makeText(this, "O fim precisa ficar depois do início.", Toast.LENGTH_LONG).show();
-            return;
-        }
-        pauseSequence();
-        
-        clip.endMs = pos;
-        range.setSelection(clip.startMs, clip.endMs);
-        editEnd.setText(formatTime(pos));
-        globalPlayheadMs = clipGlobalStart(selectedIndex) + clip.selectedDurationMs();
-        refreshTimeline(false);
-        updateLocalPosition(pos);
-        seekSequence(globalPlayheadMs, false);
+        ClipItem clip = currentClip(); if (clip == null) return;
+        long pos = range.getPlayheadMs(); if (pos <= clip.startMs) { Toast.makeText(this, "O fim precisa ficar depois do início.", Toast.LENGTH_LONG).show(); return; }
+        pauseSequence(); clip.endMs = pos; range.setSelection(clip.startMs, clip.endMs); editEnd.setText(formatTime(pos)); globalPlayheadMs = clipGlobalStart(selectedIndex) + clip.selectedDurationMs();
+        refreshTimeline(false); updateLocalPosition(pos); seekSequence(globalPlayheadMs, false);
     }
 
     private void toggleSequencePlayback() {
         if (clips.isEmpty() || joining) return;
-        if (sequencePlaying) {
-            pauseSequence();
-            return;
-        }
+        if (sequencePlaying) { pauseSequence(); return; }
         if (globalPlayheadMs >= totalEditedDurationMs()) globalPlayheadMs = 0L;
-        sequencePlaying = true;
-        buttonPreview.setText("❚❚  Pausar");
-        seekSequence(globalPlayheadMs, true);
+        sequencePlaying = true; buttonPreview.setText("❚❚  Pausar"); seekSequence(globalPlayheadMs, true);
     }
 
     private void pauseSequence() {
-        sequencePlaying = false;
-        handler.removeCallbacks(previewMonitor);
-        if (player != null && prepared) {
-            try { if (player.isPlaying()) player.pause(); } catch (Exception ignored) { }
-        }
+        sequencePlaying = false; handler.removeCallbacks(previewMonitor);
+        if (player != null && prepared) try { if (player.isPlaying()) player.pause(); } catch (Exception ignored) { }
         buttonPreview.setText("▶  Reproduzir sequência");
     }
 
     private void stopSequenceAtEnd() {
-        sequencePlaying = false;
-        advancingClip = false;
-        handler.removeCallbacks(previewMonitor);
-        long total = totalEditedDurationMs();
-        updateGlobalPlayhead(total, true);
-        buttonPreview.setText("▶  Reproduzir sequência");
-        if (player != null && prepared) {
-            try { if (player.isPlaying()) player.pause(); } catch (Exception ignored) { }
-        }
+        sequencePlaying = false; advancingClip = false; handler.removeCallbacks(previewMonitor);
+        updateGlobalPlayhead(totalEditedDurationMs(), true); buttonPreview.setText("▶  Reproduzir sequência");
+        if (player != null && prepared) try { if (player.isPlaying()) player.pause(); } catch (Exception ignored) { }
     }
 
     private void seekGlobalBy(long deltaMs) {
         if (clips.isEmpty()) return;
-        long next = Math.max(0L, Math.min(totalEditedDurationMs(), globalPlayheadMs + deltaMs));
-        seekSequence(next, sequencePlaying);
+        long next = Math.max(0L, Math.min(totalEditedDurationMs(), globalPlayheadMs + deltaMs)); seekSequence(next, sequencePlaying);
     }
 
     private void seekSequence(long globalMs, boolean keepPlaying) {
         if (clips.isEmpty()) return;
-        long total = totalEditedDurationMs();
-        long safe = Math.max(0L, Math.min(total, globalMs));
+        long total = totalEditedDurationMs(); long safe = Math.max(0L, Math.min(total, globalMs));
         if (safe >= total && total > 0L) safe = Math.max(0L, total - 1L);
-        updateGlobalPlayhead(safe, true);
-
-        SequencePosition position = mapGlobalPosition(safe);
-        if (position == null) return;
-
-        if (!surfaceReady) return;
+        updateGlobalPlayhead(safe, true); SequencePosition position = mapGlobalPosition(safe);
+        if (position == null || !surfaceReady) return;
         if (player != null && prepared && previewClipIndex == position.clipIndex) {
             try {
-                sequencePlaying = keepPlaying;
-                previewClipEndSourceMs = clips.get(position.clipIndex).endMs;
+                sequencePlaying = keepPlaying; previewClipEndSourceMs = clips.get(position.clipIndex).endMs;
                 player.setOnSeekCompleteListener(mp -> {
                     try {
-                        if (keepPlaying) {
-                            mp.setVolume(1f, 1f);
-                            if (!mp.isPlaying()) mp.start();
-                            sequencePlaying = true;
-                            buttonPreview.setText("❚❚  Pausar");
-                            handler.removeCallbacks(previewMonitor);
-                            handler.post(previewMonitor);
-                        } else {
-                            if (mp.isPlaying()) mp.pause();
-                            sequencePlaying = false;
-                            buttonPreview.setText("▶  Reproduzir sequência");
-                        }
+                        if (keepPlaying) { mp.setVolume(1f, 1f); if (!mp.isPlaying()) mp.start(); sequencePlaying = true; buttonPreview.setText("❚❚  Pausar"); handler.removeCallbacks(previewMonitor); handler.post(previewMonitor); }
+                        else { if (mp.isPlaying()) mp.pause(); sequencePlaying = false; buttonPreview.setText("▶  Reproduzir sequência"); }
                     } catch (Exception ignored) { }
                 });
-                player.seekTo(position.sourceMs, MediaPlayer.SEEK_CLOSEST);
-                return;
-            } catch (Exception ignored) {
-            }
+                player.seekTo(position.sourceMs, MediaPlayer.SEEK_CLOSEST); return;
+            } catch (Exception ignored) { }
         }
         prepareSequencePosition(position, keepPlaying);
     }
@@ -829,13 +651,11 @@ public class EditorActivity extends AppCompatActivity {
     private void prepareSequencePosition(SequencePosition position, boolean autoPlay) {
         ClipItem clip = clipAt(position.clipIndex);
         if (clip == null || !surfaceReady) return;
-
         releaseMediaPlayer();
         previewClipIndex = position.clipIndex;
         previewClipEndSourceMs = clip.endMs;
         sequencePlaying = autoPlay;
         advancingClip = true;
-
         try {
             SurfaceTexture texture = preview.getSurfaceTexture();
             if (texture == null) return;
@@ -863,13 +683,9 @@ public class EditorActivity extends AppCompatActivity {
                         } catch (Exception ignored) { }
                     });
                     mp.seekTo(position.sourceMs, MediaPlayer.SEEK_CLOSEST);
-                } catch (Exception e) {
-                    advancingClip = false;
-                }
+                } catch (Exception e) { advancingClip = false; }
             });
-            player.setOnCompletionListener(mp -> {
-                if (sequencePlaying) advanceToNextClip();
-            });
+            player.setOnCompletionListener(mp -> { if (sequencePlaying) advanceToNextClip(); });
             player.setOnErrorListener((mp, what, extra) -> {
                 advancingClip = false;
                 textStatus.setText("Não foi possível reproduzir um dos clipes na prévia.");
@@ -886,15 +702,11 @@ public class EditorActivity extends AppCompatActivity {
     private void advanceToNextClip() {
         if (advancingClip) return;
         int next = previewClipIndex + 1;
-        if (next >= clips.size()) {
-            stopSequenceAtEnd();
-            return;
-        }
+        if (next >= clips.size()) { stopSequenceAtEnd(); return; }
         advancingClip = true;
         long global = clipGlobalStart(next);
         updateGlobalPlayhead(global, true);
-        SequencePosition position = new SequencePosition(next, clips.get(next).startMs);
-        prepareSequencePosition(position, true);
+        prepareSequencePosition(new SequencePosition(next, clips.get(next).startMs), true);
     }
 
     private void releaseMediaPlayer() {
@@ -915,7 +727,6 @@ public class EditorActivity extends AppCompatActivity {
         timeline.setPlayheadMs(safe);
         textSequenceCurrent.setText(formatSequenceTime(safe));
         textSequenceTotal.setText(formatSequenceTime(totalEditedDurationMs()));
-
         if (autoScroll) {
             timeline.post(() -> {
                 int x = Math.round(timeline.xForGlobalMs(globalPlayheadMs));
@@ -939,7 +750,6 @@ public class EditorActivity extends AppCompatActivity {
     private void changeZoom(int delta) {
         int next = Math.max(0, Math.min(zoomLevels.length - 1, zoomIndex + delta));
         if (next == zoomIndex) return;
-        float oldX = timeline.xForGlobalMs(globalPlayheadMs);
         zoomIndex = next;
         timeline.setPixelsPerSecondDp(zoomLevels[zoomIndex]);
         updateZoomLabel();
@@ -1018,7 +828,6 @@ public class EditorActivity extends AppCompatActivity {
         if (checkTargetSize != null) checkTargetSize.setEnabled(!joining);
         if (seekTargetSize != null) seekTargetSize.setEnabled(!joining && checkTargetSize != null && checkTargetSize.isChecked());
         timeline.setEnabled(!joining);
-
         if (!joining) {
             if (clips.isEmpty()) textStatus.setText("Adicione um vídeo à timeline para editar e exportar.");
             else textStatus.setText("Timeline pronta: " + clips.size() + (clips.size() == 1 ? " clipe" : " clipes") + " • " + formatSequenceTime(totalEditedDurationMs()));
@@ -1035,22 +844,17 @@ public class EditorActivity extends AppCompatActivity {
             Toast.makeText(this, "Confira os tempos do clipe selecionado.", Toast.LENGTH_LONG).show();
             return;
         }
-
         pauseSequence();
         releaseMediaPlayer();
         setJoiningUi(true);
         progressJoin.setProgress(0);
         textJoinProgress.setText("0%");
         textStatus.setText("Preparando a timeline para exportação...");
-
         try {
             File folder = videoFolder();
-            if (!folder.exists() && !folder.mkdirs()) {
-                throw new IllegalStateException("Não foi possível criar Downloads/ExtratorVideos");
-            }
+            if (!folder.exists() && !folder.mkdirs()) throw new IllegalStateException("Não foi possível criar Downloads/ExtratorVideos");
             String requestedName = editOutputName == null ? "" : editOutputName.getText().toString();
             joinOutput = uniqueOutputFile(folder, buildOutputFileName(requestedName, "video_final"));
-
             ClipItem first = clips.get(0);
             int[] targetDimensions = resolveTargetDimensions(first);
             int targetWidth = targetDimensions[0];
@@ -1058,111 +862,68 @@ public class EditorActivity extends AppCompatActivity {
             boolean useTargetSize = checkTargetSize != null && checkTargetSize.isChecked();
             String requestedVideoMimeType = requestedVideoMimeType();
             String exportVideoMimeType = effectiveVideoMimeType();
-            boolean hevcFallback = MimeTypes.VIDEO_H265.equals(requestedVideoMimeType)
-                    && !MimeTypes.VIDEO_H265.equals(exportVideoMimeType);
+            boolean hevcFallback = MimeTypes.VIDEO_H265.equals(requestedVideoMimeType) && !MimeTypes.VIDEO_H265.equals(exportVideoMimeType);
             lastExportCodecLabel = codecLabel(exportVideoMimeType);
             int requestedVideoBitrate = useTargetSize
                     ? calculateVideoBitrateForTargetSize(targetSizeMb, totalEditedDurationMs(), exportVideoMimeType)
                     : bitrateProfileForResolution(exportVideoMimeType)[1];
-            if (hevcFallback) {
-                Toast.makeText(this, "HEVC não está disponível neste aparelho. A exportação usará H.264.", Toast.LENGTH_LONG).show();
-            }
+            if (hevcFallback) Toast.makeText(this, "HEVC não está disponível neste aparelho. A exportação usará H.264.", Toast.LENGTH_LONG).show();
 
             ArrayList<EditedMediaItem> items = new ArrayList<>();
             for (ClipItem clip : clips) {
                 MediaItem.ClippingConfiguration clipping = new MediaItem.ClippingConfiguration.Builder()
-                        .setStartPositionMs(clip.startMs)
-                        .setEndPositionMs(clip.endMs)
-                        .build();
-                MediaItem mediaItem = new MediaItem.Builder()
-                        .setUri(Uri.fromFile(clip.file))
-                        .setClippingConfiguration(clipping)
-                        .build();
-
+                        .setStartPositionMs(clip.startMs).setEndPositionMs(clip.endMs).build();
+                MediaItem mediaItem = new MediaItem.Builder().setUri(Uri.fromFile(clip.file)).setClippingConfiguration(clipping).build();
                 List<Effect> videoEffects = new ArrayList<>();
-                videoEffects.add(Presentation.createForWidthAndHeight(
-                        targetWidth,
-                        targetHeight,
-                        Presentation.LAYOUT_SCALE_TO_FIT
-                ));
+                videoEffects.add(Presentation.createForWidthAndHeight(targetWidth, targetHeight, Presentation.LAYOUT_SCALE_TO_FIT));
                 Effects effects = new Effects(Collections.emptyList(), videoEffects);
                 items.add(new EditedMediaItem.Builder(mediaItem).setEffects(effects).build());
             }
-
             EditedMediaItemSequence sequence = EditedMediaItemSequence.withAudioAndVideoFrom(items);
-            Composition composition = new Composition.Builder(sequence)
-                    .setTransmuxAudio(false)
-                    .setTransmuxVideo(false)
-                    .build();
-
+            Composition composition = new Composition.Builder(sequence).setTransmuxAudio(false).setTransmuxVideo(false).build();
             Transformer.Builder transformerBuilder = new Transformer.Builder(this)
-                    .setVideoMimeType(exportVideoMimeType)
-                    .setAudioMimeType(MimeTypes.AUDIO_AAC);
-
-            // Define bitrate também no modo automático. Em HEVC usamos um perfil mais eficiente,
-            // reduzindo bastante o tamanho sem precisar diminuir a resolução.
+                    .setVideoMimeType(exportVideoMimeType).setAudioMimeType(MimeTypes.AUDIO_AAC);
             if (requestedVideoBitrate > 0) {
                 DefaultEncoderFactory encoderFactory = new DefaultEncoderFactory.Builder(this)
                         .setEnableFallback(true)
-                        .setRequestedVideoEncoderSettings(
-                                new VideoEncoderSettings.Builder()
-                                        .setBitrate(requestedVideoBitrate)
-                                        .build())
-                        .setRequestedAudioEncoderSettings(
-                                new AudioEncoderSettings.Builder()
-                                        .setBitrate(AUDIO_BITRATE_BPS)
-                                        .build())
+                        .setRequestedVideoEncoderSettings(new VideoEncoderSettings.Builder().setBitrate(requestedVideoBitrate).build())
+                        .setRequestedAudioEncoderSettings(new AudioEncoderSettings.Builder().setBitrate(AUDIO_BITRATE_BPS).build())
                         .build();
                 transformerBuilder.setEncoderFactory(encoderFactory);
             }
-
-            joinTransformer = transformerBuilder
-                    .addListener(new Transformer.Listener() {
-                        @Override
-                        public void onCompleted(Composition composition, ExportResult exportResult) {
-                            File output = joinOutput;
-                            joining = false;
-                            handler.removeCallbacks(joinProgressMonitor);
-                            joinTransformer = null;
-
-                            if (output == null || !output.exists() || output.length() == 0L) {
-                                textStatus.setText("Erro: o arquivo final não foi criado.");
-                                setJoiningUi(false);
-                                return;
-                            }
-                            progressJoin.setProgress(100);
-                            textJoinProgress.setText("100%");
-                            textStatus.setText("✓ Sequência exportada: " + output.getName() + " • " + formatFileSize(output.length()));
-                            MediaScannerConnection.scanFile(
-                                    EditorActivity.this,
-                                    new String[]{output.getAbsolutePath()},
-                                    new String[]{"video/mp4"},
-                                    null
-                            );
-                            setJoiningUi(false);
-                            new AlertDialog.Builder(EditorActivity.this)
-                                    .setTitle("Exportação concluída")
-                                    .setMessage(buildExportCompletedMessage(output))
-                                    .setPositiveButton("ABRIR PASTA", (dialog, which) -> openVideoFolder())
-                                    .setNegativeButton("FECHAR", null)
-                                    .show();
-                        }
-
-                        @Override
-                        public void onError(Composition composition, ExportResult exportResult, ExportException exportException) {
-                            joining = false;
-                            handler.removeCallbacks(joinProgressMonitor);
-                            if (joinOutput != null && joinOutput.exists() && joinOutput.length() < 1024L * 1024L) {
-                                joinOutput.delete();
-                            }
-                            joinTransformer = null;
-                            textStatus.setText("Erro ao exportar: " + shortMessage(exportException));
-                            Toast.makeText(EditorActivity.this, "Não foi possível exportar a sequência.", Toast.LENGTH_LONG).show();
-                            setJoiningUi(false);
-                        }
-                    })
-                    .build();
-
+            joinTransformer = transformerBuilder.addListener(new Transformer.Listener() {
+                @Override
+                public void onCompleted(Composition composition, ExportResult exportResult) {
+                    File output = joinOutput;
+                    joining = false;
+                    handler.removeCallbacks(joinProgressMonitor);
+                    joinTransformer = null;
+                    if (output == null || !output.exists() || output.length() == 0L) {
+                        textStatus.setText("Erro: o arquivo final não foi criado.");
+                        setJoiningUi(false);
+                        return;
+                    }
+                    progressJoin.setProgress(100);
+                    textJoinProgress.setText("100%");
+                    textStatus.setText("✓ Sequência exportada: " + output.getName() + " • " + formatFileSize(output.length()));
+                    MediaScannerConnection.scanFile(EditorActivity.this, new String[]{output.getAbsolutePath()}, new String[]{"video/mp4"}, null);
+                    setJoiningUi(false);
+                    new AlertDialog.Builder(EditorActivity.this).setTitle("Exportação concluída")
+                            .setMessage(buildExportCompletedMessage(output))
+                            .setPositiveButton("ABRIR PASTA", (dialog, which) -> openVideoFolder())
+                            .setNegativeButton("FECHAR", null).show();
+                }
+                @Override
+                public void onError(Composition composition, ExportResult exportResult, ExportException exportException) {
+                    joining = false;
+                    handler.removeCallbacks(joinProgressMonitor);
+                    if (joinOutput != null && joinOutput.exists() && joinOutput.length() < 1024L * 1024L) joinOutput.delete();
+                    joinTransformer = null;
+                    textStatus.setText("Erro ao exportar: " + shortMessage(exportException));
+                    Toast.makeText(EditorActivity.this, "Não foi possível exportar a sequência.", Toast.LENGTH_LONG).show();
+                    setJoiningUi(false);
+                }
+            }).build();
             joining = true;
             joinTransformer.start(composition, joinOutput.getAbsolutePath());
             handler.removeCallbacks(joinProgressMonitor);
@@ -1180,44 +941,19 @@ public class EditorActivity extends AppCompatActivity {
         int sourceWidth = first != null && first.width > 0 ? first.width : 1280;
         int sourceHeight = first != null && first.height > 0 ? first.height : 720;
         int choice = spinnerResolution == null ? 0 : spinnerResolution.getSelectedItemPosition();
-
         if (choice <= 0) {
-            int w = even(sourceWidth);
-            int h = even(sourceHeight);
-            if (w > 1920 || h > 1920) {
-                float scale = Math.min(1920f / w, 1920f / h);
-                w = even(Math.max(2, Math.round(w * scale)));
-                h = even(Math.max(2, Math.round(h * scale)));
-            }
+            int w = even(sourceWidth), h = even(sourceHeight);
+            if (w > 1920 || h > 1920) { float scale = Math.min(1920f / w, 1920f / h); w = even(Math.max(2, Math.round(w * scale))); h = even(Math.max(2, Math.round(h * scale))); }
             return new int[]{w, h};
         }
-
         int shortSide;
-        switch (choice) {
-            case 1: shortSide = 360; break;
-            case 2: shortSide = 480; break;
-            case 3: shortSide = 720; break;
-            case 4: shortSide = 1080; break;
-            default: shortSide = 720; break;
-        }
-
+        switch (choice) { case 1: shortSide = 360; break; case 2: shortSide = 480; break; case 3: shortSide = 720; break; case 4: shortSide = 1080; break; default: shortSide = 720; break; }
         float aspect = sourceHeight > 0 ? (sourceWidth / (float) sourceHeight) : (16f / 9f);
-        int w;
-        int h;
-        if (sourceWidth >= sourceHeight) {
-            h = shortSide;
-            w = even(Math.max(2, Math.round(h * aspect)));
-        } else {
-            w = shortSide;
-            h = even(Math.max(2, Math.round(w / Math.max(0.1f, aspect))));
-        }
-        w = even(w);
-        h = even(h);
-        if (w > 1920 || h > 1920) {
-            float scale = Math.min(1920f / w, 1920f / h);
-            w = even(Math.max(2, Math.round(w * scale)));
-            h = even(Math.max(2, Math.round(h * scale)));
-        }
+        int w, h;
+        if (sourceWidth >= sourceHeight) { h = shortSide; w = even(Math.max(2, Math.round(h * aspect))); }
+        else { w = shortSide; h = even(Math.max(2, Math.round(w / Math.max(0.1f, aspect)))); }
+        w = even(w); h = even(h);
+        if (w > 1920 || h > 1920) { float scale = Math.min(1920f / w, 1920f / h); w = even(Math.max(2, Math.round(w * scale))); h = even(Math.max(2, Math.round(h * scale))); }
         return new int[]{w, h};
     }
 
@@ -1225,53 +961,34 @@ public class EditorActivity extends AppCompatActivity {
         if (seekTargetSize == null || textTargetSize == null || textTargetMin == null || textTargetMax == null || textExportEstimate == null) return;
         long durationMs = totalEditedDurationMs();
         if (durationMs <= 0L || clips.isEmpty()) {
-            targetSizeMinMb = 1;
-            targetSizeMaxMb = 100;
-            if (resetToRecommended) targetSizeMb = 30;
-            updatingExportUi = true;
-            seekTargetSize.setProgress(mapTargetSizeToProgress(targetSizeMb));
-            updatingExportUi = false;
-            textTargetMin.setText("1 MB");
-            textTargetMax.setText("100 MB");
-            textTargetSize.setText("≈ " + targetSizeMb + " MB");
+            targetSizeMinMb = 1; targetSizeMaxMb = 100; if (resetToRecommended) targetSizeMb = 30;
+            updatingExportUi = true; seekTargetSize.setProgress(mapTargetSizeToProgress(targetSizeMb)); updatingExportUi = false;
+            textTargetMin.setText("1 MB"); textTargetMax.setText("100 MB"); textTargetSize.setText("≈ " + targetSizeMb + " MB");
             textExportEstimate.setText("Adicione um vídeo para calcular resolução, bitrate e tamanho estimado.");
             return;
         }
-
         String exportMime = effectiveVideoMimeType();
         int[] bitrates = bitrateProfileForResolution(exportMime);
-        int minVideo = bitrates[0];
-        int recommendedVideo = bitrates[1];
-        int maxVideo = bitrates[2];
+        int minVideo = bitrates[0], recommendedVideo = bitrates[1], maxVideo = bitrates[2];
         targetSizeMinMb = Math.max(1, (int) Math.ceil(estimatedSizeMb(durationMs, minVideo, AUDIO_BITRATE_BPS)));
         targetSizeMaxMb = Math.max(targetSizeMinMb + 1, (int) Math.ceil(estimatedSizeMb(durationMs, maxVideo, AUDIO_BITRATE_BPS)));
         int recommendedMb = clampInt((int) Math.round(estimatedSizeMb(durationMs, recommendedVideo, AUDIO_BITRATE_BPS)), targetSizeMinMb, targetSizeMaxMb);
-
-        if (resetToRecommended || targetSizeMb < targetSizeMinMb || targetSizeMb > targetSizeMaxMb) {
-            targetSizeMb = recommendedMb;
-        }
-
-        updatingExportUi = true;
-        seekTargetSize.setProgress(mapTargetSizeToProgress(targetSizeMb));
-        updatingExportUi = false;
+        if (resetToRecommended || targetSizeMb < targetSizeMinMb || targetSizeMb > targetSizeMaxMb) targetSizeMb = recommendedMb;
+        updatingExportUi = true; seekTargetSize.setProgress(mapTargetSizeToProgress(targetSizeMb)); updatingExportUi = false;
         updateTargetSizeLabels();
     }
 
     private void updateTargetSizeLabels() {
         if (textTargetSize == null) return;
         targetSizeMb = clampInt(targetSizeMb, targetSizeMinMb, targetSizeMaxMb);
-        textTargetMin.setText(targetSizeMinMb + " MB");
-        textTargetMax.setText(targetSizeMaxMb + " MB");
-        textTargetSize.setText("≈ " + targetSizeMb + " MB");
-
+        textTargetMin.setText(targetSizeMinMb + " MB"); textTargetMax.setText(targetSizeMaxMb + " MB"); textTargetSize.setText("≈ " + targetSizeMb + " MB");
         ClipItem first = clips.isEmpty() ? null : clips.get(0);
         int[] dims = resolveTargetDimensions(first);
         String resText = dims[0] + "×" + dims[1];
         boolean custom = checkTargetSize != null && checkTargetSize.isChecked();
         String exportMime = effectiveVideoMimeType();
         String codec = codecLabel(exportMime);
-        boolean hevcRequestedButUnavailable = MimeTypes.VIDEO_H265.equals(requestedVideoMimeType())
-                && !MimeTypes.VIDEO_H265.equals(exportMime);
+        boolean hevcRequestedButUnavailable = MimeTypes.VIDEO_H265.equals(requestedVideoMimeType()) && !MimeTypes.VIDEO_H265.equals(exportMime);
         String fallbackText = hevcRequestedButUnavailable ? "  •  HEVC indisponível → H.264" : "";
         if (custom) {
             int videoBitrate = calculateVideoBitrateForTargetSize(targetSizeMb, totalEditedDurationMs(), exportMime);
@@ -1283,41 +1000,23 @@ public class EditorActivity extends AppCompatActivity {
         }
     }
 
-    private String requestedVideoMimeType() {
-        int choice = spinnerCompression == null ? 1 : spinnerCompression.getSelectedItemPosition();
-        return choice == 1 ? MimeTypes.VIDEO_H265 : MimeTypes.VIDEO_H264;
-    }
-
-    private String effectiveVideoMimeType() {
-        String requested = requestedVideoMimeType();
-        if (MimeTypes.VIDEO_H265.equals(requested) && !isVideoEncoderSupported(MimeTypes.VIDEO_H265)) {
-            return MimeTypes.VIDEO_H264;
-        }
-        return requested;
-    }
-
+    private String requestedVideoMimeType() { int choice = spinnerCompression == null ? 1 : spinnerCompression.getSelectedItemPosition(); return choice == 1 ? MimeTypes.VIDEO_H265 : MimeTypes.VIDEO_H264; }
+    private String effectiveVideoMimeType() { String requested = requestedVideoMimeType(); return MimeTypes.VIDEO_H265.equals(requested) && !isVideoEncoderSupported(MimeTypes.VIDEO_H265) ? MimeTypes.VIDEO_H264 : requested; }
     private boolean isVideoEncoderSupported(String mimeType) {
         try {
             MediaCodecList codecList = new MediaCodecList(MediaCodecList.ALL_CODECS);
             for (MediaCodecInfo info : codecList.getCodecInfos()) {
                 if (!info.isEncoder()) continue;
-                for (String type : info.getSupportedTypes()) {
-                    if (mimeType.equalsIgnoreCase(type)) return true;
-                }
+                for (String type : info.getSupportedTypes()) if (mimeType.equalsIgnoreCase(type)) return true;
             }
         } catch (Exception ignored) { }
         return false;
     }
-
-    private String codecLabel(String mimeType) {
-        return MimeTypes.VIDEO_H265.equals(mimeType) ? "H.265 / HEVC" : "H.264 / AVC";
-    }
+    private String codecLabel(String mimeType) { return MimeTypes.VIDEO_H265.equals(mimeType) ? "H.265 / HEVC" : "H.264 / AVC"; }
 
     private int[] bitrateProfileForResolution(String mimeType) {
         int choice = spinnerResolution == null ? 0 : spinnerResolution.getSelectedItemPosition();
         boolean hevc = MimeTypes.VIDEO_H265.equals(mimeType);
-
-        // HEVC trabalha com bitrates menores para manter qualidade visual semelhante ao H.264.
         if (hevc) {
             if (choice == 1) return new int[]{300_000, 650_000, 1_600_000};
             if (choice == 2) return new int[]{450_000, 950_000, 2_400_000};
@@ -1329,11 +1028,9 @@ public class EditorActivity extends AppCompatActivity {
             if (choice == 3) return new int[]{1_200_000, 3_000_000, 7_000_000};
             if (choice == 4) return new int[]{2_000_000, 5_500_000, 12_000_000};
         }
-
         ClipItem first = clips.isEmpty() ? null : clips.get(0);
         int[] dims = first == null ? new int[]{1280, 720} : resolveTargetDimensions(first);
-        int longSide = Math.max(dims[0], dims[1]);
-        int shortSide = Math.min(dims[0], dims[1]);
+        int longSide = Math.max(dims[0], dims[1]), shortSide = Math.min(dims[0], dims[1]);
         if (hevc) {
             if (shortSide <= 480) return new int[]{450_000, 1_050_000, 2_500_000};
             if (shortSide <= 720) return new int[]{750_000, 2_000_000, 4_800_000};
@@ -1354,77 +1051,35 @@ public class EditorActivity extends AppCompatActivity {
         int[] profile = bitrateProfileForResolution(mimeType);
         return clampInt(video, profile[0], profile[2]);
     }
-
-    private double estimatedSizeMb(long durationMs, int videoBitrate, int audioBitrate) {
-        double seconds = Math.max(0d, durationMs / 1000d);
-        double bytes = seconds * Math.max(1, videoBitrate + audioBitrate) / 8d;
-        return bytes / (1024d * 1024d);
-    }
-
-    private int mapProgressToTargetSize(int progress) {
-        if (targetSizeMaxMb <= targetSizeMinMb) return targetSizeMinMb;
-        double ratio = Math.max(0d, Math.min(1d, progress / 1000d));
-        return clampInt((int) Math.round(targetSizeMinMb + ratio * (targetSizeMaxMb - targetSizeMinMb)), targetSizeMinMb, targetSizeMaxMb);
-    }
-
-    private int mapTargetSizeToProgress(int sizeMb) {
-        if (targetSizeMaxMb <= targetSizeMinMb) return 0;
-        double ratio = (clampInt(sizeMb, targetSizeMinMb, targetSizeMaxMb) - targetSizeMinMb) / (double) (targetSizeMaxMb - targetSizeMinMb);
-        return clampInt((int) Math.round(ratio * 1000d), 0, 1000);
-    }
-
-    private int clampInt(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
-    }
-
-    private String formatBitrate(int bps) {
-        if (bps >= 1_000_000) return String.format(Locale.getDefault(), "%.1f Mbps", bps / 1_000_000d);
-        return Math.round(bps / 1000d) + " kbps";
-    }
-
-    private String formatFileSize(long bytes) {
-        return String.format(Locale.getDefault(), "%.1f MB", bytes / (1024d * 1024d));
-    }
+    private double estimatedSizeMb(long durationMs, int videoBitrate, int audioBitrate) { return Math.max(0d, durationMs / 1000d) * Math.max(1, videoBitrate + audioBitrate) / 8d / (1024d * 1024d); }
+    private int mapProgressToTargetSize(int progress) { if (targetSizeMaxMb <= targetSizeMinMb) return targetSizeMinMb; double ratio = Math.max(0d, Math.min(1d, progress / 1000d)); return clampInt((int) Math.round(targetSizeMinMb + ratio * (targetSizeMaxMb - targetSizeMinMb)), targetSizeMinMb, targetSizeMaxMb); }
+    private int mapTargetSizeToProgress(int sizeMb) { if (targetSizeMaxMb <= targetSizeMinMb) return 0; double ratio = (clampInt(sizeMb, targetSizeMinMb, targetSizeMaxMb) - targetSizeMinMb) / (double) (targetSizeMaxMb - targetSizeMinMb); return clampInt((int) Math.round(ratio * 1000d), 0, 1000); }
+    private int clampInt(int value, int min, int max) { return Math.max(min, Math.min(max, value)); }
+    private String formatBitrate(int bps) { return bps >= 1_000_000 ? String.format(Locale.getDefault(), "%.1f Mbps", bps / 1_000_000d) : Math.round(bps / 1000d) + " kbps"; }
+    private String formatFileSize(long bytes) { return String.format(Locale.getDefault(), "%.1f MB", bytes / (1024d * 1024d)); }
 
     private String buildExportCompletedMessage(File output) {
         StringBuilder message = new StringBuilder();
         message.append("O vídeo foi salvo em Downloads/ExtratorVideos.\n\n");
         message.append("Tamanho gerado: ").append(formatFileSize(output.length()));
         message.append("\nCodec: ").append(lastExportCodecLabel);
-        if (checkTargetSize != null && checkTargetSize.isChecked()) {
-            message.append("\nTamanho solicitado: ~").append(targetSizeMb).append(" MB");
-        }
+        if (checkTargetSize != null && checkTargetSize.isChecked()) message.append("\nTamanho solicitado: ~").append(targetSizeMb).append(" MB");
         ClipItem first = clips.isEmpty() ? null : clips.get(0);
-        if (first != null) {
-            int[] dims = resolveTargetDimensions(first);
-            message.append("\nResolução: ").append(dims[0]).append("×").append(dims[1]);
-        }
+        if (first != null) { int[] dims = resolveTargetDimensions(first); message.append("\nResolução: ").append(dims[0]).append("×").append(dims[1]); }
         message.append("\n\nOs vídeos originais foram mantidos.");
         return message.toString();
     }
 
     private void setJoiningUi(boolean busy) {
-        joining = busy;
-        updateControls();
+        joining = busy; updateControls();
         buttonZoomOut.setEnabled(!busy && zoomIndex > 0);
         buttonZoomIn.setEnabled(!busy && zoomIndex < zoomLevels.length - 1);
     }
 
     private String buildOutputFileName(String requestedName, String fallbackPrefix) {
         String name = requestedName == null ? "" : requestedName.trim();
-        if (name.toLowerCase(Locale.ROOT).endsWith(".mp4")) {
-            name = name.substring(0, name.length() - 4);
-        }
-        name = name.replace('\\', '_')
-                .replace('/', '_')
-                .replace(':', '_')
-                .replace('*', '_')
-                .replace('?', '_')
-                .replace('"', '_')
-                .replace('<', '_')
-                .replace('>', '_')
-                .replace('|', '_')
-                .trim();
+        if (name.toLowerCase(Locale.ROOT).endsWith(".mp4")) name = name.substring(0, name.length() - 4);
+        name = name.replace('\\', '_').replace('/', '_').replace(':', '_').replace('*', '_').replace('?', '_').replace('"', '_').replace('<', '_').replace('>', '_').replace('|', '_').trim();
         name = name.replaceAll("[. ]+$", "");
         if (name.isEmpty()) name = fallbackPrefix + "_" + System.currentTimeMillis();
         return name + ".mp4";
@@ -1434,44 +1089,24 @@ public class EditorActivity extends AppCompatActivity {
         File candidate = new File(folder, fileName);
         if (!candidate.exists()) return candidate;
         int point = fileName.toLowerCase(Locale.ROOT).endsWith(".mp4") ? fileName.length() - 4 : fileName.length();
-        String base = fileName.substring(0, point);
-        String extension = point < fileName.length() ? fileName.substring(point) : ".mp4";
+        String base = fileName.substring(0, point), extension = point < fileName.length() ? fileName.substring(point) : ".mp4";
         int index = 2;
-        while (candidate.exists()) {
-            candidate = new File(folder, base + "_" + index + extension);
-            index++;
-        }
+        while (candidate.exists()) { candidate = new File(folder, base + "_" + index + extension); index++; }
         return candidate;
     }
 
-    private ClipItem currentClip() {
-        return clipAt(selectedIndex);
-    }
-
-    private ClipItem clipAt(int index) {
-        if (index < 0 || index >= clips.size()) return null;
-        return clips.get(index);
-    }
-
-    private File videoFolder() {
-        return new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "ExtratorVideos");
-    }
+    private ClipItem currentClip() { return clipAt(selectedIndex); }
+    private ClipItem clipAt(int index) { return index < 0 || index >= clips.size() ? null : clips.get(index); }
+    private File videoFolder() { return new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "ExtratorVideos"); }
 
     private void openVideoFolder() {
-        Uri folderUri = DocumentsContract.buildDocumentUri(
-                "com.android.externalstorage.documents",
-                "primary:Download/ExtratorVideos"
-        );
+        Uri folderUri = DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", "primary:Download/ExtratorVideos");
         try {
             Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-            intent.addCategory(Intent.CATEGORY_OPENABLE);
-            intent.setType("video/*");
+            intent.addCategory(Intent.CATEGORY_OPENABLE); intent.setType("video/*");
             intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, folderUri);
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(intent);
-        } catch (Exception e) {
-            Toast.makeText(this, "A pasta é Downloads/ExtratorVideos.", Toast.LENGTH_LONG).show();
-        }
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION); startActivity(intent);
+        } catch (Exception e) { Toast.makeText(this, "A pasta é Downloads/ExtratorVideos.", Toast.LENGTH_LONG).show(); }
     }
 
     private long parseTime(String text) {
@@ -1480,60 +1115,26 @@ public class EditorActivity extends AppCompatActivity {
         String[] parts = value.split(":");
         if (parts.length < 1 || parts.length > 3) throw new IllegalArgumentException("Use HH:MM:SS.mmm.");
         try {
-            long hours = 0L;
-            long minutes = 0L;
-            double seconds;
-            if (parts.length == 3) {
-                hours = Long.parseLong(parts[0]);
-                minutes = Long.parseLong(parts[1]);
-                seconds = Double.parseDouble(parts[2]);
-            } else if (parts.length == 2) {
-                minutes = Long.parseLong(parts[0]);
-                seconds = Double.parseDouble(parts[1]);
-            } else {
-                seconds = Double.parseDouble(parts[0]);
-            }
+            long hours = 0L, minutes = 0L; double seconds;
+            if (parts.length == 3) { hours = Long.parseLong(parts[0]); minutes = Long.parseLong(parts[1]); seconds = Double.parseDouble(parts[2]); }
+            else if (parts.length == 2) { minutes = Long.parseLong(parts[0]); seconds = Double.parseDouble(parts[1]); }
+            else seconds = Double.parseDouble(parts[0]);
             if (hours < 0 || minutes < 0 || minutes >= 60 || seconds < 0 || seconds >= 60) throw new NumberFormatException();
-            return Math.round(((hours * 3600.0) + (minutes * 60.0) + seconds) * 1000.0);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Tempo inválido. Use HH:MM:SS.mmm.");
-        }
+            return Math.round((hours * 3600.0 + minutes * 60.0 + seconds) * 1000.0);
+        } catch (NumberFormatException e) { throw new IllegalArgumentException("Tempo inválido. Use HH:MM:SS.mmm."); }
     }
 
     private String formatTime(long millis) {
-        long safe = Math.max(0L, millis);
-        long hours = safe / 3_600_000L;
-        long minutes = (safe % 3_600_000L) / 60_000L;
-        long seconds = (safe % 60_000L) / 1000L;
-        long ms = safe % 1000L;
+        long safe = Math.max(0L, millis), hours = safe / 3_600_000L, minutes = safe % 3_600_000L / 60_000L, seconds = safe % 60_000L / 1000L, ms = safe % 1000L;
         return String.format(Locale.getDefault(), "%02d:%02d:%02d.%03d", hours, minutes, seconds, ms);
     }
-
     private String formatSequenceTime(long millis) {
-        long safe = Math.max(0L, millis);
-        long hours = safe / 3_600_000L;
-        long minutes = (safe % 3_600_000L) / 60_000L;
-        long seconds = (safe % 60_000L) / 1000L;
-        long ms = safe % 1000L;
-        if (hours > 0L) return String.format(Locale.getDefault(), "%02d:%02d:%02d.%03d", hours, minutes, seconds, ms);
-        return String.format(Locale.getDefault(), "%02d:%02d.%03d", minutes, seconds, ms);
+        long safe = Math.max(0L, millis), hours = safe / 3_600_000L, minutes = safe % 3_600_000L / 60_000L, seconds = safe % 60_000L / 1000L, ms = safe % 1000L;
+        return hours > 0L ? String.format(Locale.getDefault(), "%02d:%02d:%02d.%03d", hours, minutes, seconds, ms) : String.format(Locale.getDefault(), "%02d:%02d.%03d", minutes, seconds, ms);
     }
-
-    private long parseLongSafe(String value) {
-        try { return value == null ? 0L : Long.parseLong(value); }
-        catch (Exception e) { return 0L; }
-    }
-
-    private float parseFloatSafe(String value) {
-        try { return value == null ? 0f : Float.parseFloat(value); }
-        catch (Exception e) { return 0f; }
-    }
-
-    private int even(int value) {
-        int safe = Math.max(2, value);
-        return safe % 2 == 0 ? safe : safe - 1;
-    }
-
+    private long parseLongSafe(String value) { try { return value == null ? 0L : Long.parseLong(value); } catch (Exception e) { return 0L; } }
+    private float parseFloatSafe(String value) { try { return value == null ? 0f : Float.parseFloat(value); } catch (Exception e) { return 0f; } }
+    private int even(int value) { int safe = Math.max(2, value); return safe % 2 == 0 ? safe : safe - 1; }
     private String shortMessage(Throwable t) {
         if (t == null) return "erro desconhecido";
         String m = t.getMessage();
@@ -1544,59 +1145,25 @@ public class EditorActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        handler.removeCallbacks(previewMonitor);
-        handler.removeCallbacks(joinProgressMonitor);
-        releaseMediaPlayer();
+        handler.removeCallbacks(previewMonitor); handler.removeCallbacks(joinProgressMonitor); releaseMediaPlayer();
         if (timeline != null) timeline.releaseResources();
-        if (joinTransformer != null && joining) {
-            try { joinTransformer.cancel(); } catch (Exception ignored) { }
-        }
+        if (joinTransformer != null && joining) try { joinTransformer.cancel(); } catch (Exception ignored) { }
         super.onDestroy();
     }
 
     private static final class SequencePosition {
-        final int clipIndex;
-        final long sourceMs;
-
-        SequencePosition(int clipIndex, long sourceMs) {
-            this.clipIndex = clipIndex;
-            this.sourceMs = sourceMs;
-        }
+        final int clipIndex; final long sourceMs;
+        SequencePosition(int clipIndex, long sourceMs) { this.clipIndex = clipIndex; this.sourceMs = sourceMs; }
     }
 
     private static final class ClipItem {
-        final File file;
-        final long durationMs;
-        final int width;
-        final int height;
-        final float fps;
-        final boolean hasAudio;
-        long startMs;
-        long endMs;
-        boolean cutBefore;
-
+        final File file; final long durationMs; final int width; final int height; final float fps; final boolean hasAudio;
+        long startMs; long endMs; boolean cutBefore;
         ClipItem(File file, long durationMs, int width, int height, float fps, boolean hasAudio) {
-            this.file = file;
-            this.durationMs = durationMs;
-            this.width = width;
-            this.height = height;
-            this.fps = fps;
-            this.hasAudio = hasAudio;
-            this.startMs = 0L;
-            this.endMs = durationMs;
-            this.cutBefore = false;
+            this.file = file; this.durationMs = durationMs; this.width = width; this.height = height; this.fps = fps; this.hasAudio = hasAudio;
+            this.startMs = 0L; this.endMs = durationMs; this.cutBefore = false;
         }
-
-        ClipItem copy() {
-            ClipItem c = new ClipItem(file, durationMs, width, height, fps, hasAudio);
-            c.startMs = startMs;
-            c.endMs = endMs;
-            c.cutBefore = cutBefore;
-            return c;
-        }
-
-        long selectedDurationMs() {
-            return Math.max(1L, endMs - startMs);
-        }
+        ClipItem copy() { ClipItem c = new ClipItem(file, durationMs, width, height, fps, hasAudio); c.startMs = startMs; c.endMs = endMs; c.cutBefore = cutBefore; return c; }
+        long selectedDurationMs() { return Math.max(1L, endMs - startMs); }
     }
 }
