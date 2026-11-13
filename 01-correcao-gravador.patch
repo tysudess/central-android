@@ -1,0 +1,55 @@
+--- a/app/src/main/java/br/com/centralmidia/android/recording/ScreenRecordService.kt
++++ b/app/src/main/java/br/com/centralmidia/android/recording/ScreenRecordService.kt
+@@
+             isWidgetEnabled = prefs.getBoolean(KEY_ENABLED, true)
++            // Remove o painel flutuante antes de criar a MediaProjection.
++            // Assim nenhum quadro inicial da gravação captura os comandos.
++            // Pausar/retomar e parar continuam disponíveis na notificação.
++            hideFloatingWidget()
+             startForegroundRecorder(withMic)
+@@
+-            var widgetVisibleDuringCapture = false
+-
+-            if (
+-                isWidgetEnabled &&
+-                Settings.canDrawOverlays(this) &&
+-                needsCrop()
+-            ) {
+-                widgetVisibleDuringCapture =
+-                    showFloatingWidget(
+-                        placeOutsideCapture = true,
+-                    )
+-
+-                if (!widgetVisibleDuringCapture) {
+-                    hideFloatingWidget()
+-                }
+-            } else {
+-                // Em tela inteira o Android não oferece exclusão pública de um
+-                // overlay da MediaProjection sem gerar artefatos. Por isso o
+-                // widget some enquanto grava e os controles ficam na notificação.
+-                hideFloatingWidget()
+-            }
+-
+-            if (needsCrop() && !widgetVisibleDuringCapture) {
+-                updateNotification(
+-                    "Gravando área • pausar/parar pela notificação",
+-                )
+-            } else {
+-                updateNotification()
+-            }
++            // O flutuador permanece oculto durante toda a captura, inclusive
++            // quando a gravação usa uma área personalizada. Os comandos ficam
++            // na notificação persistente do Android.
++            updateNotification(
++                if (needsCrop()) {
++                    "Gravando área • controles pela notificação"
++                } else {
++                    "Gravando • controles pela notificação"
++                },
++            )
+--- a/app/src/main/java/br/com/centralmidia/android/ui/ScreenRecorderActivity.kt
++++ b/app/src/main/java/br/com/centralmidia/android/ui/ScreenRecorderActivity.kt
+@@
+-                "No widget, toque em ÁREA para marcar ou redefinir a região que será gravada. Depois toque em REC. O widget ficará fora da área selecionada para continuar disponível sem aparecer no vídeo final.",
++                "No widget, toque em ÁREA para marcar ou redefinir a região que será gravada. Durante a captura, o flutuador desaparece completamente para não entrar no vídeo. Use a notificação do Android para Pausar/Retomar ou Parar. Ao finalizar, o flutuador volta automaticamente.",
+*** End Patch
