@@ -117,6 +117,11 @@ class ScreenRecordService : Service() {
             ACTION_STOP -> stopRecording()
             ACTION_PAUSE -> pauseRecording()
             ACTION_RESUME -> resumeRecording()
+            ACTION_TOGGLE_PAUSE -> {
+                if (isRecording) {
+                    if (paused) resumeRecording() else pauseRecording()
+                }
+            }
             ACTION_START -> startRecording(intent)
         }
         return START_NOT_STICKY
@@ -186,6 +191,7 @@ class ScreenRecordService : Service() {
             isWidgetEnabled = prefs.getBoolean(KEY_ENABLED, true)
             startForegroundRecorder(withMic)
 
+            // Usa a mesma referência física do display do seletor e do widget.
             // Usa a mesma referência física do display do seletor e do widget.
             // Usa a mesma referência física do display do seletor e do widget.
             val bounds = captureDisplayBounds()
@@ -2491,6 +2497,7 @@ class ScreenRecordService : Service() {
         const val ACTION_STOP = "central.record.STOP"
         const val ACTION_PAUSE = "central.record.PAUSE"
         const val ACTION_RESUME = "central.record.RESUME"
+        const val ACTION_TOGGLE_PAUSE = "central.record.TOGGLE_PAUSE"
 
         const val EXTRA_RESULT_CODE = "resultCode"
         const val EXTRA_RESULT_DATA = "data"

@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="volume_key_accessibility_description">Permite usar o botão Volume + para pausar e retomar a gravação de tela enquanto a Central está gravando. O botão mantém sua função normal fora da gravação.</string>
+</resources>

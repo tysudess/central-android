@@ -1,19 +1,28 @@
-# Correção — widget reaparecendo dentro da gravação
+# Correção — controle do gravador pelo botão Volume +
 
-Base analisada: `tysudess/central-android`, `main` no commit `903c8be3c4772b14bd2ae0ed9a7f3282ac1e4bfe` (Build Android APK #164, sucesso).
-
-## Causa identificada
-
-Ao voltar da autorização do MediaProjection, a `ScreenRecorderActivity.onResume()` chama `enableWidgetService()`. Isso envia `ACTION_ENABLE_WIDGET` enquanto a captura já está ativa. O método `enableWidget()` recriava a janela flutuante sem testar `isRecording`/`isProcessing`, e o overlay voltava a aparecer na tela capturada.
-
-## Correção
-
-- `enableWidget()` mantém a preferência habilitada, mas não mostra o overlay enquanto grava ou finaliza.
-- `showFloatingWidget()` recebeu uma proteção central; qualquer chamada durante captura/finalização remove ou mantém o widget oculto.
-- A rotina `integrar_gravador.py` aplica e valida essas duas proteções nos builds, além de continuar validando as quatro coordenadas da área.
+Este pacote contém somente os arquivos necessários para habilitar o atalho físico Volume + no gravador de tela.
 
 ## Aplicação
 
-Extraia na raiz do repositório `tysudess/central-android`, preservando os caminhos, substitua os dois arquivos e faça o commit na `main`. O widget voltará a aparecer depois que o vídeo terminar de ser salvo. Durante a gravação, os controles continuam disponíveis na notificação do Android.
+Extraia o ZIP na raiz do repositório `tysudess/central-android`, mantendo os caminhos. Substitua os arquivos existentes e adicione os novos arquivos nos caminhos indicados.
 
-A sintaxe Python foi verificada e o script de integração foi executado com sucesso em uma cópia de validação. A compilação deve ser confirmada pelo GitHub Actions após o commit. Não houve alteração direta no GitHub.
+## Como ativar no Android
+
+1. Atualize/instale a versão compilada do aplicativo.
+2. Abra **Mais → Gravador de Tela**.
+3. Na configuração da gravação, toque em **Ativar controle pelo Volume +**.
+4. Nas configurações de Acessibilidade do Android, abra os serviços instalados/baixados, selecione **Controle do gravador pelo botão Volume +** e ative.
+5. Volte ao gravador. O status deverá indicar que o controle está ativado.
+
+Durante uma gravação, pressione **Volume +** uma vez para pausar e novamente para retomar. Fora de uma gravação, Volume + mantém a função normal de aumentar o volume. A autorização de Acessibilidade é concedida pelo próprio usuário nas configurações do Android.
+
+## Arquivos incluídos
+
+- `app/src/main/AndroidManifest.xml` — registra o serviço de acessibilidade.
+- `app/src/main/java/br/com/centralmidia/android/recording/ScreenRecordService.kt` — adiciona a ação de alternância entre pausar e retomar.
+- `app/src/main/java/br/com/centralmidia/android/recording/VolumeKeyAccessibilityService.kt` — detecta Volume + somente durante a gravação.
+- `app/src/main/java/br/com/centralmidia/android/ui/ScreenRecorderActivity.kt` — inclui instrução, acesso às configurações e indicador do serviço.
+- `app/src/main/res/xml/volume_key_accessibility_service.xml` — configura a captura de teclas físicas.
+- `app/src/main/res/values/strings.xml` — descrição exibida pelo Android.
+
+O serviço não lê conteúdo da tela, não captura texto e não intercepta outras teclas. Ele solicita somente a filtragem de eventos de teclas para tratar Volume + enquanto a gravação estiver ativa.

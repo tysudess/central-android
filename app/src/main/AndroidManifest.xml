@@ -19,6 +19,7 @@
     <application
         android:name=".CentralApp"
         android:allowBackup="false"
+        android:allowAudioPlaybackCapture="true"
         android:extractNativeLibs="true"
         android:icon="@mipmap/ic_launcher"
         android:label="Central Inteligente de Mídia"
@@ -117,6 +118,19 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Continuar operações iniciadas pelo usuário nas abas da Central enquanto a tela está desligada." />
+        </service>
+
+        <service
+            android:name=".recording.VolumeKeyAccessibilityService"
+            android:label="Controle do gravador pelo botão Volume +"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/volume_key_accessibility_service" />
         </service>
 
         <service

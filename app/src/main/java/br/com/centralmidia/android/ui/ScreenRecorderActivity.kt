@@ -41,6 +41,7 @@ class ScreenRecorderActivity : BaseActivity() {
     private lateinit var stopButton: MaterialButton
     private lateinit var startButton: MaterialButton
     private lateinit var recent: LinearLayout
+    private lateinit var volumeKeyStatus: TextView
 
     private val handler = Handler(Looper.getMainLooper())
     private val prefs by lazy { getSharedPreferences(PREFS, MODE_PRIVATE) }
@@ -99,6 +100,7 @@ class ScreenRecorderActivity : BaseActivity() {
 
         refreshState()
         refreshRecent()
+        updateVolumeKeyStatus()
 
         if (prefs.getBoolean(KEY_ENABLED, false) && Settings.canDrawOverlays(this)) {
             enableWidgetService()
@@ -230,7 +232,7 @@ class ScreenRecorderActivity : BaseActivity() {
         box.addView(countdown, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(46)).apply { topMargin = dp(4) })
 
         mic = CheckBox(this).apply {
-            text = "Gravar microfone"
+            text = "Gravar também microfone"
             isChecked = prefs.getBoolean(KEY_MIC, false)
             setTextColor(MobileUi.NAVY)
         }
@@ -245,7 +247,7 @@ class ScreenRecorderActivity : BaseActivity() {
         box.addView(
             MobileUi.text(
                 this,
-                "No widget, toque em ÁREA para marcar ou redefinir a região que será gravada. Depois toque em REC. O widget ficará fora da área selecionada para continuar disponível sem aparecer no vídeo final.",
+                "O som interno do aparelho é capturado automaticamente no Android 10+ quando o aplicativo permite. Marque a opção para adicionar também o microfone. Na seleção de área, a moldura agora é convertida usando a posição real na tela inteira.",
                 9.5f,
                 MobileUi.MUTED,
             ).apply {
@@ -254,6 +256,43 @@ class ScreenRecorderActivity : BaseActivity() {
             },
             MobileUi.match(dp(7)),
         )
+
+        box.addView(
+            MobileUi.text(
+                this,
+                "Atalho físico: durante a gravação, Volume + pausa ou retoma. Fora da gravação, o botão continua controlando o volume.",
+                9.5f,
+                MobileUi.MUTED,
+            ).apply {
+                setPadding(dp(10), dp(8), dp(10), dp(8))
+                background = MobileUi.rounded(MobileUi.BLUE_TINT, dp(9).toFloat())
+            },
+            MobileUi.match(dp(5)),
+        )
+        box.addView(
+            MobileUi.button(this, "Ativar controle pelo Volume +", false, MobileUi.NAVY) {
+                runCatching {
+                    startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                }.onFailure {
+                    toast("Não foi possível abrir as configurações de acessibilidade.")
+                }
+            },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(46)).apply {
+                topMargin = dp(5)
+            },
+        )
+        volumeKeyStatus = MobileUi.text(
+            this,
+            "",
+            9f,
+            MobileUi.MUTED,
+            true,
+        ).apply { setPadding(dp(4), dp(4), dp(4), dp(2)) }
+        box.addView(volumeKeyStatus, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+        ))
+        updateVolumeKeyStatus()
 
         card.addView(box)
         return card
@@ -448,6 +487,29 @@ class ScreenRecorderActivity : BaseActivity() {
             (seconds / 60L) % 60L,
             seconds % 60L,
         )
+    }
+
+    private fun updateVolumeKeyStatus() {
+        if (!::volumeKeyStatus.isInitialized) return
+        val enabled = isVolumeKeyServiceEnabled()
+        volumeKeyStatus.text = if (enabled) {
+            "Controle Volume +: ativado"
+        } else {
+            "Controle Volume +: precisa ser ativado nas configurações de acessibilidade"
+        }
+        volumeKeyStatus.setTextColor(if (enabled) MobileUi.GREEN else MobileUi.MUTED)
+    }
+
+    private fun isVolumeKeyServiceEnabled(): Boolean {
+        val enabled = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+        ).orEmpty()
+        val component = android.content.ComponentName(
+            this,
+            br.com.centralmidia.android.recording.VolumeKeyAccessibilityService::class.java,
+        ).flattenToString()
+        return enabled.split(':').any { it.equals(component, ignoreCase = true) }
     }
 
     private fun saveSettings() {
