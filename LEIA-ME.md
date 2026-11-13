@@ -1,32 +1,32 @@
-# Gravador de Tela — ocultar o flutuador durante a captura
+# Correção inicial do áudio do Gravador de Tela — Android
 
 ## Base consultada
 - Repositório: `tysudess/central-android`
 - Branch: `main`
-- Commit-base conferido: `a04fb79e657f3b2a28992a677784a4b27803b7d1`
-- Arquivo principal: `app/src/main/java/br/com/centralmidia/android/recording/ScreenRecordService.kt`
-- Texto de orientação: `app/src/main/java/br/com/centralmidia/android/ui/ScreenRecorderActivity.kt`
+- Commit consultado: `59a8cddca154ac0fe3984bd9c3292c7a05ef571c`
 
 ## O que muda
-1. O serviço remove o painel flutuante **antes de criar a MediaProjection**, evitando que os comandos apareçam até nos primeiros quadros.
-2. O painel permanece oculto durante gravação em tela inteira e em área personalizada.
-3. Os controles **Pausar/Retomar** e **Parar** continuam disponíveis na notificação persistente do Android.
-4. Ao terminar de salvar o vídeo, o método já existente `finishAfterCapture()` restaura o flutuador automaticamente, caso ele esteja habilitado.
-5. O texto de orientação do Gravador de Tela passa a explicar o novo comportamento.
+1. A opção **Gravar áudio pelo microfone** passa a vir ativada por padrão.
+2. Uma migração única ativa a opção também em instalações que tinham salvo o padrão antigo como desativado. Depois dessa migração, a escolha do usuário é respeitada.
+3. O serviço deixa de iniciar silenciosamente quando o microfone foi solicitado, mas a permissão `RECORD_AUDIO` não está concedida. A falha passa a ser informada.
+4. O texto de ajuda diferencia microfone de áudio interno de outros aplicativos.
+
+## Limite importante
+Esta correção habilita a gravação pelo **microfone**. Ela não adiciona ainda a captura do áudio interno reproduzido por outros aplicativos. No Android, áudio interno exige `AudioPlaybackCapture` (Android 10/API 29 ou superior) e só funciona quando o aplicativo de origem permite a captura; alguns conteúdos protegidos não podem ser capturados.
 
 ## Aplicação
-O ZIP contém `01-correcao-gravador.patch`, com os dois ajustes exatos e seus caminhos no repositório. Ele é um patch, não um arquivo Kotlin completo: aplique-o aos arquivos da versão-base indicada. Não substitua um `.kt` pelo arquivo `.patch`.
-
-Com Git disponível, na raiz do clone do repositório:
+Extraia os dois arquivos do ZIP na raiz do repositório e aplique:
 
 ```bash
-git apply 01-correcao-gravador.patch
+git apply 01-correcao-audio-microfone.patch
 ```
 
-Depois confira o diff, faça o commit e execute os workflows `Validar Android (testes e compilação)` e `Build Android APK`.
+O ZIP contém um patch, não arquivos Kotlin completos. Não renomeie o `.patch` para `.kt` nem o substitua diretamente no projeto.
 
-## Escopo preservado
-- Não altera o fluxo de autorização da MediaProjection.
-- Não altera a seleção/recorte de área.
-- Não altera a gravação de áudio, qualidade ou FPS.
-- Não desativa a permissão de sobreposição; ela continua sendo usada para mostrar o flutuador antes e depois da gravação.
+## Validação manual depois do build
+1. Abra **Gravador de Tela** e confirme que **Gravar áudio pelo microfone** está marcado.
+2. Inicie uma gravação e conceda a permissão de microfone quando o Android solicitar.
+3. Fale durante a gravação e depois reproduza o MP4 para conferir o áudio.
+4. Desmarque a opção e confirme que a gravação sem microfone continua funcionando.
+
+A alteração ainda precisa ser compilada e validada pelo GitHub Actions; não foi executado um build deste patch nesta sessão.

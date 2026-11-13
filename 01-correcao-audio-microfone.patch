@@ -1,0 +1,58 @@
+diff --git a/app/src/main/java/br/com/centralmidia/android/ui/ScreenRecorderActivity.kt b/app/src/main/java/br/com/centralmidia/android/ui/ScreenRecorderActivity.kt
+--- a/app/src/main/java/br/com/centralmidia/android/ui/ScreenRecorderActivity.kt
++++ b/app/src/main/java/br/com/centralmidia/android/ui/ScreenRecorderActivity.kt
+@@ -65,4 +65,13 @@ class ScreenRecorderActivity : BaseActivity() {
+     override fun onCreate(savedInstanceState: Bundle?) {
+         super.onCreate(savedInstanceState)
++
++        // Migração única: habilita o áudio do microfone também para quem já
++        // tinha instalado uma versão em que essa opção vinha desmarcada.
++        if (!prefs.getBoolean(KEY_MIC_DEFAULT_MIGRATED, false)) {
++            prefs.edit()
++                .putBoolean(KEY_MIC, true)
++                .putBoolean(KEY_MIC_DEFAULT_MIGRATED, true)
++                .apply()
++        }
+ 
+         val root = MobileScaffold.page(
+@@ -233,6 +242,6 @@ class ScreenRecorderActivity : BaseActivity() {
+ 
+         mic = CheckBox(this).apply {
+-            text = "Gravar microfone"
+-            isChecked = prefs.getBoolean(KEY_MIC, false)
++            text = "Gravar áudio pelo microfone"
++            isChecked = prefs.getBoolean(KEY_MIC, true)
+             setTextColor(MobileUi.NAVY)
+         }
+@@ -248,6 +257,6 @@ class ScreenRecorderActivity : BaseActivity() {
+         box.addView(
+             MobileUi.text(
+                 this,
+-                "No widget, toque em ÁREA para marcar ou redefinir a região que será gravada. Depois toque em REC. O widget ficará fora da área selecionada para continuar disponível sem aparecer no vídeo final.",
++                "Ative 'Gravar áudio pelo microfone' para registrar sua voz e os sons captados pelo aparelho. O áudio interno de outros aplicativos depende de uma captura separada e das permissões do próprio aplicativo. No widget, toque em ÁREA para definir a região e depois em REC.",
+                 9.5f,
+                 MobileUi.MUTED,
+@@ -540,5 +549,6 @@ class ScreenRecorderActivity : BaseActivity() {
+         private const val KEY_COUNTDOWN_INDEX = "countdown_index"
+         private const val KEY_MIC = "mic"
++        private const val KEY_MIC_DEFAULT_MIGRATED = "mic_default_migrated"
+         private const val KEY_HIDE = "hide_after_start"
+     }
+ }
+diff --git a/app/src/main/java/br/com/centralmidia/android/recording/ScreenRecordService.kt b/app/src/main/java/br/com/centralmidia/android/recording/ScreenRecordService.kt
+--- a/app/src/main/java/br/com/centralmidia/android/recording/ScreenRecordService.kt
++++ b/app/src/main/java/br/com/centralmidia/android/recording/ScreenRecordService.kt
+@@ -156,7 +156,11 @@ class ScreenRecordService : Service() {
+                 ?: error("Permissão de captura não recebida.")
+ 
+             val requestedMic = intent.getBooleanExtra(EXTRA_MIC, false)
+-            val withMic = requestedMic &&
+-                ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
++            val hasMicPermission =
++                ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
++            if (requestedMic && !hasMicPermission) {
++                error("A gravação com microfone foi selecionada, mas a permissão de áudio não foi concedida. Autorize o microfone e tente novamente.")
++            }
++            val withMic = requestedMic && hasMicPermission
+             val fps = intent.getIntExtra(EXTRA_FPS, 30).coerceIn(15, 60)
+             val quality = intent.getStringExtra(EXTRA_QUALITY).orEmpty().ifBlank { "original" }
