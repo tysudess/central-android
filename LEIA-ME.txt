@@ -1,14 +1,29 @@
-CORREÇÃO PRONTA PARA O REPOSITÓRIO central-android
+CORREÇÃO DO BOTÃO VOLUME + — CENTRAL ANDROID
 
-Base revisada: tysudess/central-android, branch main, commit 755333b6e1c907d7862dd9c5b4636fb6563d0441.
-Arquivo substituído: app/src/main/java/br/com/centralmidia/android/ui/NavalTheme.kt
+Base utilizada: branch main, commit 7f87c80f662c44cfa687cce789958c60cc41b9ac.
 
-Como aplicar:
-1. Extraia o ZIP na raiz do repositório local (mesmo nível da pasta app), mantendo a estrutura de pastas.
-2. Confirme que o arquivo existente NavalTheme.kt será substituído pelo arquivo deste pacote.
-3. Envie/commite a alteração para o GitHub.
-4. Rode os workflows de validação e Build Android APK.
+Arquivos incluídos (substituir mantendo os caminhos):
+1. app/src/main/res/xml/volume_key_accessibility_service.xml
+2. app/src/main/java/br/com/centralmidia/android/recording/VolumeKeyAccessibilityService.kt
 
-Correção principal: a função recursiva visit não é mais inline. Nenhuma mudança foi feita em CoversActivity.kt nem no módulo Principais Capas.
+Correção principal:
+- O XML anterior declarava canRequestFilterKeyEvents=true, mas não solicitava
+  efetivamente o filtro com accessibilityFlags=flagRequestFilterKeyEvents.
+- O serviço agora também reafirma essa flag ao ser conectado pelo Android.
+- Volume + só é consumido quando ScreenRecordService.isRecording=true.
+- Durante a gravação, um toque alterna entre pausar e retomar; eventos repetidos
+  não provocam alternâncias adicionais.
+- Fora da gravação, a tecla não é consumida e continua alterando o volume normal.
 
-O ZIP contém o arquivo-fonte completo no caminho exato para ser copiado para o repositório. A compilação precisa ser confirmada pelo GitHub Actions após o commit; não foi possível executar o build neste ambiente.
+IMPORTANTE:
+O Android permite que apenas um serviço de acessibilidade por vez receba o
+filtro global de teclas. Se outro serviço do aparelho já estiver usando esse
+filtro, o Android pode não encaminhar Volume + para a Central. Nesse caso, será
+necessário desativar temporariamente o filtro de teclas do outro serviço.
+
+Após instalar a atualização, confirme que o serviço “Controle do gravador pelo
+botão Volume +” está ativado em Acessibilidade. O comportamento deve ser testado
+com uma gravação iniciada: Volume + pausa; outro toque retoma; ao parar a gravação,
+Volume + volta a controlar o volume do aparelho.
+
+Não foram alterados arquivos do mecanismo de atualização nem outras funções.
