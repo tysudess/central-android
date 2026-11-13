@@ -13,6 +13,8 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PixelFormat
+import android.graphics.Point
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.hardware.display.DisplayManager
@@ -72,6 +74,7 @@ class ScreenRecordService : Service() {
     private var recorder: MediaRecorder? = null
     private var transformer: Transformer? = null
     private var rawFile: File? = null
+    private var playbackAudioCapture: PlaybackAudioCapture? = null
 
     private var paused = false
     private var stopping = false
@@ -122,6 +125,15 @@ class ScreenRecordService : Service() {
     private fun enableWidget() {
         prefs.edit().putBoolean(KEY_ENABLED, true).apply()
         isWidgetEnabled = true
+
+        // A tela de configuração volta ao primeiro plano depois da autorização
+        // da MediaProjection e pode solicitar ACTION_ENABLE_WIDGET novamente.
+        // Nunca recrie a janela flutuante durante a captura ou a finalização.
+        if (isRecording || isProcessing) {
+            hideFloatingWidget()
+            return
+        }
+
         if (Settings.canDrawOverlays(this)) {
             showFloatingWidget()
         }
@@ -154,8 +166,15 @@ class ScreenRecordService : Service() {
                 ?: error("Permissão de captura não recebida.")
 
             val requestedMic = intent.getBooleanExtra(EXTRA_MIC, false)
+            val recordAudioGranted = ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.RECORD_AUDIO,
+            ) == PackageManager.PERMISSION_GRANTED
             val withMic = requestedMic &&
-                ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+                recordAudioGranted
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !recordAudioGranted) {
+                error("Conceda à Central a permissão de áudio para gravar o som interno do aparelho.")
+            }
             val fps = intent.getIntExtra(EXTRA_FPS, 30).coerceIn(15, 60)
             val quality = intent.getStringExtra(EXTRA_QUALITY).orEmpty().ifBlank { "original" }
 
@@ -167,18 +186,9 @@ class ScreenRecordService : Service() {
             isWidgetEnabled = prefs.getBoolean(KEY_ENABLED, true)
             startForegroundRecorder(withMic)
 
-            val screenWindowManager = getSystemService(WindowManager::class.java)
-            val bounds = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                screenWindowManager.maximumWindowMetrics.bounds
-            } else {
-                @Suppress("DEPRECATION")
-                android.graphics.Rect(
-                    0,
-                    0,
-                    resources.displayMetrics.widthPixels,
-                    resources.displayMetrics.heightPixels,
-                )
-            }
+            // Usa a mesma referência física do display do seletor e do widget.
+            // Usa a mesma referência física do display do seletor e do widget.
+            val bounds = captureDisplayBounds()
 
             var width = bounds.width().coerceAtLeast(2)
             var height = bounds.height().coerceAtLeast(2)
@@ -226,6 +236,19 @@ class ScreenRecordService : Service() {
             projection = getSystemService(MediaProjectionManager::class.java)
                 .getMediaProjection(resultCode, resultData)
 
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && recordAudioGranted) {
+                val audioFile = File(tempDir, "playback-audio-${System.currentTimeMillis()}.mp4")
+                playbackAudioCapture = runCatching {
+                    PlaybackAudioCapture(
+                        projection ?: error("A sessão de captura de tela não foi criada."),
+                        audioFile,
+                    ).also { it.start() }
+                }.onFailure {
+                    lastError = "O áudio interno não pôde ser iniciado: ${it.message ?: "falha de captura"}"
+                    deleteQuietly(audioFile)
+                }.getOrNull()
+            }
+
             projection?.registerCallback(
                 object : MediaProjection.Callback() {
                     override fun onStop() {
@@ -260,35 +283,19 @@ class ScreenRecordService : Service() {
             isRecording = true
             isPaused = false
 
-            var widgetVisibleDuringCapture = false
+            // O flutuador fica totalmente oculto durante qualquer captura.
+            // Os controles continuam disponíveis na notificação persistente.
+            hideFloatingWidget()
 
-            if (
-                isWidgetEnabled &&
-                Settings.canDrawOverlays(this) &&
-                needsCrop()
-            ) {
-                widgetVisibleDuringCapture =
-                    showFloatingWidget(
-                        placeOutsideCapture = true,
-                    )
-
-                if (!widgetVisibleDuringCapture) {
-                    hideFloatingWidget()
-                }
+            val audioStatus = if (playbackAudioCapture != null) {
+                " • áudio interno ativo"
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                " • áudio interno indisponível"
             } else {
-                // Em tela inteira o Android não oferece exclusão pública de um
-                // overlay da MediaProjection sem gerar artefatos. Por isso o
-                // widget some enquanto grava e os controles ficam na notificação.
-                hideFloatingWidget()
+                ""
             }
-
-            if (needsCrop() && !widgetVisibleDuringCapture) {
-                updateNotification(
-                    "Gravando área • pausar/parar pela notificação",
-                )
-            } else {
-                updateNotification()
-            }
+            val recordingStatus = if (needsCrop()) "Gravando área" else "Gravando tela"
+            updateNotification("$recordingStatus$audioStatus • controles pela notificação")
         } catch (error: Throwable) {
             lastError = error.message ?: "Falha ao iniciar a gravação de tela."
             releaseCaptureResources()
@@ -326,6 +333,7 @@ class ScreenRecordService : Service() {
                 }
                 paused = true
                 isPaused = true
+                playbackAudioCapture?.setPaused(true)
                 updateOverlay()
                 updateNotification()
             }
@@ -341,6 +349,7 @@ class ScreenRecordService : Service() {
                 }
                 paused = false
                 isPaused = false
+                playbackAudioCapture?.setPaused(false)
                 updateOverlay()
                 updateNotification()
             }
@@ -363,30 +372,52 @@ class ScreenRecordService : Service() {
         runCatching { recorder?.stop() }
             .onFailure { lastError = it.message ?: "A gravação terminou antes de gerar um arquivo válido." }
 
+        val playbackAudioFile = runCatching {
+            playbackAudioCapture?.stopAndGetFile()
+        }.onFailure {
+            lastError = "Falha ao finalizar o áudio interno: ${it.message ?: "erro de codificação"}"
+        }.getOrNull()
+        playbackAudioCapture = null
+
         releaseCaptureResources()
         isRecording = false
         isPaused = false
         paused = false
 
         if (captured == null || !captured.exists() || captured.length() <= 0L) {
+            deleteQuietly(playbackAudioFile)
             deleteQuietly(captured)
             rawFile = null
             finishAfterCapture()
             return
         }
 
+        val videoWithAudio = if (playbackAudioFile != null) {
+            runCatching {
+                PlaybackAudioCapture.mergeWithVideo(captured, playbackAudioFile)
+            }.onFailure {
+                lastError = "O áudio foi capturado, mas não pôde ser anexado ao vídeo: ${it.message ?: "erro de multiplexação"}"
+            }.getOrDefault(captured)
+        } else {
+            captured
+        }
+        deleteQuietly(playbackAudioFile)
+        if (videoWithAudio != captured) deleteQuietly(captured)
+
         isProcessing = true
         updateOverlay()
         updateNotification("Finalizando o vídeo…")
 
         if (needsCrop()) {
-            cropAndPublish(captured)
+            cropAndPublish(videoWithAudio)
         } else {
-            Thread { publishAndFinish(captured, false) }.start()
+            Thread { publishAndFinish(videoWithAudio, false) }.start()
         }
     }
 
     private fun releaseCaptureResources() {
+        runCatching { playbackAudioCapture?.stopAndGetFile()?.let(::deleteQuietly) }
+        playbackAudioCapture = null
         runCatching { recorder?.reset() }
         runCatching { recorder?.release() }
         recorder = null
@@ -395,6 +426,17 @@ class ScreenRecordService : Service() {
         val localProjection = projection
         projection = null
         runCatching { localProjection?.stop() }
+    }
+
+    private fun captureDisplayBounds(): Rect {
+        val screenWindowManager = getSystemService(WindowManager::class.java)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Rect(screenWindowManager.maximumWindowMetrics.bounds)
+        } else {
+            @Suppress("DEPRECATION")
+            val realSize = Point().also { screenWindowManager.defaultDisplay.getRealSize(it) }
+            Rect(0, 0, realSize.x, realSize.y)
+        }
     }
 
     private fun needsCrop(): Boolean =
@@ -595,6 +637,13 @@ class ScreenRecordService : Service() {
     private fun showFloatingWidget(
         placeOutsideCapture: Boolean = false,
     ): Boolean {
+        // Defesa central: qualquer caminho que tente exibir o widget durante
+        // a gravação/finalização é bloqueado, inclusive callbacks de onResume.
+        if (isRecording || isProcessing) {
+            hideFloatingWidget()
+            return false
+        }
+
         if (!Settings.canDrawOverlays(this)) {
             return false
         }
@@ -1064,29 +1113,7 @@ class ScreenRecordService : Service() {
     private fun calculateWidgetPositionOutsideRegion(
         region: AreaRegion,
     ): Pair<Int, Int>? {
-        val wm =
-            getSystemService(
-                WindowManager::class.java,
-            )
-
-        val bounds =
-            if (
-                Build.VERSION.SDK_INT >=
-                Build.VERSION_CODES.R
-            ) {
-                wm.maximumWindowMetrics
-                    .bounds
-            } else {
-                @Suppress("DEPRECATION")
-                android.graphics.Rect(
-                    0,
-                    0,
-                    resources.displayMetrics
-                        .widthPixels,
-                    resources.displayMetrics
-                        .heightPixels,
-                )
-            }
+        val bounds = captureDisplayBounds()
 
         val screenW =
             bounds.width()
@@ -1324,6 +1351,7 @@ class ScreenRecordService : Service() {
 
         hideFloatingWidget()
         hideAreaSelectorOverlay()
+        val captureBounds = captureDisplayBounds()
 
         val wm =
             getSystemService(
@@ -1365,6 +1393,7 @@ class ScreenRecordService : Service() {
         val area =
             AreaSelectionView(
                 this,
+                captureBounds,
             )
 
         selectorAreaView =
@@ -1840,7 +1869,9 @@ class ScreenRecordService : Service() {
     private class AreaSelectionView(
         context:
             android.content.Context,
+        screenBounds: Rect,
     ) : View(context) {
+        private val displayBounds = Rect(screenBounds)
         private val shade =
             Paint(
                 Paint.ANTI_ALIAS_FLAG,
@@ -2327,59 +2358,19 @@ class ScreenRecordService : Service() {
             )
         }
 
-        fun normalizedRegion():
-            AreaRegion {
-            val safeW =
-                max(
-                    1,
-                    width,
-                )
-                    .toFloat()
-
-            val safeH =
-                max(
-                    1,
-                    height,
-                )
-                    .toFloat()
+        fun normalizedRegion(): AreaRegion {
+            val screenLocation = IntArray(2)
+            getLocationOnScreen(screenLocation)
+            val safeW = max(1, displayBounds.width()).toFloat()
+            val safeH = max(1, displayBounds.height()).toFloat()
+            val originX = screenLocation[0].toFloat() - displayBounds.left.toFloat()
+            val originY = screenLocation[1].toFloat() - displayBounds.top.toFloat()
 
             return AreaRegion(
-                left =
-                    (
-                        rect.left /
-                            safeW
-                        )
-                        .coerceIn(
-                            0f,
-                            1f,
-                        ),
-                top =
-                    (
-                        rect.top /
-                            safeH
-                        )
-                        .coerceIn(
-                            0f,
-                            1f,
-                        ),
-                right =
-                    (
-                        rect.right /
-                            safeW
-                        )
-                        .coerceIn(
-                            0f,
-                            1f,
-                        ),
-                bottom =
-                    (
-                        rect.bottom /
-                            safeH
-                        )
-                        .coerceIn(
-                            0f,
-                            1f,
-                        ),
+                left = ((originX + rect.left) / safeW).coerceIn(0f, 1f),
+                top = ((originY + rect.top) / safeH).coerceIn(0f, 1f),
+                right = ((originX + rect.right) / safeW).coerceIn(0f, 1f),
+                bottom = ((originY + rect.bottom) / safeH).coerceIn(0f, 1f),
             )
         }
 

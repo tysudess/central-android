@@ -1,40 +1,19 @@
-# Correção da falha no Build Android — Gravador de Tela
+# Correção — widget reaparecendo dentro da gravação
 
-**Repositório:** `tysudess/central-android`  
-**Base verificada:** `main` no commit `d2e820f16506918f4db436e1655fb0e15859f40b`  
-**Workflows afetados:** `Build Android APK` e `Validar Android (testes e compilação)`.
+Base analisada: `tysudess/central-android`, `main` no commit `903c8be3c4772b14bd2ae0ed9a7f3282ac1e4bfe` (Build Android APK #164, sucesso).
 
-## Diagnóstico do erro
+## Causa identificada
 
-Os dois workflows falharam na etapa `Integrar captura de áudio e correção da seleção de área`, antes de configurar o Java ou executar o Gradle. O comando `git apply --check 02-aplicar-correcao-audio-area.patch` rejeitou dois hunks por divergência de contexto:
+Ao voltar da autorização do MediaProjection, a `ScreenRecorderActivity.onResume()` chama `enableWidgetService()`. Isso envia `ACTION_ENABLE_WIDGET` enquanto a captura já está ativa. O método `enableWidget()` recriava a janela flutuante sem testar `isRecording`/`isProcessing`, e o overlay voltava a aparecer na tela capturada.
 
-- `ScreenRecordService.kt`, próximo à declaração do arquivo temporário do gravador;
-- `ScreenRecorderActivity.kt`, próximo ao texto explicativo da configuração.
+## Correção
 
-O build, portanto, não chegou a compilar o código Kotlin. Não era um erro do Gradle.
-
-## Arquivos incluídos
-
-Substitua os três arquivos pelos que estão no ZIP, preservando estes caminhos a partir da raiz do repositório:
-
-- `.github/workflows/build-android.yml` — workflow completo, com a etapa de integração chamando o script robusto;
-- `.github/workflows/validate-android.yml` — workflow completo com a mesma chamada;
-- `scripts/integrar_gravador.py` — aplica os hunks válidos do patch, corrige os dois pontos divergentes por âncoras verificadas, remove arquivos `.rej` e valida se a integração ficou completa.
+- `enableWidget()` mantém a preferência habilitada, mas não mostra o overlay enquanto grava ou finaliza.
+- `showFloatingWidget()` recebeu uma proteção central; qualquer chamada durante captura/finalização remove ou mantém o widget oculto.
+- A rotina `integrar_gravador.py` aplica e valida essas duas proteções nos builds, além de continuar validando as quatro coordenadas da área.
 
 ## Aplicação
 
-1. Extraia o ZIP na raiz de uma cópia atualizada do repositório `central-android`, substituindo os dois workflows e adicionando o script em `scripts/`.
-2. Confira os três arquivos alterados e faça o commit na `main`.
-3. Execute novamente `Validar Android` e `Build Android APK` em GitHub Actions.
+Extraia na raiz do repositório `tysudess/central-android`, preservando os caminhos, substitua os dois arquivos e faça o commit na `main`. O widget voltará a aparecer depois que o vídeo terminar de ser salvo. Durante a gravação, os controles continuam disponíveis na notificação do Android.
 
-O script é idempotente: se detectar que os fontes já estão totalmente integrados, não aplica o patch novamente.
-
-## Escopo e cuidados
-
-- Não altera o módulo Capas.
-- Não altera diretamente o GitHub; o ZIP contém somente os arquivos a serem substituídos/adicionados.
-- A mudança corrige o passo de integração que impedia o build de começar. Ela não comprova, por si só, que o áudio será capturado em todos os aplicativos; isso ainda depende de teste em aparelho e das restrições de captura do Android.
-
-## Validação nesta entrega
-
-O script passou pela verificação sintática de Python e os workflows passaram pela leitura/validação estrutural YAML. O build real deve ser reexecutado no GitHub depois que esses três arquivos forem enviados.
+A sintaxe Python foi verificada e o script de integração foi executado com sucesso em uma cópia de validação. A compilação deve ser confirmada pelo GitHub Actions após o commit. Não houve alteração direta no GitHub.
