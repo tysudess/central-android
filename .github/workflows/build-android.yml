@@ -42,6 +42,62 @@ jobs:
       - name: Sincronizar fontes, login e Capas com o desktop
         run: python scripts/sync_desktop.py desktop
 
+      # O main contém o patch e PlaybackAudioCapture.kt, mas os fontes ainda
+      # precisam receber a integração antes de qualquer build de APK.
+      - name: Integrar captura de áudio e correção da seleção de área
+        shell: bash
+        run: |
+          set -euo pipefail
+          PATCH="02-aplicar-correcao-audio-area.patch"
+          SERVICE="app/src/main/java/br/com/centralmidia/android/recording/ScreenRecordService.kt"
+          CAPTURE="app/src/main/java/br/com/centralmidia/android/ui/CaptureAreaActivity.kt"
+          if grep -q 'playbackAudioCapture = runCatching' "$SERVICE" && \
+             grep -q 'MediaProjectionConfig.createConfigForDefaultDisplay' "$CAPTURE"; then
+            echo "Integração do gravador já está presente nos fontes."
+          else
+            test -s "$PATCH" || { echo "::error::Patch de integração não encontrado: $PATCH"; exit 1; }
+            test -s "app/src/main/java/br/com/centralmidia/android/recording/PlaybackAudioCapture.kt" || {
+              echo "::error::Classe PlaybackAudioCapture.kt não encontrada."
+              exit 1
+            }
+            git apply --check "$PATCH"
+            git apply "$PATCH"
+            echo "Captura de áudio interno e ajuste da seleção integrados aos fontes de build."
+          fi
+
+      # Gera os arquivos Kotlin/XML completos já integrados, com caminhos do repo.
+      - name: Preparar ZIP com fontes completos do gravador
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="release/Fontes-Corrigidos-Gravador"
+          mkdir -p "$ROOT/app/src/main/java/br/com/centralmidia/android/recording"
+          mkdir -p "$ROOT/app/src/main/java/br/com/centralmidia/android/ui"
+          mkdir -p "$ROOT/app/src/main"
+          cp app/src/main/java/br/com/centralmidia/android/recording/ScreenRecordService.kt "$ROOT/app/src/main/java/br/com/centralmidia/android/recording/"
+          cp app/src/main/java/br/com/centralmidia/android/recording/PlaybackAudioCapture.kt "$ROOT/app/src/main/java/br/com/centralmidia/android/recording/"
+          cp app/src/main/java/br/com/centralmidia/android/ui/CaptureAreaActivity.kt "$ROOT/app/src/main/java/br/com/centralmidia/android/ui/"
+          cp app/src/main/java/br/com/centralmidia/android/ui/ScreenRecorderActivity.kt "$ROOT/app/src/main/java/br/com/centralmidia/android/ui/"
+          cp app/src/main/AndroidManifest.xml "$ROOT/app/src/main/"
+          cat > "$ROOT/LEIA-ME.md" <<'DOC'
+          # Fontes completos — Gravador de Tela
+
+          Estes são os arquivos completos depois de aplicar a integração de áudio interno e a correção de coordenadas da área selecionada.
+
+          Copie as pastas `app/` para a raiz do repositório `tysudess/central-android`, substituindo os arquivos de mesmo caminho.
+
+          Arquivos incluídos:
+          - `app/src/main/java/br/com/centralmidia/android/recording/ScreenRecordService.kt`
+          - `app/src/main/java/br/com/centralmidia/android/recording/PlaybackAudioCapture.kt`
+          - `app/src/main/java/br/com/centralmidia/android/ui/CaptureAreaActivity.kt`
+          - `app/src/main/java/br/com/centralmidia/android/ui/ScreenRecorderActivity.kt`
+          - `app/src/main/AndroidManifest.xml`
+
+          O áudio interno depende do Android 10+ e da permissão `RECORD_AUDIO`. O aplicativo de origem também precisa permitir a captura; áudio protegido ou bloqueado pelo aplicativo não pode ser capturado.
+          DOC
+          (cd release && zip -qr Central-Android-Fontes-Completos-Gravador.zip Fontes-Corrigidos-Gravador)
+          test -s release/Central-Android-Fontes-Completos-Gravador.zip
+
       - name: Java 17
         uses: actions/setup-java@v4
         with:
@@ -70,7 +126,6 @@ jobs:
             fi
           done
 
-          # Protege contra quebras de linha introduzidas ao copiar e colar no GitHub.
           KEYSTORE_B64="$(printf '%s' "$ANDROID_SIGNING_KEYSTORE_BASE64" | tr -d '[:space:]')"
           STORE_PASSWORD="$(printf '%s' "$ANDROID_SIGNING_STORE_PASSWORD" | tr -d '\r\n')"
           KEY_PASSWORD="$(printf '%s' "$ANDROID_SIGNING_KEY_PASSWORD" | tr -d '\r\n')"
@@ -84,12 +139,10 @@ jobs:
             echo "::error::O Secret ANDROID_SIGNING_KEYSTORE_BASE64 não é um Base64 válido. Copie novamente todo o conteúdo do arquivo ANDROID_SIGNING_KEYSTORE_BASE64.txt."
             exit 1
           fi
-
           if [[ ! -s "$KEYSTORE_PATH" ]]; then
             echo "::error::O keystore decodificado está vazio. Confira o Secret ANDROID_SIGNING_KEYSTORE_BASE64."
             exit 1
           fi
-
           if ! keytool -list -storetype PKCS12 -keystore "$KEYSTORE_PATH" \
             -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null 2>"$KEYTOOL_LOG"; then
             echo "::error::O arquivo Base64 foi decodificado, mas a chave não passou na validação. Confira ANDROID_SIGNING_STORE_PASSWORD e ANDROID_SIGNING_KEY_ALIAS com os arquivos privados. Nenhum valor secreto foi exibido."
@@ -97,8 +150,6 @@ jobs:
           fi
 
           echo "Keystore PKCS12 e alias validados."
-
-          # Usa valores sem CR/LF no resto do job, sem exibi-los nos logs.
           {
             echo "ANDROID_SIGNING_KEYSTORE_PATH=$KEYSTORE_PATH"
             echo "ANDROID_SIGNING_STORE_PASSWORD=$STORE_PASSWORD"
@@ -127,14 +178,16 @@ jobs:
           cp "$APK" release/Central-Inteligente-de-Midia-Android-arm64.apk
           sha256sum release/Central-Inteligente-de-Midia-Android-arm64.apk > release/Central-Inteligente-de-Midia-Android-arm64.apk.sha256
           test -s release/Central-Inteligente-de-Midia-Android-arm64.apk
+          test -s release/Central-Android-Fontes-Completos-Gravador.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Central-Android-APK-assinado
+          name: Central-Android-APK-e-Fontes-Gravador
           path: |
             release/Central-Inteligente-de-Midia-Android-arm64.apk
             release/Central-Inteligente-de-Midia-Android-arm64.apk.sha256
+            release/Central-Android-Fontes-Completos-Gravador.zip
           if-no-files-found: error
           retention-days: 30
 
@@ -149,3 +202,4 @@ jobs:
           files: |
             release/Central-Inteligente-de-Midia-Android-arm64.apk
             release/Central-Inteligente-de-Midia-Android-arm64.apk.sha256
+            release/Central-Android-Fontes-Completos-Gravador.zip
