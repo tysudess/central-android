@@ -1,48 +1,40 @@
-# Integração definitiva do Gravador de Tela — Android
+# Correção da falha no Build Android — Gravador de Tela
 
 **Repositório:** `tysudess/central-android`  
-**Base conferida:** `main` em `388674ebe6cdb9e83d04ae535772e005a2dc2b0c`  
-**Escopo:** gravador de tela, captura de áudio interno, seleção da área e workflows de build/validação. O módulo Capas não é alterado.
+**Base verificada:** `main` no commit `d2e820f16506918f4db436e1655fb0e15859f40b`  
+**Workflows afetados:** `Build Android APK` e `Validar Android (testes e compilação)`.
 
-## O que foi descoberto
+## Diagnóstico do erro
 
-O `main` continha `PlaybackAudioCapture.kt` e o patch de integração como arquivos separados, mas `ScreenRecordService.kt`, `CaptureAreaActivity.kt` e `ScreenRecorderActivity.kt` continuavam com as implementações antigas. Portanto, a classe de áudio nunca era chamada ao iniciar uma gravação pelo botão da aba.
+Os dois workflows falharam na etapa `Integrar captura de áudio e correção da seleção de área`, antes de configurar o Java ou executar o Gradle. O comando `git apply --check 02-aplicar-correcao-audio-area.patch` rejeitou dois hunks por divergência de contexto:
 
-## O que este pacote corrige
+- `ScreenRecordService.kt`, próximo à declaração do arquivo temporário do gravador;
+- `ScreenRecorderActivity.kt`, próximo ao texto explicativo da configuração.
 
-1. Atualiza os workflows para aplicar automaticamente o patch antes de compilar e validar o Android.
-2. Mantém o áudio interno separado do microfone: o áudio interno é iniciado pela captura de reprodução do Android; o microfone continua opcional.
-3. Ajusta a seleção de área usando a referência do display inteiro, além de pedir captura do display padrão no Android 14+.
-4. O workflow `Build Android APK` gera também um artefato ZIP contendo os **arquivos-fonte completos já integrados**, com os caminhos originais do repositório.
-5. O workflow de validação compila a mesma integração, evitando uma validação bem-sucedida de fontes antigos.
+O build, portanto, não chegou a compilar o código Kotlin. Não era um erro do Gradle.
 
-## Arquivos para copiar para o repositório
+## Arquivos incluídos
 
-Copie os itens deste pacote para a raiz de `central-android`, preservando os caminhos:
+Substitua os três arquivos pelos que estão no ZIP, preservando estes caminhos a partir da raiz do repositório:
 
-- `.github/workflows/build-android.yml` — substitui o workflow atual de APK.
-- `.github/workflows/validate-android.yml` — substitui o workflow atual de validação.
-- `02-aplicar-correcao-audio-area.patch` — patch versionado e aplicado pelos workflows.
-- `app/src/main/java/br/com/centralmidia/android/recording/PlaybackAudioCapture.kt` — classe completa de captura e codificação do áudio interno.
+- `.github/workflows/build-android.yml` — workflow completo, com a etapa de integração chamando o script robusto;
+- `.github/workflows/validate-android.yml` — workflow completo com a mesma chamada;
+- `scripts/integrar_gravador.py` — aplica os hunks válidos do patch, corrige os dois pontos divergentes por âncoras verificadas, remove arquivos `.rej` e valida se a integração ficou completa.
 
-Os dois últimos já existem no `main` consultado, mas estão incluídos aqui para que o conjunto fique completo e coerente.
+## Aplicação
 
-## Como aplicar
+1. Extraia o ZIP na raiz de uma cópia atualizada do repositório `central-android`, substituindo os dois workflows e adicionando o script em `scripts/`.
+2. Confira os três arquivos alterados e faça o commit na `main`.
+3. Execute novamente `Validar Android` e `Build Android APK` em GitHub Actions.
 
-1. Baixe o ZIP e extraia seu conteúdo.
-2. Envie os arquivos para o GitHub nos mesmos caminhos indicados acima, substituindo os dois workflows existentes.
-3. Faça o commit na branch `main`.
-4. Abra **Actions** e confira os workflows `Validar Android (testes e compilação)` e `Build Android APK`.
-5. Quando `Build Android APK` terminar com sucesso, abra o artefato `Central-Android-APK-e-Fontes-Gravador`.
-6. Baixe `Central-Android-Fontes-Completos-Gravador.zip`. Esse segundo ZIP contém os cinco arquivos completos que receberam a integração. Copie-os para o repositório, preservando os caminhos, e faça um novo commit. Assim o código-fonte também fica efetivamente integrado no `main`, sem depender do patch nos builds seguintes.
+O script é idempotente: se detectar que os fontes já estão totalmente integrados, não aplica o patch novamente.
 
-## Limites de captura de áudio
+## Escopo e cuidados
 
-- Áudio interno: Android 10/API 29 ou superior, permissão `RECORD_AUDIO` e autorização da sessão `MediaProjection`.
-- O aplicativo que reproduz o som precisa permitir a captura. Apps podem restringir a captura; áudio protegido por DRM ou bloqueado pelo aplicativo de origem não pode ser gravado.
-- Microfone: segue opcional pela opção da aba.
-- O Android 9 ou anterior não oferece a API de captura de áudio interno; nesses aparelhos permanece apenas a gravação pelo microfone.
+- Não altera o módulo Capas.
+- Não altera diretamente o GitHub; o ZIP contém somente os arquivos a serem substituídos/adicionados.
+- A mudança corrige o passo de integração que impedia o build de começar. Ela não comprova, por si só, que o áudio será capturado em todos os aplicativos; isso ainda depende de teste em aparelho e das restrições de captura do Android.
 
-## Validação
+## Validação nesta entrega
 
-A verificação de sintaxe dos YAMLs, a leitura estrutural do patch e a integridade do ZIP são feitas nesta preparação. A compilação Gradle real e o teste em aparelho serão realizados pelos workflows após o upload. Não foi alegado teste físico nem sucesso de build desta nova integração.
+O script passou pela verificação sintática de Python e os workflows passaram pela leitura/validação estrutural YAML. O build real deve ser reexecutado no GitHub depois que esses três arquivos forem enviados.
