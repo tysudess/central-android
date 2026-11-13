@@ -42,28 +42,8 @@ jobs:
       - name: Sincronizar fontes, login e Capas com o desktop
         run: python scripts/sync_desktop.py desktop
 
-      # O main contém o patch e PlaybackAudioCapture.kt, mas os fontes ainda
-      # precisam receber a integração antes de qualquer build de APK.
       - name: Integrar captura de áudio e correção da seleção de área
-        shell: bash
-        run: |
-          set -euo pipefail
-          PATCH="02-aplicar-correcao-audio-area.patch"
-          SERVICE="app/src/main/java/br/com/centralmidia/android/recording/ScreenRecordService.kt"
-          CAPTURE="app/src/main/java/br/com/centralmidia/android/ui/CaptureAreaActivity.kt"
-          if grep -q 'playbackAudioCapture = runCatching' "$SERVICE" && \
-             grep -q 'MediaProjectionConfig.createConfigForDefaultDisplay' "$CAPTURE"; then
-            echo "Integração do gravador já está presente nos fontes."
-          else
-            test -s "$PATCH" || { echo "::error::Patch de integração não encontrado: $PATCH"; exit 1; }
-            test -s "app/src/main/java/br/com/centralmidia/android/recording/PlaybackAudioCapture.kt" || {
-              echo "::error::Classe PlaybackAudioCapture.kt não encontrada."
-              exit 1
-            }
-            git apply --check "$PATCH"
-            git apply "$PATCH"
-            echo "Captura de áudio interno e ajuste da seleção integrados aos fontes de build."
-          fi
+        run: python scripts/integrar_gravador.py
 
       # Gera os arquivos Kotlin/XML completos já integrados, com caminhos do repo.
       - name: Preparar ZIP com fontes completos do gravador
