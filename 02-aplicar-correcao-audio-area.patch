@@ -1,0 +1,365 @@
+diff --git a/app/src/main/java/br/com/centralmidia/android/recording/ScreenRecordService.kt b/app/src/main/java/br/com/centralmidia/android/recording/ScreenRecordService.kt
+--- a/app/src/main/java/br/com/centralmidia/android/recording/ScreenRecordService.kt
++++ b/app/src/main/java/br/com/centralmidia/android/recording/ScreenRecordService.kt
+@@ -10,4 +10,6 @@ import android.graphics.Canvas
+ import android.graphics.Color
+ import android.graphics.Paint
+ import android.graphics.PixelFormat
++import android.graphics.Point
++import android.graphics.Rect
+ import android.graphics.RectF
+@@ -57,3 +58,4 @@ class ScreenRecordService : Service() {
+     private var recorder: MediaRecorder? = null
+     private var transformer: Transformer? = null
+     private var rawFile: File? = null
++    private var playbackAudioCapture: PlaybackAudioCapture? = null
+@@ -154,7 +156,14 @@ class ScreenRecordService : Service() {
+                 ?: error("Permissão de captura não recebida.")
+ 
+             val requestedMic = intent.getBooleanExtra(EXTRA_MIC, false)
++            val recordAudioGranted = ContextCompat.checkSelfPermission(
++                this,
++                Manifest.permission.RECORD_AUDIO,
++            ) == PackageManager.PERMISSION_GRANTED
+             val withMic = requestedMic &&
+-                ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
++                recordAudioGranted
++            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !recordAudioGranted) {
++                error("Conceda à Central a permissão de áudio para gravar o som interno do aparelho.")
++            }
+             val fps = intent.getIntExtra(EXTRA_FPS, 30).coerceIn(15, 60)
+             val quality = intent.getStringExtra(EXTRA_QUALITY).orEmpty().ifBlank { "original" }
+@@ -168,15 +174,4 @@ class ScreenRecordService : Service() {
+             isWidgetEnabled = prefs.getBoolean(KEY_ENABLED, true)
+             startForegroundRecorder(withMic)
+ 
+-            val screenWindowManager = getSystemService(WindowManager::class.java)
+-            val bounds = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+-                screenWindowManager.maximumWindowMetrics.bounds
+-            } else {
+-                @Suppress("DEPRECATION")
+-                android.graphics.Rect(
+-                    0,
+-                    0,
+-                    resources.displayMetrics.widthPixels,
+-                    resources.displayMetrics.heightPixels,
+-                )
+-            }
++            val bounds = captureDisplayBounds()
+@@ -226,5 +221,18 @@ class ScreenRecordService : Service() {
+             projection = getSystemService(MediaProjectionManager::class.java)
+                 .getMediaProjection(resultCode, resultData)
+ 
++            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && recordAudioGranted) {
++                val audioFile = File(tempDir, "playback-audio-${System.currentTimeMillis()}.mp4")
++                playbackAudioCapture = runCatching {
++                    PlaybackAudioCapture(
++                        projection ?: error("A sessão de captura de tela não foi criada."),
++                        audioFile,
++                    ).also { it.start() }
++                }.onFailure {
++                    lastError = "O áudio interno não pôde ser iniciado: ${it.message ?: "falha de captura"}"
++                    deleteQuietly(audioFile)
++                }.getOrNull()
++            }
++
+             projection?.registerCallback(
+                 object : MediaProjection.Callback() {
+@@ -258,33 +258,17 @@ class ScreenRecordService : Service() {
+             isRecording = true
+             isPaused = false
+ 
+-            var widgetVisibleDuringCapture = false
+-
+-            if (
+-                isWidgetEnabled &&
+-                Settings.canDrawOverlays(this) &&
+-                needsCrop()
+-            ) {
+-                widgetVisibleDuringCapture =
+-                    showFloatingWidget(
+-                        placeOutsideCapture = true,
+-                    )
+-
+-                if (!widgetVisibleDuringCapture) {
+-                    hideFloatingWidget()
+-                }
+-            } else {
+-                // Em tela inteira o Android não oferece exclusão pública de um
+-                // overlay da MediaProjection sem gerar artefatos. Por isso o
+-                // widget some enquanto grava e os controles ficam na notificação.
+-                hideFloatingWidget()
+-            }
+-
+-            if (needsCrop() && !widgetVisibleDuringCapture) {
+-                updateNotification(
+-                    "Gravando área • pausar/parar pela notificação",
+-                )
+-            } else {
+-                updateNotification()
+-            }
++            // O flutuador fica totalmente oculto durante qualquer captura.
++            // Os controles continuam disponíveis na notificação persistente.
++            hideFloatingWidget()
++
++            val audioStatus = if (playbackAudioCapture != null) {
++                " • áudio interno ativo"
++            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
++                " • áudio interno indisponível"
++            } else {
++                ""
++            }
++            val recordingStatus = if (needsCrop()) "Gravando área" else "Gravando tela"
++            updateNotification("$recordingStatus$audioStatus • controles pela notificação")
+         } catch (error: Throwable) {
+@@ -327,5 +334,6 @@ class ScreenRecordService : Service() {
+                 }
+                 paused = true
+                 isPaused = true
++                playbackAudioCapture?.setPaused(true)
+                 updateOverlay()
+                 updateNotification()
+@@ -342,5 +350,6 @@ class ScreenRecordService : Service() {
+                 }
+                 paused = false
+                 isPaused = false
++                playbackAudioCapture?.setPaused(false)
+                 updateOverlay()
+                 updateNotification()
+@@ -360,30 +369,52 @@ class ScreenRecordService : Service() {
+ 
+         val captured = rawFile
+         runCatching { recorder?.stop() }
+             .onFailure { lastError = it.message ?: "A gravação terminou antes de gerar um arquivo válido." }
++
++        val playbackAudioFile = runCatching {
++            playbackAudioCapture?.stopAndGetFile()
++        }.onFailure {
++            lastError = "Falha ao finalizar o áudio interno: ${it.message ?: "erro de codificação"}"
++        }.getOrNull()
++        playbackAudioCapture = null
+ 
+         releaseCaptureResources()
+         isRecording = false
+         isPaused = false
+         paused = false
+ 
+         if (captured == null || !captured.exists() || captured.length() <= 0L) {
++            deleteQuietly(playbackAudioFile)
+             deleteQuietly(captured)
+             rawFile = null
+             finishAfterCapture()
+             return
+         }
++
++        val videoWithAudio = if (playbackAudioFile != null) {
++            runCatching {
++                PlaybackAudioCapture.mergeWithVideo(captured, playbackAudioFile)
++            }.onFailure {
++                lastError = "O áudio foi capturado, mas não pôde ser anexado ao vídeo: ${it.message ?: "erro de multiplexação"}"
++            }.getOrDefault(captured)
++        } else {
++            captured
++        }
++        deleteQuietly(playbackAudioFile)
++        if (videoWithAudio != captured) deleteQuietly(captured)
+ 
+         isProcessing = true
+         updateOverlay()
+         updateNotification("Finalizando o vídeo…")
+ 
+         if (needsCrop()) {
+-            cropAndPublish(captured)
++            cropAndPublish(videoWithAudio)
+         } else {
+-            Thread { publishAndFinish(captured, false) }.start()
++            Thread { publishAndFinish(videoWithAudio, false) }.start()
+         }
+     }
+ 
+     private fun releaseCaptureResources() {
++        runCatching { playbackAudioCapture?.stopAndGetFile()?.let(::deleteQuietly) }
++        playbackAudioCapture = null
+         runCatching { recorder?.reset() }
+@@ -398,5 +416,16 @@ class ScreenRecordService : Service() {
+         runCatching { localProjection?.stop() }
+     }
+ 
++    private fun captureDisplayBounds(): Rect {
++        val screenWindowManager = getSystemService(WindowManager::class.java)
++        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
++            Rect(screenWindowManager.maximumWindowMetrics.bounds)
++        } else {
++            @Suppress("DEPRECATION")
++            val realSize = Point().also { screenWindowManager.defaultDisplay.getRealSize(it) }
++            Rect(0, 0, realSize.x, realSize.y)
++        }
++    }
++
+     private fun needsCrop(): Boolean =
+         cropLeft > .005f || cropTop > .005f || cropRight < .995f || cropBottom < .995f
+@@ -1330,6 +1361,7 @@ class ScreenRecordService : Service() {
+ 
+         hideFloatingWidget()
+         hideAreaSelectorOverlay()
++        val captureBounds = captureDisplayBounds()
+ 
+         val wm =
+             getSystemService(
+@@ -1363,5 +1395,6 @@ class ScreenRecordService : Service() {
+ 
+         val area =
+             AreaSelectionView(
+                 this,
++                captureBounds,
+             )
+@@ -1838,5 +1871,7 @@ class ScreenRecordService : Service() {
+     private class AreaSelectionView(
+         context:
+             android.content.Context,
++        screenBounds: Rect,
+     ) : View(context) {
++        private val displayBounds = Rect(screenBounds)
+         private val shade =
+@@ -2328,23 +2363,28 @@ class ScreenRecordService : Service() {
+         }
+ 
+         fun normalizedRegion():
+             AreaRegion {
++            val screenLocation = IntArray(2)
++            getLocationOnScreen(screenLocation)
+             val safeW =
+                 max(
+                     1,
+-                    width,
++                    displayBounds.width(),
+                 )
+                     .toFloat()
+ 
+             val safeH =
+                 max(
+                     1,
+-                    height,
++                    displayBounds.height(),
+                 )
+                     .toFloat()
++
++            val originX = screenLocation[0].toFloat() - displayBounds.left.toFloat()
++            val originY = screenLocation[1].toFloat() - displayBounds.top.toFloat()
+ 
+             return AreaRegion(
+                 left =
+                     (
+-                        rect.left /
++                        (originX + rect.left) /
+                             safeW
+@@ -2354,4 +2401,4 @@ class ScreenRecordService : Service() {
+                 top =
+                     (
+-                        rect.top /
++                        (originY + rect.top) /
+                             safeH
+@@ -2363,4 +2410,4 @@ class ScreenRecordService : Service() {
+                 right =
+                     (
+-                        rect.right /
++                        (originX + rect.right) /
+                             safeW
+@@ -2372,6 +2419,6 @@ class ScreenRecordService : Service() {
+                 bottom =
+                     (
+-                        rect.bottom /
++                        (originY + rect.bottom) /
+                             safeH
+                 )
+         }
+
+diff --git a/app/src/main/java/br/com/centralmidia/android/ui/CaptureAreaActivity.kt b/app/src/main/java/br/com/centralmidia/android/ui/CaptureAreaActivity.kt
+--- a/app/src/main/java/br/com/centralmidia/android/ui/CaptureAreaActivity.kt
++++ b/app/src/main/java/br/com/centralmidia/android/ui/CaptureAreaActivity.kt
+@@ -7,2 +7,3 @@ import android.graphics.Color
+ import android.media.projection.MediaProjectionManager
++import android.media.projection.MediaProjectionConfig
+ import android.os.Build
+@@ -52,9 +53,11 @@ class CaptureAreaActivity : BaseActivity() {
+                     KEY_MIC,
+                     false,
+                 )
+ 
+-            val micOk =
+-                !micRequested ||
++            val audioPermissionRequired =
++                Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q || micRequested
++            val audioPermissionOk =
++                !audioPermissionRequired ||
+                     result[
+                         Manifest.permission.RECORD_AUDIO
+                     ] == true ||
+@@ -78,7 +82,7 @@ class CaptureAreaActivity : BaseActivity() {
+                     ) ==
+                     PackageManager.PERMISSION_GRANTED
+ 
+-            if (!micOk) {
++            if (!audioPermissionOk) {
+                 toast(
+-                    "Autorize o microfone ou desative o áudio no Gravador.",
++                    "Autorize a permissão de áudio para gravar o som interno do aparelho.",
+                 )
+@@ -140,11 +144,10 @@ class CaptureAreaActivity : BaseActivity() {
+     private fun beginPermissionFlow() {
+         val needed =
+             mutableListOf<String>()
+ 
++        val audioPermissionRequired = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ||
++            prefs.getBoolean(KEY_MIC, false)
+         if (
+-            prefs.getBoolean(
+-                KEY_MIC,
+-                false,
+-            ) &&
++            audioPermissionRequired &&
+             ContextCompat.checkSelfPermission(
+                 this,
+@@ -183,9 +191,14 @@ class CaptureAreaActivity : BaseActivity() {
+         val manager =
+             getSystemService(
+                 MediaProjectionManager::class.java,
+             )
+ 
++        val captureIntent = if (Build.VERSION.SDK_INT >= 34) {
++            manager.createScreenCaptureIntent(MediaProjectionConfig.createConfigForDefaultDisplay())
++        } else {
++            manager.createScreenCaptureIntent()
++        }
+         projectionPermission.launch(
+-            manager.createScreenCaptureIntent(),
++            captureIntent,
+         )
+     }
+
+diff --git a/app/src/main/java/br/com/centralmidia/android/ui/ScreenRecorderActivity.kt b/app/src/main/java/br/com/centralmidia/android/ui/ScreenRecorderActivity.kt
+--- a/app/src/main/java/br/com/centralmidia/android/ui/ScreenRecorderActivity.kt
++++ b/app/src/main/java/br/com/centralmidia/android/ui/ScreenRecorderActivity.kt
+@@ -231,5 +231,5 @@ class ScreenRecorderActivity : BaseActivity() {
+         mic = CheckBox(this).apply {
+-            text = "Gravar microfone"
++            text = "Adicionar microfone à gravação"
+             isChecked = prefs.getBoolean(KEY_MIC, false)
+             setTextColor(MobileUi.NAVY)
+         }
+@@ -245,3 +245,3 @@ class ScreenRecorderActivity : BaseActivity() {
+             MobileUi.text(
+                 this,
+-                "No widget, toque em ÁREA para marcar ou redefinir a região que será gravada. Depois toque em REC. O widget ficará fora da área selecionada para continuar disponível sem aparecer no vídeo final.",
++                "O som interno do aparelho é capturado automaticamente no Android 10+ quando o aplicativo permite. Marque a opção para adicionar também o microfone. Na seleção de área, a moldura agora é convertida usando a posição real na tela inteira.",
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -20,6 +20,7 @@
+     <application
+         android:name=".CentralApp"
+         android:allowBackup="false"
++        android:allowAudioPlaybackCapture="true"
+         android:extractNativeLibs="true"
+         android:icon="@mipmap/ic_launcher"
+         android:label="Central Inteligente de Mídia"
