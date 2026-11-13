@@ -1,49 +1,48 @@
-# Correção do Gravador de Tela — áudio interno e seleção de área
+# Integração definitiva do Gravador de Tela — Android
 
 **Repositório:** `tysudess/central-android`  
-**Base obrigatória:** `main` no commit `bf22bff8973ada2296eff7215c3a37192c247b9f`  
-**Escopo:** somente gravador de tela, fluxo de autorização e manifesto do app. O módulo Capas não é alterado.
+**Base conferida:** `main` em `388674ebe6cdb9e83d04ae535772e005a2dc2b0c`  
+**Escopo:** gravador de tela, captura de áudio interno, seleção da área e workflows de build/validação. O módulo Capas não é alterado.
 
-## O que esta correção faz
+## O que foi descoberto
 
-1. Acrescenta `PlaybackAudioCapture.kt`, que captura o áudio reproduzido por outros aplicativos no Android 10 (API 29) ou superior, codifica em AAC e combina essa faixa com o vídeo gravado.
-2. Mantém o microfone como opção adicional, sem confundi-lo com o áudio interno.
-3. Solicita a permissão `RECORD_AUDIO` também quando o microfone está desmarcado, pois o Android exige essa permissão para a captura de reprodução.
-4. Pausa e retoma a captura de áudio junto com o vídeo.
-5. Mantém o flutuador oculto durante a gravação; os controles permanecem na notificação.
-6. Corrige a conversão da moldura selecionada para coordenadas relativas ao display, incluindo a posição real do overlay na tela.
-7. No Android 14 ou superior, solicita a captura do display padrão inteiro. Isso evita que a autorização escolha somente uma janela de aplicativo, enquanto a seleção de área foi medida sobre a tela inteira.
-8. Declara que a própria Central permite captura do seu áudio reproduzido. Isso não altera a política de captura de outros aplicativos.
+O `main` continha `PlaybackAudioCapture.kt` e o patch de integração como arquivos separados, mas `ScreenRecordService.kt`, `CaptureAreaActivity.kt` e `ScreenRecorderActivity.kt` continuavam com as implementações antigas. Portanto, a classe de áudio nunca era chamada ao iniciar uma gravação pelo botão da aba.
 
-## Arquivos incluídos
+## O que este pacote corrige
 
-- `app/src/main/java/br/com/centralmidia/android/recording/PlaybackAudioCapture.kt` — arquivo Kotlin novo, completo.
-- `02-aplicar-correcao-audio-area.patch` — alterações nos arquivos existentes:
-  - `ScreenRecordService.kt`
-  - `CaptureAreaActivity.kt`
-  - `ScreenRecorderActivity.kt`
-  - `AndroidManifest.xml`
+1. Atualiza os workflows para aplicar automaticamente o patch antes de compilar e validar o Android.
+2. Mantém o áudio interno separado do microfone: o áudio interno é iniciado pela captura de reprodução do Android; o microfone continua opcional.
+3. Ajusta a seleção de área usando a referência do display inteiro, além de pedir captura do display padrão no Android 14+.
+4. O workflow `Build Android APK` gera também um artefato ZIP contendo os **arquivos-fonte completos já integrados**, com os caminhos originais do repositório.
+5. O workflow de validação compila a mesma integração, evitando uma validação bem-sucedida de fontes antigos.
 
-## Aplicação
+## Arquivos para copiar para o repositório
 
-Este pacote contém o novo arquivo completo e um patch para os arquivos existentes. **Não copie o `.patch` por cima de um arquivo Kotlin.**
+Copie os itens deste pacote para a raiz de `central-android`, preservando os caminhos:
 
-Na raiz de uma cópia atualizada do repositório, faça:
+- `.github/workflows/build-android.yml` — substitui o workflow atual de APK.
+- `.github/workflows/validate-android.yml` — substitui o workflow atual de validação.
+- `02-aplicar-correcao-audio-area.patch` — patch versionado e aplicado pelos workflows.
+- `app/src/main/java/br/com/centralmidia/android/recording/PlaybackAudioCapture.kt` — classe completa de captura e codificação do áudio interno.
 
-1. Copie o arquivo `PlaybackAudioCapture.kt` para o caminho indicado acima, preservando as pastas.
-2. Aplique `02-aplicar-correcao-audio-area.patch` na raiz do repositório com `git apply 02-aplicar-correcao-audio-area.patch`.
-3. Confira as alterações e envie o commit para o GitHub. Não substitua o repositório por uma versão antiga.
-4. Aguarde a execução dos workflows de validação e geração do APK antes de instalar a versão no aparelho.
+Os dois últimos já existem no `main` consultado, mas estão incluídos aqui para que o conjunto fique completo e coerente.
 
-## Limitações reais do Android
+## Como aplicar
 
-- A captura do áudio interno exige Android 10 ou superior e a permissão `RECORD_AUDIO`, além da autorização de captura de tela do Android.
-- O aplicativo que está reproduzindo o som precisa permitir a captura. Aplicativos podem bloquear o áudio por política própria; conteúdo protegido/DRM também pode não ser capturável. A Central não tenta contornar essas proteções.
-- No Android 9 ou anterior, permanece disponível apenas a gravação pelo microfone; a API de captura de reprodução não existe nessas versões.
-- Se o microfone for habilitado junto com o áudio interno, as faixas podem permanecer separadas no MP4. O áudio interno é colocado primeiro para ser a faixa principal na maioria dos players.
+1. Baixe o ZIP e extraia seu conteúdo.
+2. Envie os arquivos para o GitHub nos mesmos caminhos indicados acima, substituindo os dois workflows existentes.
+3. Faça o commit na branch `main`.
+4. Abra **Actions** e confira os workflows `Validar Android (testes e compilação)` e `Build Android APK`.
+5. Quando `Build Android APK` terminar com sucesso, abra o artefato `Central-Android-APK-e-Fontes-Gravador`.
+6. Baixe `Central-Android-Fontes-Completos-Gravador.zip`. Esse segundo ZIP contém os cinco arquivos completos que receberam a integração. Copie-os para o repositório, preservando os caminhos, e faça um novo commit. Assim o código-fonte também fica efetivamente integrado no `main`, sem depender do patch nos builds seguintes.
 
-## Validação realizada nesta preparação
+## Limites de captura de áudio
 
-- A estrutura do patch foi lida pelo parser do Git (`git apply --numstat`).
-- `PlaybackAudioCapture.kt` passou por verificação de sintaxe Kotlin usando stubs locais das APIs Android utilizadas.
-- **Não foi executado um build Gradle completo nem teste físico em aparelho Android nesta etapa.** A validação definitiva depende dos workflows após a aplicação do patch no repositório.
+- Áudio interno: Android 10/API 29 ou superior, permissão `RECORD_AUDIO` e autorização da sessão `MediaProjection`.
+- O aplicativo que reproduz o som precisa permitir a captura. Apps podem restringir a captura; áudio protegido por DRM ou bloqueado pelo aplicativo de origem não pode ser gravado.
+- Microfone: segue opcional pela opção da aba.
+- O Android 9 ou anterior não oferece a API de captura de áudio interno; nesses aparelhos permanece apenas a gravação pelo microfone.
+
+## Validação
+
+A verificação de sintaxe dos YAMLs, a leitura estrutural do patch e a integridade do ZIP são feitas nesta preparação. A compilação Gradle real e o teste em aparelho serão realizados pelos workflows após o upload. Não foi alegado teste físico nem sucesso de build desta nova integração.

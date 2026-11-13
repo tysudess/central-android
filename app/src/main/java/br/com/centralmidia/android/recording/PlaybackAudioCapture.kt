@@ -92,7 +92,7 @@ internal class PlaybackAudioCapture(
                     ExtractorState(audioExtractor, audioTracks),
                     ExtractorState(videoExtractor, videoTracks),
                 )
-                val buffer = ByteBuffer.allocate(maxInput[0].coerceAtMost(16 * 1024 * 1024))
+                val buffer = ByteBuffer.allocateDirect(maxInput[0].coerceAtMost(16 * 1024 * 1024))
                 val info = MediaCodec.BufferInfo()
 
                 while (true) {
